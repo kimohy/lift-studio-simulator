@@ -1,0 +1,72 @@
+{
+  "blender": "5.2.2 LTS",
+  "objects": 521,
+  "stops": [
+    "B5",
+    "B4",
+    "B3",
+    "B2",
+    "B1",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10"
+  ],
+  "animation_checks": [
+    {
+      "frame": 1,
+      "car_height_m": 0,
+      "doors_open": false,
+      "landing": "1"
+    },
+    {
+      "frame": 60,
+      "car_height_m": 0,
+      "doors_open": true,
+      "landing": "1"
+    },
+    {
+      "frame": 150,
+      "car_height_m": 0,
+      "doors_open": false,
+      "landing": "1"
+    },
+    {
+      "frame": 270,
+      "car_height_m": 3.5,
+      "doors_open": false,
+      "landing": "2"
+    },
+    {
+      "frame": 340,
+      "car_height_m": 3.5,
+      "doors_open": true,
+      "landing": "2"
+    },
+    {
+      "frame": 420,
+      "car_height_m": 3.5,
+      "doors_open": false,
+      "landing": "2"
+    },
+    {
+      "frame": 540,
+      "car_height_m": 0,
+      "doors_open": false,
+      "landing": "1"
+    },
+    {
+      "frame": 590,
+      "car_height_m": 0,
+      "doors_open": true,
+      "landing": "1"
+    }
+  ],
+  "status": "PASS"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "lift-studio",
+  "version": "2.0.4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/render-optimization.test.mjs tests/building-enclosure.test.mjs tests/stair-opening.test.mjs tests/guest-room.test.mjs tests/hotel-stay.test.mjs tests/escalator.test.mjs tests/emergency-alarm.test.mjs tests/controller.test.mjs tests/player.test.mjs tests/scene-motion.test.mjs tests/stairs.test.mjs tests/building.test.mjs tests/hotel-world.test.mjs tests/announcements.test.mjs tests/recorded-voice.test.mjs",
+    "build": "esbuild src/app.js --bundle --minify --format=esm --outfile=dist/app.js",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "playwright": "1.56.1"
+  }
+}

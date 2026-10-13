@@ -1,0 +1,2 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {HotelStay} from '../src/hotel-stay.js';
+test('only reception checks in and issues one consistent keycard',()=>{const stay=new HotelStay();assert.equal(stay.checkIn('barista'),null);assert.equal(stay.keycard,null);const card=stay.checkIn('reception-a');assert.deepEqual(card,{room:'301',floor:'3',hotel:'GRAND HOTEL'});assert.equal(stay.checkIn('reception-b'),card);});

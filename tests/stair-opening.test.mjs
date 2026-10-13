@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import * as THREE from 'three';import {HotelScene} from '../src/hotel-scene.js';
+const slab=(y=0)=>{const scene=Object.create(HotelScene.prototype),g=new THREE.Group();scene.shaftClearSlab(g,'Test_slab',25.8,.35,28,-1.1,y-.20,13,new THREE.MeshBasicMaterial());g.updateMatrixWorld(true);return g;};
+const hit=(g,x,z,y)=>new THREE.Raycaster(new THREE.Vector3(x,y+.5,z),new THREE.Vector3(0,-1,0),0,1).intersectObjects(g.children,false);
+test('stairwell flight openings stay empty on every facade slab',()=>{for(const y of [0,3.5,7,10.5]){const g=slab(y);for(const [x,z] of [[4.275,4.5],[6.225,5.2],[5.3,6.8]])assert.equal(hit(g,x,z,y).length,0,`covered stairwell x${x} z${z}`);}});
+test('shaft and escalator openings remain clear while surrounding floors remain',()=>{const g=slab();for(const [x,z] of [[0,0],[-7,4]])assert.equal(hit(g,x,z,0).length,0);for(const [x,z] of [[9,5],[4,10],[0,5],[-12,4]])assert.ok(hit(g,x,z,0).length>0);});

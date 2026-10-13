@@ -1,0 +1,6 @@
+node_modules/
+.env*
+.openai/
+.sites-runtime/
+test-results/
+blender-output/

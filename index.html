@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Grand Hotel — 호텔 체험</title>
-  <meta name="description" content="일인칭으로 호텔 로비, 카페, 객실 복도와 주차장을 둘러보고 직원과 만나세요. 엘리베이터와 계단으로 B5부터 10층까지 이동할 수 있습니다.">
+  <meta name="description" content="일인칭으로 호텔 로비, 카페, 301호 객실, 10층 루프탑 인피니티 풀과 지하 주차장을 둘러보고 직원·투숙객·룸서비스 로봇과 만나세요. 엘리베이터와 계단으로 B5부터 10층까지 이동할 수 있습니다.">
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./style.css?v=2.0.6">
+  <link rel="stylesheet" href="./style.css?v=2.1.0">
 </head>
 <body>
   <header class="topbar">
@@ -21,6 +21,8 @@
     <span class="project-title">호텔 체험 <span class="version">B5—10F</span></span>
     <div class="top-actions">
       <button id="game-toggle" class="game-toggle" aria-pressed="false" disabled>호텔 체험 시작</button>
+      <button id="topbar-guide" class="quiet">호텔 가이드</button>
+      <button id="time-of-day" class="quiet" title="호텔 시간대 조명 전환 (주간/노을/야경)">☀️ 주간</button>
       <button id="sound" class="quiet" aria-pressed="false">음성 안내 켜기</button>
       <button id="reset" class="quiet">초기화</button>
       <span class="sim-label">HOTEL EXPERIENCE</span>
@@ -97,6 +99,8 @@
           </div>
 
           <div class="game-tools">
+            <button id="guide-button" title="호텔 컨시어지 가이드 & 빠른 이동 (G / Tab)">호텔 가이드 · 0/6</button>
+            <button id="game-time-of-day" title="시간대 분위기 전환">☀️ 주간</button>
             <button id="keycard-button" hidden>키카드 · 301</button>
             <button id="game-fullscreen" aria-pressed="false">전체화면</button>
             <button id="game-lock">마우스 고정</button>
@@ -117,8 +121,9 @@
           <div class="game-keys">
             <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / 방향키 이동</span>
             <span><kbd>Shift</kbd> 빠르게 이동</span>
+            <span><kbd>G</kbd>/<kbd>Tab</kbd> 호텔 가이드</span>
             <span>드래그 시점 회전</span>
-            <span>클릭 버튼 · 문 · 직원</span>
+            <span>클릭 버튼 · 시설 · 직원</span>
             <span><kbd>Esc</kbd> 마우스 / 전체화면 해제</span>
           </div>
         </div>
@@ -181,7 +186,7 @@
           <strong id="panel-floor">1</strong>
           <div>
             <span id="panel-state">READY</span>
-            <small>B5 — 10F</small>
+            <small id="cabin-load">0명 · 0kg (0%)</small>
           </div>
         </div>
 
@@ -192,6 +197,12 @@
           <button id="close-door" title="문 닫힘"><span>▶│◀</span>닫힘</button>
           <button id="alarm" class="alarm-button" aria-pressed="false"><span>♧</span>비상 호출</button>
         </div>
+
+        <button id="vip-mode" class="sensor-button vip-button" aria-pressed="false">
+          <span class="sensor-icon">★</span>
+          <span>VIP 직통 운행 (외부 호출 패스)</span>
+          <span class="switch"></span>
+        </button>
 
         <button id="obstruction" class="sensor-button" aria-pressed="false">
           <span class="sensor-icon">⌁</span>
@@ -214,6 +225,7 @@
         <div class="signal-row"><span>구동 인버터</span><b id="drive">대기</b></div>
         <div class="signal-row"><span>브레이크</span><b id="brake">체결</b></div>
         <div class="signal-row"><span>감지선</span><b id="sensor">정상</b></div>
+        <div class="signal-row"><span>하중 센서</span><b id="load-sensor">0kg (0%)</b></div>
         <div class="signal-row"><span>제어 상태</span><b id="logic-state">IDLE</b></div>
       </section>
     </aside>
@@ -229,8 +241,8 @@
   </main>
 
   <footer>
-    <span>로비 · 카페 · 호텔 객실 · 지하 주차장</span>
-    <span>WASD / 방향키 / 터치 패드로 걸으며 만나는 호텔 체험</span>
+    <span>로비 · 그랜드 카페 · 301호 객실 · 10층 루프탑 인피니티 풀 · 지하 주차장</span>
+    <span>WASD / 방향키 / 터치 패드 / 호텔 가이드로 즐기는 3D 호텔 체험</span>
   </footer>
 
   <dialog id="keycard-dialog" class="keycard-dialog">
@@ -245,6 +257,32 @@
     <p class="keycard-note">3층 301호 문 또는 카드 리더를 클릭해 객실에 들어가세요.</p>
   </dialog>
 
-  <script type="module" src="./app.js?v=2.0.5"></script>
+  <dialog id="concierge-dialog" class="concierge-dialog" aria-labelledby="concierge-title">
+    <div class="concierge-header">
+      <div>
+        <span class="eyebrow">GRAND HOTEL CONCIERGE</span>
+        <h2 id="concierge-title">호텔 투어 가이드 & 빠른 이동</h2>
+      </div>
+      <button id="concierge-close" aria-label="가이드 닫기">닫기</button>
+    </div>
+
+    <div class="concierge-section">
+      <div class="concierge-section-head">
+        <strong>호텔 체험 체크리스트</strong>
+        <span id="concierge-progress">0 / 6 완료</span>
+      </div>
+      <ul id="concierge-checklist" class="concierge-checklist"></ul>
+    </div>
+
+    <div class="concierge-section">
+      <div class="concierge-section-head">
+        <strong>주요 명소 빠른 이동 (Fast Travel)</strong>
+        <small>클릭 시 해당 장소로 즉시 이동합니다</small>
+      </div>
+      <div id="concierge-spots" class="concierge-spots"></div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./app.js?v=2.1.0"></script>
 </body>
 </html>

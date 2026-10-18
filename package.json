@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/hotel-improvements.test.mjs tests/hotel-npcs.test.mjs tests/elevator-audio.test.mjs tests/render-optimization.test.mjs tests/building-enclosure.test.mjs tests/stair-opening.test.mjs tests/guest-room.test.mjs tests/hotel-stay.test.mjs tests/escalator.test.mjs tests/emergency-alarm.test.mjs tests/controller.test.mjs tests/player.test.mjs tests/scene-motion.test.mjs tests/stairs.test.mjs tests/building.test.mjs tests/hotel-world.test.mjs tests/announcements.test.mjs tests/recorded-voice.test.mjs",
+    "test": "node --test tests/floor-directory.test.mjs tests/hotel-improvements.test.mjs tests/hotel-npcs.test.mjs tests/elevator-audio.test.mjs tests/render-optimization.test.mjs tests/building-enclosure.test.mjs tests/stair-opening.test.mjs tests/guest-room.test.mjs tests/hotel-stay.test.mjs tests/escalator.test.mjs tests/emergency-alarm.test.mjs tests/controller.test.mjs tests/player.test.mjs tests/scene-motion.test.mjs tests/stairs.test.mjs tests/building.test.mjs tests/hotel-world.test.mjs tests/announcements.test.mjs tests/recorded-voice.test.mjs",
     "build": "esbuild src/app.js --bundle --minify --format=esm --outfile=dist/app.js",
     "dev": "esbuild src/app.js --bundle --format=esm --outfile=dist/app.js --watch",
     "start": "node server.mjs"

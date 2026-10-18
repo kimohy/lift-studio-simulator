@@ -20,3 +20,27 @@ test('escalator rear space permits comfortable walking and camera stays bounded 
   assert.equal(p.canOccupy(-6.5, 7.95, c), false);
   assert.equal(p.canOccupy(-6.5, 8.2, c), false);
 });
+
+test('escalator emergency stop toggles state and halts carrying', () => {
+  const e = new Escalators(), p = new WalkingPlayer(null, null, e), c = new LiftController();
+  board(p, 5);
+  const startX = p.x;
+  e.carry(p, 0.5, c);
+  assert.notEqual(p.x, startX);
+
+  assert.equal(e.stopped, false);
+  const stopped = e.toggleStop();
+  assert.equal(stopped, true);
+  assert.equal(e.stopped, true);
+
+  const currentX = p.x;
+  e.carry(p, 1.0, c);
+  assert.equal(p.x, currentX, 'Player position should not change while stopped');
+
+  const resumed = e.toggleStop();
+  assert.equal(resumed, false);
+  assert.equal(e.stopped, false);
+  e.carry(p, 0.5, c);
+  assert.notEqual(p.x, currentX, 'Player position should advance when resumed');
+});
+

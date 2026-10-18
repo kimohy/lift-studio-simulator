@@ -20,6 +20,15 @@ export function escalatorLayout(f) {
 const inRange = (v, a, b) => v >= a - 1e-7 && v <= b + 1e-7;
 
 export class Escalators {
+  constructor() {
+    this.stopped = false;
+  }
+
+  toggleStop() {
+    this.stopped = !this.stopped;
+    return this.stopped;
+  }
+
   contains(x, z) {
     return inRange(x, -10.8, -2.28) && inRange(z, 1.4, 7.85) && (x <= -2.8 || inRange(z, 2, 2.7));
   }
@@ -51,7 +60,7 @@ export class Escalators {
   }
 
   carry(p, dt, c) {
-    if (c.paused || p.zone !== 'escalator' || !this.onFlight(p.x, p.z)) return;
+    if (c.paused || this.stopped || p.zone !== 'escalator' || !this.onFlight(p.x, p.z)) return;
     const f = Math.max(0, Math.min(13, Math.floor(p.escalatorY / 3.5 + 5 + 1e-8)));
     const l = escalatorLayout(f);
     const direction = this.lane(p.z, f);

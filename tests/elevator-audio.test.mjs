@@ -172,4 +172,12 @@ test('HotelSoundEffects synthesizes button, keycard, robot, water, intercom, and
   assert.equal(sfx.playMusic('bossa'), true);
   assert.equal(sfx.playMusic('strings'), true);
   assert.equal(sfx.playMusic('off'), true);
+  assert.equal(sfx.playDoorMove(), true);
+  assert.equal(sfx.playDoorLatch(), true);
+  assert.equal(sfx.playEscalatorRoll(), true);
+  assert.equal(sfx.playCarChirp(), true);
+  assert.equal(sfx.playCoffeeSip(), true);
+  assert.equal(sfx.playSplash(), true);
+  assert.equal(sfx.playOpticZoom(), true);
+  assert.equal(sfx.playBuzzer(), true);
 });

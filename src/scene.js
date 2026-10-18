@@ -416,7 +416,7 @@ export class LiftScene {
     this.gameRoom.visible = false;
     if (this.game?.room) this.guestRoomView = new GuestRoomView(this.scene, this.game.room, this.pickables);
     if (this.game?.pool) this.rooftopPoolView = new RooftopPoolView(this.scene, this.game.pool, this.pickables);
-    if (this.game?.escalators) this.escalatorView = new EscalatorView(this.scene);
+    if (this.game?.escalators) this.escalatorView = new EscalatorView(this.scene, this.pickables);
     if (this.game?.world) this.hotelScene = new HotelScene(this.scene, this.game.world, this.pickables);
     if (this.game?.stairs) this.stairwellView = new StairwellView(this.scene, this.game.stairs, this.pickables);
     if (this.game?.npcs) this.npcView = new NPCView(this.scene, this.game.npcs, this.pickables);
@@ -569,6 +569,23 @@ export class LiftScene {
 
     // 4. Right Side Wall Horizontal Accessible COP (장애인용 가로형 조작반, 휠체어 눈높이 y ≈ 0.92m)
     this.buildAccessibleHorizontalCOP();
+
+    // 5. Multi-beam Infrared Safety Curtain Sensor Strips on Door Jambs
+    this.safetySensorMat = new THREE.MeshStandardMaterial({
+      color: 0x33ee66,
+      emissive: 0x22cc55,
+      emissiveIntensity: 0.45,
+      roughness: 0.2,
+    });
+    const stripGeo = new THREE.BoxGeometry(0.014, 2.08, 0.016);
+    this.safetyStrips = [];
+    for (const sx of [-0.485, 0.485]) {
+      const strip = new THREE.Mesh(stripGeo, this.safetySensorMat);
+      strip.name = `Cabin_safety_strip_${sx < 0 ? 'L' : 'R'}`;
+      strip.position.set(sx, 1.1, 0.69);
+      this.car.add(strip);
+      this.safetyStrips.push(strip);
+    }
   }
 
   buildAccessibleHorizontalCOP() {
@@ -827,7 +844,7 @@ export class LiftScene {
 
     this.guestRoomView?.update();
     this.rooftopPoolView?.update(c.time);
-    this.escalatorView?.update(c.time, c.paused);
+    this.escalatorView?.update(c.time, c.paused, this.game?.escalators?.stopped);
     this.stairwellView?.update();
     this.hotelScene?.update(c.time, this.game?.player);
     this.npcView?.update(c.time, visibleFloor, this.view);
@@ -879,10 +896,41 @@ export class LiftScene {
       }
     }
 
+    // Multi-beam optical safety curtain sensor indicator
+    if (this.safetySensorMat) {
+      const obstructed = c.obstruction || Boolean(this.game?.player?.inDoorway?.());
+      if (obstructed) {
+        const pulse = 0.5 + Math.sin((c.time || 0) * 14) * 0.5;
+        this.safetySensorMat.color.setHex(0xff3322);
+        this.safetySensorMat.emissive.setHex(0xdd1100);
+        this.safetySensorMat.emissiveIntensity = 0.4 + pulse * 1.2;
+      } else {
+        this.safetySensorMat.color.setHex(0x33ee66);
+        this.safetySensorMat.emissive.setHex(0x22cc55);
+        this.safetySensorMat.emissiveIntensity = 0.4;
+      }
+    }
+
     for (const o of this.doors) {
       const open =
         o.userData.simRole === 'carDoor' || (o.userData.floorIndex === c.floor && c.aligned()) ? c.door : 0;
       o.position.x = o.userData.side * (0.228 + 0.46 * open);
+    }
+
+    // Door mechanical movement and latch sound triggers
+    if (this.sfx) {
+      if (c.state !== this.lastDoorState) {
+        if (c.state === 'opening' || c.state === 'closing') {
+          this.sfx.playDoorMove();
+        }
+        this.lastDoorState = c.state;
+      }
+      if (c.door === 0 && (this.lastDoorPos ?? 0) > 0.01) {
+        this.sfx.playDoorLatch();
+      } else if (c.door >= 0.99 && (this.lastDoorPos ?? 0) < 0.98) {
+        this.sfx.playDoorLatch();
+      }
+      this.lastDoorPos = c.door;
     }
 
     for (const r of this.ropes) {

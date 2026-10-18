@@ -141,20 +141,40 @@ function act(action, floor, direction, data) {
     game?.interactRoom(action);
     return;
   }
-  if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar'].includes(action)) {
-    if (action === 'poolSwim' || action === 'poolJacuzzi') sfx.playWater();
-    else sfx.playButton();
+  if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar', 'poolTelescope'].includes(action)) {
+    if (action === 'poolSwim' || action === 'poolJacuzzi') {
+      sfx.playSplash();
+      sfx.playWater();
+    } else if (action === 'poolTelescope') {
+      sfx.playOpticZoom();
+    } else {
+      sfx.playButton();
+    }
     game?.interactPool(action, data);
     return;
   }
   if (['cafeOrder', 'cafeSit', 'loungeSit'].includes(action)) {
-    sfx.playButton();
+    if (action === 'cafeOrder' && game?.holdingCoffee) {
+      sfx.playCoffeeSip();
+    } else {
+      sfx.playButton();
+    }
     game?.interactLobby(action, data);
     return;
   }
   if (action === 'parkingCar') {
-    sfx.playKeycard(true);
+    sfx.playCarChirp();
     game?.interactParking(data);
+    return;
+  }
+  if (action === 'escalatorStop') {
+    sfx.playBuzzer();
+    const stopped = game ? game.toggleEscalatorStop() : false;
+    const msg = stopped
+      ? '🚨 [에스컬레이터 비상정지] 안전 스위치가 작동되어 에스컬레이터 운행이 긴급 정지되었습니다. (재클릭 시 복구)'
+      : '🟢 [에스컬레이터 정상가동] 비상정지 스위치가 해제되어 에스컬레이터가 정상 운행합니다.';
+    say(msg);
+    if (game?.active) game.message(msg);
     return;
   }
   if (action === 'otherRoomDoor') {
@@ -656,6 +676,7 @@ function updateUI() {
 
 try {
   view = new LiftScene($('scene'), act);
+  view.sfx = sfx;
   game = new GameMode(view, controller);
   view
     .load()

@@ -4,12 +4,13 @@ import { escalatorLayout } from './escalator.js';
 import { hotelSignTexture } from './hotel-sign.js';
 
 export class EscalatorView {
-  constructor(scene) {
+  constructor(scene, pickables = null) {
     this.root = new THREE.Group();
     this.root.name = 'Hotel_escalators';
     scene.add(this.root);
     this.flights = [];
     this.signs = [];
+    this.pickables = pickables;
 
     const steel = new THREE.MeshStandardMaterial({ color: 0x879594, metalness: 0.8, roughness: 0.28 });
     const black = new THREE.MeshStandardMaterial({ color: 0x1d272b, roughness: 0.6 });
@@ -22,6 +23,19 @@ export class EscalatorView {
     });
     const tread = new THREE.MeshStandardMaterial({ color: 0x647276, metalness: 0.7, roughness: 0.35 });
     const yellow = new THREE.MeshBasicMaterial({ color: 0xe9cb72 });
+    const emeraldLed = new THREE.MeshStandardMaterial({
+      color: 0x55ffaa,
+      emissive: 0x22cc77,
+      emissiveIntensity: 0.85,
+      roughness: 0.3,
+    });
+    const redHousing = new THREE.MeshStandardMaterial({ color: 0xe0c030, roughness: 0.5 });
+    const redMushroom = new THREE.MeshStandardMaterial({
+      color: 0xee2222,
+      emissive: 0xaa1111,
+      emissiveIntensity: 0.6,
+      roughness: 0.4,
+    });
     const geo = new THREE.BoxGeometry(1, 1, 1);
 
     const box = (g, n, size, pos, m) => {
@@ -120,10 +134,21 @@ export class EscalatorView {
           bal.rotation.z = -slope;
           const rail = box(g, 'Escalator_handrail', [length, 0.1, 0.13], [-7, 2.6, z + side], black);
           rail.rotation.z = -slope;
+          const skirtLed = box(g, 'Escalator_skirt_led', [length, 0.024, 0.02], [-7, 1.76, z + side * 0.96], emeraldLed);
+          skirtLed.rotation.z = -slope;
         }
         for (const x of [-4, -10]) {
           box(g, 'Escalator_comb_plate', [0.36, 0.035, 1.48], [x, x === layout.start ? 0.016 : 3.516, z], yellow);
+          box(g, 'Escalator_comb_light', [0.38, 0.014, 1.44], [x, (x === layout.start ? 0.016 : 3.516) - 0.014, z], emeraldLed);
         }
+
+        // Emergency Stop Switch on newel post
+        const stopX = layout.start + Math.sign(layout.end - layout.start) * 0.18;
+        const eStop = box(g, 'Escalator_e_stop', [0.08, 0.12, 0.08], [stopX, 0.88, z + 0.88], redHousing);
+        eStop.userData = { action: 'escalatorStop', floorIndex: f, dynamic: true };
+        const eStopBtn = box(g, 'Escalator_e_stop_button', [0.05, 0.05, 0.04], [stopX, 0.88, z + 0.93], redMushroom);
+        eStopBtn.userData = { action: 'escalatorStop', floorIndex: f, dynamic: true };
+        if (this.pickables) this.pickables.push(eStop, eStopBtn);
 
         const stepMesh = new THREE.InstancedMesh(stepGeometry, tread, 24);
         const edgeMesh = new THREE.InstancedMesh(edgeGeometry, yellow, 24);
@@ -139,8 +164,8 @@ export class EscalatorView {
     }
   }
 
-  update(time, paused) {
-    if (!paused) this.time = time;
+  update(time, paused, stopped = false) {
+    if (!paused && !stopped) this.time = time;
     const matrix = (this.stepMatrix ??= new THREE.Matrix4());
     for (const flight of this.flights) {
       if (!this.root.visible || !flight.group.visible) continue;

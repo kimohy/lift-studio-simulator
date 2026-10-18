@@ -158,5 +158,47 @@ export class HotelSoundEffects {
     const d = this.tone(987.77, 0.25, { type: 'sine', delay: 0.27, gainScale: 0.075 });
     return a || b || c || d;
   }
+
+  playDoorMove() {
+    return this.tone(260, 0.35, { type: 'sine', gainScale: 0.045, endFreq: 340 });
+  }
+
+  playDoorLatch() {
+    const a = this.tone(140, 0.06, { type: 'triangle', gainScale: 0.08, endFreq: 90 });
+    const b = this.tone(220, 0.04, { type: 'sine', delay: 0.02, gainScale: 0.05 });
+    return a || b;
+  }
+
+  playEscalatorRoll() {
+    const a = this.tone(90, 0.22, { type: 'triangle', gainScale: 0.035, endFreq: 85 });
+    const b = this.tone(180, 0.18, { type: 'sine', delay: 0.05, gainScale: 0.025, endFreq: 170 });
+    return a || b;
+  }
+
+  playCarChirp() {
+    const a = this.tone(2100, 0.06, { type: 'sine', gainScale: 0.07 });
+    const b = this.tone(2100, 0.08, { type: 'sine', delay: 0.09, gainScale: 0.075 });
+    return a || b;
+  }
+
+  playCoffeeSip() {
+    const a = this.tone(380, 0.12, { type: 'sine', gainScale: 0.055, endFreq: 280 });
+    const b = this.tone(540, 0.09, { type: 'sine', delay: 0.06, gainScale: 0.04, endFreq: 360 });
+    return a || b;
+  }
+
+  playSplash() {
+    const a = this.tone(520, 0.16, { type: 'sine', gainScale: 0.06, endFreq: 220 });
+    const b = this.tone(360, 0.22, { type: 'triangle', delay: 0.04, gainScale: 0.055, endFreq: 160 });
+    return a || b;
+  }
+
+  playOpticZoom() {
+    return this.tone(1150, 0.25, { type: 'sine', gainScale: 0.045, endFreq: 1650 });
+  }
+
+  playBuzzer() {
+    return this.tone(440, 0.22, { type: 'sawtooth', gainScale: 0.07 });
+  }
 }
 

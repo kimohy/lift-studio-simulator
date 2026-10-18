@@ -420,6 +420,26 @@ export class RooftopPoolView {
       this.pool.addObstacle(px - 0.45, px + 0.45, pz - 0.45, pz + 0.45);
     }
 
+    // 8. Rooftop Panorama Skyline Observatory Telescope (x = 7.4, z = 25.1)
+    const telescopeData = { action: 'poolTelescope', floorIndex: POOL_FLOOR };
+    const telescopeGroup = new THREE.Group();
+    telescopeGroup.name = 'Rooftop_telescope';
+    telescopeGroup.position.set(7.4, 0.0, 25.1);
+
+    const scopeBase = cylinder(telescopeGroup, 'Telescope_base', 0.22, 0.26, 0.08, [0, 0.04, 0], m.black);
+    const scopePillar = cylinder(telescopeGroup, 'Telescope_pillar', 0.05, 0.065, 1.15, [0, 0.62, 0], m.chrome);
+    const scopeSwivel = box(telescopeGroup, 'Telescope_swivel', [0.12, 0.1, 0.12], [0, 1.22, 0], m.gold);
+    const scopeBarrel = cylinder(telescopeGroup, 'Telescope_barrel', 0.065, 0.09, 0.42, [0, 1.25, -0.06], m.chrome);
+    scopeBarrel.rotation.x = Math.PI / 2 - 0.18;
+    const scopeEye = cylinder(telescopeGroup, 'Telescope_eyepiece', 0.032, 0.038, 0.12, [0, 1.21, 0.14], m.black);
+    scopeEye.rotation.x = Math.PI / 2 - 0.18;
+    g.add(telescopeGroup);
+
+    makePickable(scopeBase, telescopeData);
+    makePickable(scopePillar, telescopeData);
+    makePickable(scopeBarrel, telescopeData);
+    makePickable(scopeEye, telescopeData);
+
     this.root.visible = false;
   }
 
@@ -473,6 +493,11 @@ export class RooftopPoolView {
       this.waterTex.offset.y = Math.sin(time * 0.8) * 0.04;
     }
     this.waterMesh.position.y = 0.14 + Math.sin(time * 2.0) * 0.008;
+    this.waterMesh.scale.x = 1.0 + Math.sin(time * 1.6) * 0.005;
+    this.waterMesh.scale.z = 1.0 + Math.cos(time * 1.4) * 0.004;
+    if (this.jacuzziWater) {
+      this.jacuzziWater.position.y = 0.28 + Math.sin(time * 3.2) * 0.01;
+    }
 
     // Arching fountain jets
     const showFountain = this.pool.fountainOn;

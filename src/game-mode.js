@@ -1,4 +1,4 @@
-import { floorUsage } from './building.js';
+import { floorMeta, floorUsage } from './building.js';
 import { FLOORS } from './controller.js';
 import { Escalators } from './escalator.js';
 import { GuestRoom } from './guest-room.js';
@@ -60,13 +60,23 @@ export class GameMode {
     this.isTouch = Boolean(window.matchMedia?.('(pointer: coarse)').matches);
     document.body.classList.toggle('touch-device', this.isTouch);
     this.previousView = 'lobby';
+    this.holdingCoffee = false;
+    this.telescopeZoom = false;
+    this.escalatorSoundTimer = 0;
 
-    for (const dialogId of ['keycard-dialog', 'concierge-dialog']) {
+    for (const dialogId of ['keycard-dialog', 'concierge-dialog', 'floor-directory-dialog']) {
       const dialog = $(dialogId);
       if (dialog && $('viewport')) {
         $('viewport').append(dialog);
       }
     }
+
+    $('floor-directory-button')?.addEventListener('click', () => {
+      this.openFloorDirectory();
+    });
+    $('floor-directory-close')?.addEventListener('click', () => {
+      $('floor-directory-dialog')?.close?.();
+    });
 
     const canvas = view.canvas;
     canvas.tabIndex = 0;
@@ -89,9 +99,23 @@ export class GameMode {
         this.openConciergeGuide();
         return;
       }
-      if ((e.code === 'KeyE' || e.code === 'KeyF') && !e.repeat) {
+      if (e.code === 'KeyM' && !e.repeat) {
+        e.preventDefault();
+        this.openFloorDirectory();
+        return;
+      }
+      if (e.code === 'KeyE' && !e.repeat) {
         e.preventDefault();
         this.triggerCurrentHit();
+        return;
+      }
+      if (e.code === 'KeyF' && !e.repeat) {
+        e.preventDefault();
+        if (this.currentHit) {
+          this.triggerCurrentHit();
+        } else {
+          this.openFloorDirectory();
+        }
         return;
       }
       if (MOVE_KEYS.has(e.code)) {
@@ -345,6 +369,114 @@ export class GameMode {
     return { ok: true, spot, message: msg };
   }
 
+  openFloorDirectory() {
+    const dialog = $('floor-directory-dialog');
+    if (!dialog) return;
+    this.clearInput();
+    if (document.pointerLockElement) document.exitPointerLock();
+    this.renderFloorDirectory();
+    dialog.showModal?.();
+  }
+
+  renderFloorDirectory() {
+    const listEl = $('floor-directory-list');
+    if (!listEl) return;
+    listEl.replaceChildren();
+
+    const currentLiftFloor = this.controller.floor;
+    const isMoving = this.controller.state === 'moving';
+    const liftDir = this.controller.direction > 0 ? '▲ 상행' : this.controller.direction < 0 ? '▼ 하행' : '대기';
+    const playerFloor = this.player.floor;
+
+    for (let f = 14; f >= 0; f--) {
+      const meta = floorMeta(f, FLOORS[f]);
+      const usage = floorUsage(f);
+      const row = document.createElement('div');
+      row.className = 'directory-row' + (f < 5 ? ' basement' : '') + (f === playerFloor ? ' player-here' : '');
+
+      const badges = [];
+      if (f === playerFloor) {
+        badges.push('<span class="dir-badge player">👤 현재 내 위치</span>');
+      }
+      if (f === currentLiftFloor) {
+        badges.push(`<span class="dir-badge lift">🛗 승강기 (${isMoving ? liftDir : this.controller.door > 0 ? '문 열림' : '대기'})</span>`);
+      }
+
+      row.innerHTML = `
+        <div class="dir-floor-badge">${FLOORS[f]}<small>F</small></div>
+        <div class="dir-floor-info">
+          <div class="dir-floor-title">
+            <strong>${usage.ko}</strong>
+            <span class="dir-en">${usage.en}</span>
+          </div>
+          <div class="dir-floor-desc">${meta.desc}</div>
+          ${badges.length ? `<div class="dir-badges">${badges.join(' ')}</div>` : ''}
+        </div>
+        <div class="dir-actions">
+          <button type="button" class="dir-teleport-btn" data-floor="${f}">이동</button>
+        </div>
+      `;
+
+      row.querySelector('.dir-teleport-btn')?.addEventListener('click', () => {
+        $('floor-directory-dialog')?.close?.();
+        this.fastTravelToFloor(f);
+      });
+
+      listEl.append(row);
+    }
+  }
+
+  fastTravelToFloor(floorIndex) {
+    if (!this.active && this.view?.ready) {
+      this.enter();
+    }
+    this.player.leaveDoorway();
+    this.controller.setObstruction(false, 'player');
+
+    let targetX = 0;
+    let targetZ = 8.5;
+    let zone = 'lobby';
+    let yaw = Math.PI;
+
+    if (floorIndex === 7) {
+      targetX = -1.5;
+      targetZ = 6.0;
+    } else if (floorIndex === 14) {
+      targetX = 6.0;
+      targetZ = 2.0;
+      zone = 'pool';
+      this.stay.completeMilestone('rooftopPool');
+    } else if (floorIndex < 5) {
+      targetX = 0;
+      targetZ = 6.0;
+    }
+
+    if (floorIndex !== 5) {
+      this.stay.completeMilestone('verticalTransit');
+    }
+
+    Object.assign(this.player, {
+      floor: floorIndex,
+      zone,
+      x: targetX,
+      z: targetZ,
+      yaw,
+      pitch: -0.04,
+      worldY: (floorIndex - 5) * 3.5,
+      stairY: (floorIndex - 5) * 3.5,
+      escalatorY: (floorIndex - 5) * 3.5,
+    });
+
+    this.view?.applyVisibility?.(this.controller);
+    this.applyCamera();
+    const floorLabel = FLOORS[floorIndex] + 'F';
+    const msg = `✨ [${floorLabel} · ${floorUsage(floorIndex).ko}](으)로 빠르게 이동했습니다.`;
+    this.message(msg);
+    this.messageUntil = performance.now() + 4500;
+    this.updateHUD();
+    return { ok: true, floor: floorIndex, message: msg };
+  }
+
   triggerCurrentHit() {
     const ndc = document.pointerLockElement === this.view.canvas || this.isTouch ? { x: 0, y: 0 } : this.cursor;
     const hit = this.currentHit || this.view.getInteraction(ndc, 2.5);
@@ -485,6 +617,13 @@ export class GameMode {
     this.active = false;
     this.clearInput();
     this.leaveFullscreen();
+    if (this.telescopeZoom) {
+      this.telescopeZoom = false;
+      if (this.view.camera) {
+        this.view.camera.fov = 65;
+        this.view.camera.updateProjectionMatrix();
+      }
+    }
 
     if (document.pointerLockElement === this.view.canvas) {
       document.exitPointerLock();
@@ -509,6 +648,14 @@ export class GameMode {
     this.npcs.reset(this.controller);
     this.robot.reset(this.controller);
     this.clearInput();
+    this.holdingCoffee = false;
+    if (this.telescopeZoom) {
+      this.telescopeZoom = false;
+      if (this.view.camera) {
+        this.view.camera.fov = 65;
+        this.view.camera.updateProjectionMatrix();
+      }
+    }
     this.controller.setObstruction(false, 'player');
     if (document.pointerLockElement === this.view.canvas) {
       document.exitPointerLock();
@@ -543,6 +690,16 @@ export class GameMode {
     this.player.move(forward, strafe, dt, this.controller, sprint);
     this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
     this.applyCamera();
+
+    if (this.player.zone === 'escalator' && !this.escalators.stopped && !this.controller.paused) {
+      this.escalatorSoundTimer = (this.escalatorSoundTimer || 0) + dt;
+      if (this.escalatorSoundTimer >= 0.5) {
+        this.escalatorSoundTimer = 0;
+        this.view.sfx?.playEscalatorRoll?.();
+      }
+    } else {
+      this.escalatorSoundTimer = 0;
+    }
 
     if (this.player.floor !== 5) this.stay.completeMilestone('verticalTransit');
     if (this.player.zone === 'room') this.stay.completeMilestone('room301');
@@ -594,8 +751,11 @@ export class GameMode {
     ) {
       return this.player.floor === 7 && this.player.zone === 'room';
     }
-    if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar'].includes(data.action)) {
+    if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar', 'poolTelescope'].includes(data.action)) {
       return this.player.floor === 14 && ['lobby', 'pool'].includes(this.player.zone);
+    }
+    if (data.action === 'escalatorStop') {
+      return true;
     }
     if (['cafeOrder', 'cafeSit', 'loungeSit'].includes(data.action)) {
       return this.player.floor === 5 && this.player.zone === 'lobby';
@@ -668,8 +828,15 @@ export class GameMode {
   interactLobby(action, data) {
     if (!this.active || this.player.floor !== 5) return;
     if (action === 'cafeOrder') {
-      const res = this.stay.orderCafe();
-      this.message(res.message);
+      if (this.holdingCoffee) {
+        this.holdingCoffee = false;
+        const msg = `☕ [${this.stay.lastCafeItem || '스페셜티 커피'}]를 한 모금 음미합니다. 깊고 풍부한 아로마와 부드러운 여운이 감돕니다.`;
+        this.message(msg);
+      } else {
+        const res = this.stay.orderCafe();
+        this.holdingCoffee = true;
+        this.message(res.message);
+      }
     } else if (action === 'cafeSit') {
       const res = this.stay.sitAtCafe(this.player, data?.seatX, data?.seatZ, data?.seatYaw ?? data?.yaw);
       this.applyCamera();
@@ -770,8 +937,23 @@ export class GameMode {
       this.message(res.message);
     } else if (action === 'poolBar') {
       this.message(this.pool.orderPoolDrink().message);
+    } else if (action === 'poolTelescope') {
+      this.telescopeZoom = !this.telescopeZoom;
+      if (this.view.camera) {
+        this.view.camera.fov = this.telescopeZoom ? 22 : 65;
+        this.view.camera.updateProjectionMatrix();
+      }
+      this.message(
+        this.telescopeZoom
+          ? '🔭 [스카이라인 전망 망원경] 3배 고배율 줌 렌즈로 시티 파노라마 전경을 관측합니다! (재클릭 시 기본 시야)'
+          : '🔭 망원경에서 물러나 루프탑 스카이풀 전경으로 시야를 복귀합니다.'
+      );
     }
     this.messageUntil = performance.now() + 5000;
+  }
+
+  toggleEscalatorStop() {
+    return this.escalators.toggleStop();
   }
 
   toggleRoomDoor() {
@@ -900,8 +1082,14 @@ export class GameMode {
         return '풀사이드 선베드 / 카바나 · 클릭해 누워서 시티뷰 휴식하기 🏖️';
       case 'poolBar':
         return '루프탑 스카이 풀 바 · 클릭해 트로피컬 칵테일/음료 주문하기 🍹';
+      case 'poolTelescope':
+        return `🔭 루프탑 스카이라인 전망 망원경 (${this.telescopeZoom ? '망원경 관측 중 · 클릭 시 복귀' : '클릭해 고배율 파노라마 관측'})`;
       case 'cafeOrder':
-        return `${d.cafeLabel || 'Grand Café 바 카운터'} · 클릭해 스페셜티 커피 & 베이커리 주문하기 ☕🥐`;
+        return this.holdingCoffee
+          ? `☕ 들고 있는 [${this.stay.lastCafeItem || '커피'}] 음미하기 (클릭 시 마시기)`
+          : `${d.cafeLabel || 'Grand Café 바 카운터'} · 클릭해 스페셜티 커피 & 베이커리 주문하기 ☕🥐`;
+      case 'escalatorStop':
+        return `🚨 에스컬레이터 비상정지 스위치 (${this.escalators.stopped ? '정지됨 · 클릭해 재가동' : '운행 중 · 클릭해 비상 정지'}) · 클릭`;
       case 'cafeSit':
         return `${d.cafeLabel || 'Grand Café 테이블'} · 클릭해 착석 후 커피 타임 즐기기 ☕`;
       case 'loungeSit':

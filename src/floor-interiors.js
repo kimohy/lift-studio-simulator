@@ -39,7 +39,12 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
     const scale = isRoomNum ? 1 : 0.65;
     const m = new THREE.Mesh(
       new THREE.PlaneGeometry(width * scale, height * scale),
-      new THREE.MeshBasicMaterial({ map: texture })
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      })
     );
     m.name = name;
     m.userData.signLines = lines;

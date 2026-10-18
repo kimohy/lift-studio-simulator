@@ -48,7 +48,15 @@ export class Stairwell {
 
   update(dt, p) {
     for (const [floor, d] of this.doors.entries()) {
-      if (!d.target && d.open > 0 && this.doorOccupied(floor, p)) {
+      if (floor === 14 && p && p.zone !== 'cabin') {
+        const near10F = Math.abs(p.groundY() - (14 - 5) * 3.5) < 0.6;
+        const nearDoor = between(p.x, 1.8, 3.8) && between(p.z, 1.3, 3.4);
+        if (near10F && nearDoor) {
+          d.target = 1;
+        } else if (!this.doorOccupied(floor, p)) {
+          d.target = 0;
+        }
+      } else if (!d.target && d.open > 0 && this.doorOccupied(floor, p)) {
         d.target = 1;
       }
       const step = Math.max(0, Math.min(dt, 1)) / 0.7;

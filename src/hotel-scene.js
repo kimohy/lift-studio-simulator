@@ -45,6 +45,7 @@ export class HotelScene {
         roughness: 0.12,
         transparent: true,
         opacity: 0.48,
+        depthWrite: false,
         side: THREE.DoubleSide,
       }),
       warm: new THREE.MeshStandardMaterial({
@@ -123,7 +124,12 @@ export class HotelScene {
     const tex = hotelSignTexture(lines);
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(size[0] * (name === 'Exterior_hotel_name' ? 0.85 : 0.64), size[1] * 0.64),
-      new THREE.MeshBasicMaterial({ map: tex })
+      new THREE.MeshBasicMaterial({
+        map: tex,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      })
     );
     mesh.name = name;
     mesh.position.set(...pos);

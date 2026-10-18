@@ -13,6 +13,7 @@ import { batchStaticMeshes } from './render-optimization.js';
 import { RooftopPoolView } from './rooftop-pool-view.js';
 import { ServiceRobotView } from './service-robot-view.js';
 import { StairwellView } from './stairwell-view.js';
+import { AutomaticDoorSystem } from './automatic-doors.js';
 
 export const TIME_OF_DAY_MODES = [
   {
@@ -67,13 +68,14 @@ export class LiftScene {
     this.timeOfDayIndex = 0;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(44, 1, 0.03, 250);
+    this.camera = new THREE.PerspectiveCamera(44, 1, 0.08, 250);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
       alpha: true,
       powerPreference: 'high-performance',
+      logarithmicDepthBuffer: true,
     });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -257,6 +259,7 @@ export class LiftScene {
       ...(this.escalatorView?.root.children ?? []),
       this.rooftopPoolView?.root,
       this.guestRoomView?.root,
+      this.automaticDoors?.root,
     ]) {
       if (root) batchStaticMeshes(root);
     }
@@ -279,6 +282,7 @@ export class LiftScene {
       this.rooftopPoolView?.root,
       this.stairwellView?.root,
       this.escalatorView?.root,
+      this.automaticDoors?.root,
       this.hotelScene?.root,
       this.hotelScene?.exterior,
     ]) {
@@ -421,6 +425,7 @@ export class LiftScene {
     if (this.game?.stairs) this.stairwellView = new StairwellView(this.scene, this.game.stairs, this.pickables);
     if (this.game?.npcs) this.npcView = new NPCView(this.scene, this.game.npcs, this.pickables);
     if (this.game?.robot) this.robotView = new ServiceRobotView(this.scene, this.game.robot, this.pickables);
+    this.automaticDoors = new AutomaticDoorSystem(this.scene, this.sfx, this.pickables);
   }
 
   makeDisplay() {
@@ -805,6 +810,7 @@ export class LiftScene {
     this.escalatorView?.updateVisibility(floor, v === 'game');
     this.stairwellView?.updateVisibility(floor, v === 'game');
     this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior');
+    this.automaticDoors?.applyVisibility(floor, this.game?.player?.floor);
     this.scene.background =
       v === 'exterior' || (v === 'game' && (floor === 5 || floor === 14)) ? new THREE.Color(tod.sky) : null;
     this.scene.fog = v === 'exterior' ? new THREE.Fog(tod.sky, 90, 190) : null;
@@ -849,6 +855,7 @@ export class LiftScene {
     this.hotelScene?.update(c.time, this.game?.player);
     this.npcView?.update(c.time, visibleFloor, this.view);
     this.robotView?.update(c.time, visibleFloor, this.view);
+    this.automaticDoors?.update(0.016, this.game?.player);
 
     const y = c.position - 17.5;
     this.car.position.y = this.carBase.y + y;

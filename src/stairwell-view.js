@@ -43,11 +43,27 @@ export class StairwellView {
       group.add(m);
     };
 
+    const glassDoorMat = new THREE.MeshPhysicalMaterial({
+      color: 0xa9dfea,
+      metalness: 0.15,
+      roughness: 0.08,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xc8aa6e, metalness: 0.8, roughness: 0.22 });
+
     const sign = (group, name, lines, pos, rotation, width = 1.2, height = 0.7) => {
       const texture = hotelSignTexture(lines);
       const m = new THREE.Mesh(
         new THREE.PlaneGeometry(width * 0.68, height * 0.68),
-        new THREE.MeshBasicMaterial({ map: texture })
+        new THREE.MeshBasicMaterial({
+          map: texture,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        })
       );
       m.name = name;
       m.userData.signLines = lines;
@@ -83,12 +99,14 @@ export class StairwellView {
       pivot.position.set(2.54, 0, 1.82);
       group.add(pivot);
 
-      const panel = box(pivot, [0.06, 2.18, 1.06], [0, 1.09, 0.53], doorMat);
+      const panelMat = f === 14 ? glassDoorMat : doorMat;
+      const handleMat = f === 14 ? goldMat : metal;
+      const panel = box(pivot, [0.06, 2.18, 1.06], [0, 1.09, 0.53], panelMat);
       panel.userData = { action: 'stairDoor', floorIndex: f };
       pickables.push(panel);
 
       for (const x of [-0.054, 0.054]) {
-        const handle = box(pivot, [0.045, 0.07, 0.22], [x, 1.04, 0.83], metal);
+        const handle = box(pivot, [0.045, 0.07, 0.22], [x, 1.04, 0.83], handleMat);
         handle.userData = { action: 'stairDoor', floorIndex: f };
         pickables.push(handle);
       }
@@ -97,7 +115,9 @@ export class StairwellView {
       sign(
         group,
         `Stair_entry_sign_${FLOORS[f]}`,
-        ['계단 · STAIRS', `${floorName(f)} · ${usage.ko}`],
+        f === 14
+          ? ['10F · 루프탑 자동 유리문', 'ROOFTOP AUTO GLASS DOOR ↑']
+          : ['계단 · STAIRS', `${floorName(f)} · ${usage.ko}`],
         [2.45, 2.72, 2.35],
         -Math.PI / 2,
         1.05,

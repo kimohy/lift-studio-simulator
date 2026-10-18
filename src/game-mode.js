@@ -691,6 +691,26 @@ export class GameMode {
     this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
     this.applyCamera();
 
+    // Auto-reset telescope zoom if walking or stepped away
+    if (this.telescopeZoom) {
+      const moved = forward !== 0 || strafe !== 0;
+      const distFromTelescope = Math.hypot(this.player.x - 7.4, this.player.z - 25.1);
+      const farFromTelescope =
+        this.player.floor !== 14 ||
+        !['pool', 'lobby'].includes(this.player.zone) ||
+        distFromTelescope > 2.2;
+      if (moved || farFromTelescope) {
+        this.telescopeZoom = false;
+        if (this.view.camera) {
+          this.view.camera.fov = 65;
+          this.view.camera.updateProjectionMatrix();
+        }
+        this.view.sfx?.playOpticZoom?.();
+        this.message('🔭 망원경에서 물러나 시야가 기본 배율로 복귀했습니다.');
+        this.messageUntil = performance.now() + 3000;
+      }
+    }
+
     if (this.player.zone === 'escalator' && !this.escalators.stopped && !this.controller.paused) {
       this.escalatorSoundTimer = (this.escalatorSoundTimer || 0) + dt;
       if (this.escalatorSoundTimer >= 0.5) {
@@ -776,6 +796,7 @@ export class GameMode {
       );
     }
     if (data.action === 'stairDoor') return this.player.zone !== 'cabin' && data.floorIndex === this.player.floor;
+    if (data.action === 'automaticDoor') return this.player.zone !== 'cabin' && data.floorIndex === this.player.floor;
     if (data.action === 'hall') return this.player.zone === 'lobby' && data.floorIndex === this.player.floor;
     return (
       this.player.zone === 'cabin' ||
@@ -943,9 +964,10 @@ export class GameMode {
         this.view.camera.fov = this.telescopeZoom ? 22 : 65;
         this.view.camera.updateProjectionMatrix();
       }
+      this.view.sfx?.playOpticZoom?.();
       this.message(
         this.telescopeZoom
-          ? '🔭 [스카이라인 전망 망원경] 3배 고배율 줌 렌즈로 시티 파노라마 전경을 관측합니다! (재클릭 시 기본 시야)'
+          ? '🔭 [스카이라인 전망 망원경] 3배 고배율 줌 렌즈로 시티 파노라마 전경을 관측합니다! (이동하거나 재클릭 시 기본 시야 복귀)'
           : '🔭 망원경에서 물러나 루프탑 스카이풀 전경으로 시야를 복귀합니다.'
       );
     }
@@ -1106,6 +1128,8 @@ export class GameMode {
         return `${d.robotName} (${this.robot.statusLabel()}) · 클릭해 상호작용/룸서비스 요청`;
       case 'stairDoor':
         return `${FLOORS[d.floorIndex]}층 계단실 문 ${this.stairs.doors[d.floorIndex].target ? '닫기' : '열기'} · 왼쪽 클릭`;
+      case 'automaticDoor':
+        return '호텔 센서형 자동 슬라이딩 유리문 · 접근 시 자동 개폐 🚪✨';
       case 'hall':
         return `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '올라가기' : '내려가기'} 호출 · 왼쪽 클릭`;
       case 'car':

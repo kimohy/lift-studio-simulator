@@ -202,6 +202,13 @@ function act(action, floor, direction, data) {
     game?.toggleStairDoor(floor);
     return;
   }
+  if (action === 'automaticDoor') {
+    sfx.playButton();
+    const msg = '✨ 프리미엄 적외선 모션 센서가 장착된 자동 유리문입니다. 접근 시 자동으로 부드럽게 개폐됩니다.';
+    say(msg);
+    if (game?.active) game.message(msg);
+    return;
+  }
   if (['cabinLight', 'cabinFan', 'cabinMusic', 'cabinIntercom', 'cabinVip', 'cabinAccessible', 'cabinMirror'].includes(action)) {
     if (action === 'cabinIntercom') sfx.playIntercom();
     else if (action === 'cabinVip' || action === 'cabinAccessible') sfx.playKeycard(true);

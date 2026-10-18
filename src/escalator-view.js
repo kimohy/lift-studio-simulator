@@ -51,7 +51,13 @@ export class EscalatorView {
       const tex = hotelSignTexture(lines);
       const o = new THREE.Mesh(
         new THREE.PlaneGeometry(1.2, 0.36),
-        new THREE.MeshBasicMaterial({ map: tex, side: THREE.FrontSide })
+        new THREE.MeshBasicMaterial({
+          map: tex,
+          side: THREE.FrontSide,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        })
       );
       o.name = 'Escalator_floor_sign';
       o.position.set(...pos);

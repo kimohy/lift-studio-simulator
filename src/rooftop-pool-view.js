@@ -58,6 +58,7 @@ export class RooftopPoolView {
         metalness: 0.15,
         transparent: true,
         opacity: 0.78,
+        depthWrite: false,
         emissive: 0x126b7a,
         emissiveIntensity: 0.35,
       }),
@@ -66,6 +67,7 @@ export class RooftopPoolView {
         roughness: 0.15,
         transparent: true,
         opacity: 0.82,
+        depthWrite: false,
         emissive: 0x1ca3b8,
         emissiveIntensity: 0.45,
       }),
@@ -75,6 +77,7 @@ export class RooftopPoolView {
         opacity: 0.38,
         roughness: 0.08,
         metalness: 0.1,
+        depthWrite: false,
         side: THREE.DoubleSide,
       }),
       gold: new THREE.MeshStandardMaterial({ color: 0xc8ab73, metalness: 0.72, roughness: 0.26 }),
@@ -86,7 +89,7 @@ export class RooftopPoolView {
       black: new THREE.MeshStandardMaterial({ color: 0x1d2528, roughness: 0.4 }),
       led: new THREE.MeshBasicMaterial({ color: 0x5ff2ff }),
       warmLight: new THREE.MeshBasicMaterial({ color: 0xffe4b5 }),
-      foam: new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.72 }),
+      foam: new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.72, depthWrite: false }),
     };
     const m = this.m;
 
@@ -128,7 +131,12 @@ export class RooftopPoolView {
     const sign = (parent, name, lines, pos, w, h, rotation = Math.PI) => {
       const o = new THREE.Mesh(
         new THREE.PlaneGeometry(w, h),
-        new THREE.MeshBasicMaterial({ map: hotelSignTexture(lines) })
+        new THREE.MeshBasicMaterial({
+          map: hotelSignTexture(lines),
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        })
       );
       o.name = name;
       o.position.set(...pos);
@@ -225,7 +233,7 @@ export class RooftopPoolView {
 
     // Animated Water Surface (Interactive: click to swim or exit)
     const swimData = { action: 'poolSwim', floorIndex: POOL_FLOOR, dynamic: true };
-    this.waterMesh = box(g, 'Infinity_pool_water', [11.9, 0.18, 8.5], [0, 0.14, 18.85], m.water);
+    this.waterMesh = box(g, 'Infinity_pool_water', [11.86, 0.18, 8.46], [0, 0.14, 18.85], m.water);
     this.waterMesh.userData.dynamic = true;
     makePickable(this.waterMesh, swimData);
 

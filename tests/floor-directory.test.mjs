@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { AutomaticDoorSystem } from '../src/automatic-doors.js';
 import { floorMeta, floorUsage } from '../src/building.js';
 import { FLOORS, LiftController } from '../src/controller.js';
 import { GameMode } from '../src/game-mode.js';
@@ -195,3 +197,89 @@ test('escalator emergency stop toggles stopped flag on game instance', () => {
   assert.equal(resumed, false);
   assert.equal(game.escalators.stopped, false);
 });
+
+test('telescope zoom auto-resets when player moves or steps away', () => {
+  const { game, mockCamera } = createMockGame();
+  game.enter();
+  game.fastTravelToFloor(14); // 10F Rooftop Pool
+  game.player.x = 7.4;
+  game.player.z = 25.1;
+
+  // Zoom in
+  game.interactPool('poolTelescope');
+  assert.equal(game.telescopeZoom, true);
+  assert.equal(mockCamera.fov, 22);
+
+  // Pressing KeyW and updating frame immediately resets zoom
+  game.keys.add('KeyW');
+  game.update(0.016);
+  assert.equal(game.telescopeZoom, false);
+  assert.equal(mockCamera.fov, 65);
+  game.keys.clear();
+
+  // Zoom in again, then step away (> 2.2m from 7.4, 25.1)
+  game.interactPool('poolTelescope');
+  assert.equal(game.telescopeZoom, true);
+  assert.equal(mockCamera.fov, 22);
+
+  game.player.x = 0;
+  game.player.z = 10;
+  game.update(0.016);
+  assert.equal(game.telescopeZoom, false);
+  assert.equal(mockCamera.fov, 65);
+});
+
+test('10F rooftop stair door automatically opens on approach and closes on retreat', () => {
+  const { game } = createMockGame();
+  game.enter();
+  game.fastTravelToFloor(14);
+  const stairDoor = game.stairs.doors[14];
+  assert.equal(stairDoor.target, 0);
+
+  // Approach 10F stair doorway (x = 2.54, z = 2.35)
+  game.player.x = 2.54;
+  game.player.z = 2.35;
+  game.stairs.update(0.016, game.player);
+  assert.equal(stairDoor.target, 1);
+
+  // Step away to pool area
+  game.player.x = 7.0;
+  game.player.z = 15.0;
+  game.stairs.update(0.016, game.player);
+  assert.equal(stairDoor.target, 0);
+});
+
+test('AutomaticDoorSystem opens sliding leaves when player approaches and closes on exit', () => {
+  const scene = new THREE.Scene();
+  const pickables = [];
+  const autoDoors = new AutomaticDoorSystem(scene, null, pickables);
+  assert.equal(autoDoors.doors.length, 2);
+
+  const rooftopDoor = autoDoors.doors.find((d) => d.id === 'rooftop_pool_door');
+  assert.ok(rooftopDoor);
+  assert.equal(rooftopDoor.currentOpen, 0);
+
+  // Player at 10F near rooftop pool sliding door (x = 0, z = 8.0)
+  const player = {
+    floor: 14,
+    zone: 'pool',
+    x: 0,
+    z: 8.0,
+  };
+
+  // Run update for 0.5s to fully open
+  for (let i = 0; i < 30; i++) {
+    autoDoors.update(0.016, player);
+  }
+  assert.ok(rooftopDoor.currentOpen > 0.95);
+  assert.ok(rooftopDoor.leftLeaf.position.x < rooftopDoor.leftBaseX);
+  assert.ok(rooftopDoor.rightLeaf.position.x > rooftopDoor.rightBaseX);
+
+  // Player leaves the area
+  player.z = 20.0;
+  for (let i = 0; i < 30; i++) {
+    autoDoors.update(0.016, player);
+  }
+  assert.ok(rooftopDoor.currentOpen < 0.05);
+});
+

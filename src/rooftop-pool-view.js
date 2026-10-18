@@ -334,10 +334,10 @@ export class RooftopPoolView {
 
     // 5. Poolside Sun Loungers, Resort Umbrellas & Luxury Cabana (action: 'poolSunbed')
     const sunbedPositions = [
-      { x: -4.2, z: 11.6, restX: -4.2, restZ: 11.6 },
-      { x: -2.0, z: 11.6, restX: -2.0, restZ: 11.6 },
-      { x: 2.0, z: 11.6, restX: 2.0, restZ: 11.6 },
-      { x: 4.2, z: 11.6, restX: 4.2, restZ: 11.6 },
+      { x: -4.2, z: 11.6, restX: -4.2, restZ: 12.85 },
+      { x: -2.0, z: 11.6, restX: -2.0, restZ: 12.85 },
+      { x: 2.0, z: 11.6, restX: 2.0, restZ: 12.85 },
+      { x: 4.2, z: 11.6, restX: 4.2, restZ: 12.85 },
     ];
     for (const b of sunbedPositions) {
       const bedData = { action: 'poolSunbed', floorIndex: POOL_FLOOR, restX: b.restX, restZ: b.restZ };
@@ -357,7 +357,7 @@ export class RooftopPoolView {
     }
 
     // Luxury Private Cabana on East Lounge (x = 8.4, z = 11.4)
-    const cabanaData = { action: 'poolSunbed', floorIndex: POOL_FLOOR, restX: 8.4, restZ: 11.4 };
+    const cabanaData = { action: 'poolSunbed', floorIndex: POOL_FLOOR, restX: 8.4, restZ: 13.0 };
     box(g, 'Cabana_platform', [2.8, 0.22, 2.6], [8.4, 0.11, 11.4], m.teak, true);
     makePickable(box(g, 'Cabana_daybed', [2.3, 0.26, 2.2], [8.4, 0.35, 11.4], m.linen), cabanaData);
     makePickable(box(g, 'Cabana_accent_pillow', [1.8, 0.18, 0.4], [8.4, 0.55, 10.6], m.coral), cabanaData);

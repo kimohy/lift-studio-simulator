@@ -795,11 +795,12 @@ export class HotelScene {
     const m = this.m;
     this.shaftClearSlab(g, 'Hotel_foundation_plinth', 25.8, 0.35, 28, -1.1, -0.2, 13, m.concrete);
 
-    // Nine stories of guest rooms with inset glazing and stone piers.
+    // Eight stories of enclosed guest rooms (2F–9F); 10F is the open-air Rooftop Infinity Pool & Sky Lounge.
     const stone = new THREE.MeshStandardMaterial({ color: 0xc4bdaf, roughness: 0.7 });
     for (let floor = 2; floor <= 10; floor++) {
       const y = (floor - 1) * 3.5 + 1.65;
       this.shaftClearSlab(g, 'Guest_floor_spandrel', 28, 0.66, 27, 0, y - 1.35, 12.5, stone);
+      if (floor === 10) continue;
       for (const x of [-11.9, -8.5, -5.1, -1.7, 1.7, 5.1, 8.5, 11.9]) {
         this.box(g, 'Guest_room_window', [2.45, 2.2, 0.08], [x, y, 26.07], m.glass);
         this.box(g, 'Facade_vertical_pier', [0.3, 2.86, 0.3], [x + 1.6, y, 26], stone);
@@ -813,22 +814,23 @@ export class HotelScene {
       }
     }
     this.box(g, 'Hotel_back_wall', [28, 35, 0.2], [0, 17.5, -0.95], stone);
+    // Mechanical penthouse roof over the rear elevator/stair/escalator core (z: -1..8.1), leaving the 10F rooftop pool deck open to the sky.
+    this.box(g, 'Roof_slab', [28.8, 0.25, 9.2], [0, 35.15, 3.5], stone);
+    for (const x of [-14, 14]) {
+      this.box(g, 'Roof_parapet', [0.25, 0.85, 9.2], [x, 35.6, 3.5], stone);
+    }
+    this.box(g, 'Roof_front_parapet', [28, 0.85, 0.25], [0, 35.6, 8.0], stone);
     for (const x of [-7, 6]) {
-      this.box(g, 'Roof_HVAC_unit', [3, 1.1, 2], [x, 35.9, 10], m.metal);
+      this.box(g, 'Roof_HVAC_unit', [3, 1.1, 2], [x, 35.9, 3.5], m.metal);
       for (let y = 35.5; y < 36.4; y += 0.14) {
-        this.box(g, 'HVAC_louver', [2.8, 0.04, 0.02], [x, y, 11.01], m.black);
+        this.box(g, 'HVAC_louver', [2.8, 0.04, 0.02], [x, y, 4.51], m.black);
       }
     }
-    this.box(g, 'Roof_slab', [28.8, 0.25, 28], [0, 35.15, 12.5], stone);
-    for (const x of [-14, 14]) {
-      this.box(g, 'Roof_parapet', [0.25, 0.85, 28], [x, 35.6, 12.5], stone);
-    }
-    this.box(g, 'Roof_front_parapet', [28, 0.85, 0.25], [0, 35.6, 26.5], stone);
     this.sign(
       g,
       'Exterior_hotel_name',
-      ['GRAND HOTEL', 'HOTEL · CAFÉ · PARKING'],
-      [0, 33.25, 26.35],
+      ['GRAND HOTEL', 'HOTEL · ROOFTOP POOL · CAFÉ'],
+      [0, 30.1, 26.35],
       [10.5, 1.5],
       0,
       '#263b3a'

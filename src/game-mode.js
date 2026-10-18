@@ -650,11 +650,11 @@ export class GameMode {
       const res = this.stay.orderCafe();
       this.message(res.message);
     } else if (action === 'cafeSit') {
-      const res = this.stay.sitAtCafe(this.player, data?.seatX, data?.seatZ, data?.yaw);
+      const res = this.stay.sitAtCafe(this.player, data?.seatX, data?.seatZ, data?.seatYaw ?? data?.yaw);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'loungeSit') {
-      const res = this.stay.sitAtLounge(this.player, data?.seatX, data?.seatZ, data?.yaw);
+      const res = this.stay.sitAtLounge(this.player, data?.seatX, data?.seatZ, data?.seatYaw ?? data?.yaw);
       this.applyCamera();
       this.message(res.message);
     }

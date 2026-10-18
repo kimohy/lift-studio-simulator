@@ -260,13 +260,13 @@ if ($('vip-mode')) {
 function handleCycleTimeOfDay() {
   if (!view) return;
   sfx.playButton();
-  const mode = view.cycleTimeOfDay();
-  const label = `${mode.icon} ${mode.label}`;
+  const mode = view.cycleTimeOfDay(controller);
+  const label = mode.icon ? `${mode.icon} ${mode.label}` : mode.label;
   setText('time-of-day', label);
   setText('game-time-of-day', label);
-  say(`호텔 시간대 조명을 '${mode.label}' 모드로 전환했습니다.`);
+  say(`호텔 시간대 조명을 '${label}' 모드로 전환했습니다.`);
   if (game?.active) {
-    game.message(`시간대 분위기 전환: ${mode.icon} ${mode.label}`);
+    game.message(`시간대 분위기 전환: ${label}`);
     game.messageUntil = performance.now() + 3500;
   }
 }

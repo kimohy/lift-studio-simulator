@@ -99,3 +99,33 @@ test('HotelSoundEffects safely no-ops when sound is disabled or AudioContext is 
     sfx.playWater();
   });
 });
+
+test('resting on sunbeds or cabana keeps player in a walkable position where WASD movement works freely', async () => {
+  const { RooftopPool } = await import('../src/rooftop-pool.js');
+  const { WalkingPlayer } = await import('../src/player.js');
+  const pool = new RooftopPool();
+  // Register actual sunbed and cabana obstacles as RooftopPoolView does
+  for (const bx of [-4.2, -2.0, 2.0, 4.2]) {
+    pool.addObstacle(bx - 0.41, bx + 0.41, 11.6 - 0.975, 11.6 + 0.975);
+  }
+  pool.addObstacle(8.4 - 1.4, 8.4 + 1.4, 11.4 - 1.3, 11.4 + 1.3);
+
+  const c = new LiftController();
+  const player = new WalkingPlayer(null, null, null, null, pool);
+  player.floor = 14;
+  player.zone = 'pool';
+
+  for (const [rx, rz] of [
+    [-4.2, 12.85],
+    [-2.0, 12.85],
+    [2.0, 12.85],
+    [4.2, 12.85],
+    [8.4, 13.0],
+  ]) {
+    pool.restOnSunbed(player, rx, rz);
+    assert.equal(pool.canOccupy(player.x, player.z, player, c), true);
+    const startZ = player.z;
+    player.move(1, 0, 0.2, c, false); // walk forward (+z since yaw=PI)
+    assert.ok(player.z > startZ, `player should walk freely from sunbed at (${rx}, ${rz})`);
+  }
+});

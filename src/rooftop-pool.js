@@ -149,7 +149,7 @@ export class RooftopPool {
     };
   }
 
-  restOnSunbed(player, targetX = -3.1, targetZ = 11.6) {
+  restOnSunbed(player, targetX = -4.2, targetZ = 12.85) {
     if (player && player.floor === POOL_FLOOR) {
       player.x = targetX;
       player.z = targetZ;
@@ -159,7 +159,7 @@ export class RooftopPool {
     }
     return {
       ok: true,
-      message: '🏖️ 풀사이드 선베드에 편안히 누워 루프탑 인피니티 풀과 도시 스카이라인을 감상합니다.',
+      message: '🏖️ 풀사이드 선베드에 편안히 누워 루프탑 인피니티 풀과 도시 스카이라인을 감상합니다. (WASD로 언제든 이동 가능)',
     };
   }
 

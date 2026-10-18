@@ -539,7 +539,7 @@ export class LiftScene {
     const v = this.view;
     const tod = this.timeOfDay;
     this.guestRoomView?.updateVisibility(floor, v === 'game');
-    this.rooftopPoolView?.updateVisibility(floor, v === 'game', v === 'exterior');
+    this.rooftopPoolView?.updateVisibility(floor, v === 'game', v === 'exterior' || v === 'shaft');
     this.escalatorView?.updateVisibility(floor, v === 'game');
     this.stairwellView?.updateVisibility(floor, v === 'game');
     this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior');

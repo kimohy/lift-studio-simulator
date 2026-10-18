@@ -1666,6 +1666,187 @@ body.game-fullscreen .game-tools {
   color: #9cb5c2;
 }
 
+/* Floor Directory Dialog */
+.floor-directory-dialog {
+  width: min(720px, 94vw);
+  max-height: 88vh;
+  padding: 24px;
+  border: 1px solid #4a6a7e;
+  border-radius: 12px;
+  background: #111b22;
+  color: #e2edf2;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.78);
+  pointer-events: auto;
+  overflow-y: auto;
+}
+
+.floor-directory-dialog::backdrop {
+  background: rgba(8, 14, 18, 0.76);
+  backdrop-filter: blur(4px);
+}
+
+.floor-directory-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #233744;
+}
+
+.floor-directory-header h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: #f0f7f3;
+  margin: 3px 0 0;
+}
+
+.floor-directory-header > button {
+  border: 1px solid #455c67;
+  background: #1d2d37;
+  color: #cfe0d8;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.floor-directory-header > button:hover {
+  background: #2b4350;
+}
+
+.floor-directory-subtitle {
+  font-size: 12px;
+  color: #8da6b4;
+  margin: 10px 0 16px;
+  line-height: 1.5;
+}
+
+.floor-directory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.directory-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #17242d;
+  border: 1px solid #283d4a;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.directory-row:hover {
+  background: #1d2e3a;
+  border-color: #3b5a6c;
+}
+
+.directory-row.basement {
+  background: #131c22;
+  border-color: #202d36;
+}
+
+.directory-row.player-here {
+  border-color: var(--accent);
+  background: #142f2b;
+  box-shadow: 0 0 12px rgba(46, 175, 125, 0.18);
+}
+
+.dir-floor-badge {
+  font-size: 16px;
+  font-weight: 700;
+  color: #d6e8f0;
+  text-align: center;
+}
+
+.dir-floor-badge small {
+  font-size: 11px;
+  color: #7997a6;
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.dir-floor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dir-floor-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.dir-floor-title strong {
+  font-size: 14px;
+  color: #f1f7f9;
+}
+
+.dir-en {
+  font-size: 11px;
+  color: #7f99a8;
+}
+
+.dir-floor-desc {
+  font-size: 12px;
+  color: #9cb2be;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.dir-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.dir-badge.player {
+  background: #1b4b3e;
+  color: #9eead1;
+  border: 1px solid #2d735f;
+}
+
+.dir-badge.lift {
+  background: #1c3d52;
+  color: #9ec9eb;
+  border: 1px solid #2e5975;
+}
+
+.dir-teleport-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #3d6074;
+  background: #1f3442;
+  color: #d4e7f2;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.dir-teleport-btn:hover {
+  background: var(--accent);
+  color: #0d1a16;
+  border-color: var(--accent);
+}
+
 /* Responsive Breakpoints */
 @media (min-width: 1500px) {
   #viewport {

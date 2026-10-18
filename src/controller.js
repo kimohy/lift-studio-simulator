@@ -50,6 +50,7 @@ export class LiftController {
     this.alarm = false;
     this.vipMode = false;
     this.accessibleMode = false;
+    this.accessibleTripDone = false;
     this.paused = false;
     this.cabinLightIndex = 0;
     this.cabinFanIndex = 0;
@@ -71,11 +72,12 @@ export class LiftController {
   }
 
   get effectiveDwellSeconds() {
-    return this.accessibleMode ? Math.max(this.doorDwellSeconds, 7.5) : this.doorDwellSeconds;
+    // Additive so it still extends when voice guidance has already raised the base dwell (3s → 9s).
+    return this.accessibleMode ? this.doorDwellSeconds + 4.5 : this.doorDwellSeconds;
   }
 
   get effectiveCloseSeconds() {
-    return this.accessibleMode ? Math.max(this.doorCloseSeconds, 2.8) : this.doorCloseSeconds;
+    return this.accessibleMode ? Math.round((this.doorCloseSeconds + 1.1) * 100) / 100 : this.doorCloseSeconds;
   }
 
   get cabinLightMode() {
@@ -164,12 +166,14 @@ export class LiftController {
 
   toggleAccessibleMode(force) {
     this.accessibleMode = typeof force === 'boolean' ? force : !this.accessibleMode;
+    this.accessibleTripDone = false;
     if (this.accessibleMode && ['open', 'opening'].includes(this.state)) {
       this.dwell = Math.max(this.dwell, this.effectiveDwellSeconds);
     }
+    const dwell = this.effectiveDwellSeconds;
     this.log(
       this.accessibleMode
-        ? '♿ 장애인 배려 운전 활성화 · 문 열림 대기(7.5초) 및 저속 안전 닫힘 연장'
+        ? `♿ 장애인 배려 운전 활성화 · 문 열림 대기(${dwell}초) 및 저속 안전 닫힘 연장`
         : '♿ 장애인 배려 운전 해제 · 표준 도어 타이밍 복귀',
       'info'
     );
@@ -177,7 +181,7 @@ export class LiftController {
       ok: true,
       accessibleMode: this.accessibleMode,
       message: this.accessibleMode
-        ? '♿ 우측 가로형 장애인용 조작반(배려 모드)이 활성화되었습니다. 휠체어·교통약자 승하차를 위해 문 열림 유지 시간(7.5초)과 닫힘 속도가 여유 있게 연장됩니다.'
+        ? `♿ 우측 가로형 장애인용 조작반(배려 모드)이 활성화되었습니다. 문 열림 유지 시간(${dwell}초)과 닫힘 속도가 여유 있게 연장되며, 목적층 도착 후 자동 해제됩니다.`
         : '♿ 장애인 배려 운전 모드를 해제하고 일반 도어 개폐 시간으로 복귀했습니다.',
     };
   }
@@ -228,12 +232,38 @@ export class LiftController {
     };
   }
 
+  travelSeconds(distance) {
+    if (distance < 0.02) return 0;
+    const a = this.accel;
+    const v = this.maxSpeed;
+    const rampDist = (v * v) / a; // accelerate + decelerate
+    return distance >= rampDist ? distance / v + v / a : 2 * Math.sqrt(distance / a);
+  }
+
   etaToFloor(floorIndex = this.target) {
     if (!valid(floorIndex)) return null;
-    const dist = Math.abs(floorIndex * PITCH - this.position);
-    if (dist < 0.02) return 0;
-    const speed = Math.max(0.6, Math.abs(this.velocity) || this.maxSpeed * 0.78);
-    return Math.max(1, Math.round(dist / speed));
+    const goal = floorIndex * PITCH;
+    if (Math.abs(goal - this.position) < 0.02) return 0;
+    const dir = Math.sign(goal - this.position);
+    const doorCycle = this.doorOpenSeconds + this.effectiveDwellSeconds + this.effectiveCloseSeconds;
+    // Remaining door time if the car is currently stopped with doors in motion/open.
+    let t = 0;
+    if (this.state === 'opening') t += (1 - this.door) * this.doorOpenSeconds + this.effectiveDwellSeconds + this.effectiveCloseSeconds;
+    else if (this.state === 'open') t += Math.max(0, this.dwell) + this.effectiveCloseSeconds;
+    else if (this.state === 'closing') t += this.door * this.effectiveCloseSeconds;
+    // Intermediate stops strictly between here and the goal in the travel direction.
+    const stops = this.pending()
+      .filter((n) => n !== floorIndex)
+      .map((n) => n * PITCH)
+      .filter((y) => (y - this.position) * dir > 0.02 && (goal - y) * dir > 0.02)
+      .sort((p, q) => (p - q) * dir);
+    let from = this.position;
+    for (const y of stops) {
+      t += this.travelSeconds(Math.abs(y - from)) + doorCycle;
+      from = y;
+    }
+    t += this.travelSeconds(Math.abs(goal - from));
+    return Math.max(1, Math.round(t));
   }
 
   callHall(n, dir) {
@@ -397,6 +427,11 @@ export class LiftController {
       if (this.door <= 0) {
         this.state = 'idle';
         this.log('도어 잠금 확인');
+        if (this.accessibleMode && this.accessibleTripDone && this.car.size === 0) {
+          this.accessibleMode = false;
+          this.accessibleTripDone = false;
+          this.log('♿ 장애인 배려 운전 자동 해제 · 운행 완료');
+        }
       }
       return;
     }
@@ -453,6 +488,7 @@ export class LiftController {
         this.position = this.target * PITCH;
         this.velocity = 0;
         this.floor = this.target;
+        if (this.accessibleMode) this.accessibleTripDone = true;
         this.arrive();
       }
     }

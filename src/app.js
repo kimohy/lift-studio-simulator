@@ -183,17 +183,20 @@ function act(action, floor, direction, data) {
     return;
   }
   if (['cabinLight', 'cabinFan', 'cabinMusic', 'cabinIntercom', 'cabinVip', 'cabinAccessible', 'cabinMirror'].includes(action)) {
-    if (action === 'cabinIntercom') sfx.playRobot();
+    if (action === 'cabinIntercom') sfx.playIntercom();
     else if (action === 'cabinVip' || action === 'cabinAccessible') sfx.playKeycard(true);
-    else sfx.playButton();
+    else if (action !== 'cabinMusic') sfx.playButton();
     if (game?.active) {
       game.interactCabin(action);
+      if (action === 'cabinMusic') sfx.playMusic(controller.cabinMusicTrack.id);
     } else if (action === 'cabinLight') {
       say(controller.cycleCabinLight().message);
     } else if (action === 'cabinFan') {
       say(controller.cycleCabinFan().message);
     } else if (action === 'cabinMusic') {
-      say(controller.cycleCabinMusic().message);
+      const res = controller.cycleCabinMusic();
+      sfx.playMusic(res.track.id);
+      say(res.message);
     } else if (action === 'cabinIntercom') {
       say(controller.callIntercom().message);
     } else if (action === 'cabinAccessible') {

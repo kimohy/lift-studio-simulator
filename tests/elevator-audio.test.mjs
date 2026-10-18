@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { HotelAnnouncements } from '../src/announcements.js';
 import { LiftController, PITCH } from '../src/controller.js';
-import { computeElevatorAudioGain } from '../src/elevator-audio.js';
+import { computeElevatorAudioGain, HotelSoundEffects } from '../src/elevator-audio.js';
 import { EmergencyAlarm } from '../src/emergency-alarm.js';
 import { WalkingPlayer } from '../src/player.js';
 import { Stairwell } from '../src/stairs.js';
@@ -141,4 +141,35 @@ test('EmergencyAlarm scales gain by proximity to the elevator', () => {
   assert.ok(Math.abs(alarm.gainNode.gain.value - 0.09) < 1e-6);
   assert.ok(Math.abs(alarm.depthNode.gain.value - 0.08) < 1e-6);
   alarm.stop();
+});
+
+test('HotelSoundEffects synthesizes button, keycard, robot, water, intercom, and cabin music safely', () => {
+  const sfx = new HotelSoundEffects(
+    () => ({
+      currentTime: 0,
+      destination: {},
+      createOscillator: () => ({
+        frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+        connect() {},
+        start() {},
+        stop() {},
+      }),
+      createGain: () => ({
+        gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} },
+        connect() {},
+      }),
+    }),
+    () => 0.8,
+    () => true
+  );
+
+  assert.equal(sfx.playButton(), true);
+  assert.equal(sfx.playKeycard(), true);
+  assert.equal(sfx.playRobot(), true);
+  assert.equal(sfx.playWater(), true);
+  assert.equal(sfx.playIntercom(), true);
+  assert.equal(sfx.playMusic('chanson'), true);
+  assert.equal(sfx.playMusic('bossa'), true);
+  assert.equal(sfx.playMusic('strings'), true);
+  assert.equal(sfx.playMusic('off'), true);
 });

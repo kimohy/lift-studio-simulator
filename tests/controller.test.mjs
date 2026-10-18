@@ -81,7 +81,18 @@ test('car call cancellation, clearCarCalls, ETA, and cabin environment controls 
  assert.equal(c.effectiveCloseSeconds,2.8);
  c.openDoor();
  assert.equal(c.dwell,7.5);
- assert.equal(c.toggleAccessibleMode(false).accessibleMode,false);
+ // Additive dwell test with voice dwell:
+ c.doorDwellSeconds = 9;
+ assert.equal(c.effectiveDwellSeconds, 13.5);
+ c.doorDwellSeconds = 3;
+ // Automatic trip reset: callCar(6), run until arrival, verify accessibleMode resets after car is emptied
+ run(c, drained);
+ assert.equal(c.floor, 5);
+ c.callCar(6);
+ run(c, x => x.floor === 6 && x.state === 'open');
+ assert.equal(c.accessibleTripDone, true);
+ run(c, drained);
+ assert.equal(c.accessibleMode, false);
 });
 
 

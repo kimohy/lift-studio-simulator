@@ -126,5 +126,37 @@ export class HotelSoundEffects {
     const b = this.tone(480, 0.16, { type: 'sine', delay: 0.06, gainScale: 0.05, endFreq: 260 });
     return a || b;
   }
+
+  playIntercom() {
+    const a = this.tone(880, 0.08, { type: 'sine', gainScale: 0.08 });
+    const b = this.tone(1320, 0.12, { type: 'sine', delay: 0.09, gainScale: 0.075, endFreq: 1760 });
+    return a || b;
+  }
+
+  playMusic(trackId = 'chanson') {
+    if (trackId === 'off') {
+      return this.tone(330, 0.12, { type: 'sine', gainScale: 0.05, endFreq: 165 });
+    }
+    if (trackId === 'bossa') {
+      const a = this.tone(349.23, 0.14, { type: 'triangle', gainScale: 0.06 });
+      const b = this.tone(440.0, 0.14, { type: 'triangle', delay: 0.08, gainScale: 0.06 });
+      const c = this.tone(523.25, 0.16, { type: 'triangle', delay: 0.16, gainScale: 0.065 });
+      const d = this.tone(587.33, 0.22, { type: 'triangle', delay: 0.24, gainScale: 0.07 });
+      return a || b || c || d;
+    }
+    if (trackId === 'strings') {
+      const a = this.tone(659.25, 0.12, { type: 'sawtooth', gainScale: 0.045 });
+      const b = this.tone(830.61, 0.12, { type: 'sawtooth', delay: 0.08, gainScale: 0.045 });
+      const c = this.tone(987.77, 0.14, { type: 'sawtooth', delay: 0.16, gainScale: 0.05 });
+      const d = this.tone(1318.51, 0.24, { type: 'sawtooth', delay: 0.24, gainScale: 0.055 });
+      return a || b || c || d;
+    }
+    // Default 'chanson' / piano arpeggio
+    const a = this.tone(523.25, 0.15, { type: 'sine', gainScale: 0.06 });
+    const b = this.tone(659.25, 0.15, { type: 'sine', delay: 0.09, gainScale: 0.065 });
+    const c = this.tone(783.99, 0.16, { type: 'sine', delay: 0.18, gainScale: 0.07 });
+    const d = this.tone(987.77, 0.25, { type: 'sine', delay: 0.27, gainScale: 0.075 });
+    return a || b || c || d;
+  }
 }
 

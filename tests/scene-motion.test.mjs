@@ -95,8 +95,10 @@ test('all landing indicators share the live cabin floor display', () => {
     const rightHorizCOP = v.car.getObjectByName('Accessible_horizontal_COP_R');
     assert.ok(rightHorizCOP, 'Right side wall horizontal accessible COP should exist');
     assert.ok(rightHorizCOP.position.x > 0.85, 'Mounted on right cabin side wall');
+    assert.equal(rightHorizCOP.position.y, 1.08, 'Mounted at barrier-free height 1.08m');
+    assert.ok(!v.car.getObjectByName('Accessible_horizontal_COP_L'), 'Left side panel should not exist (single right-wall COP)');
     const accButtons = v.pickables.filter((o) => o.userData?.accessible && o.userData?.action === 'car');
-    assert.ok(accButtons.length >= 30, 'All 15 floors registered on horizontal accessible COP');
+    assert.equal(accButtons.length, 15, 'All 15 floors registered on single right horizontal accessible COP');
   } finally {
     globalThis.document = previous;
   }

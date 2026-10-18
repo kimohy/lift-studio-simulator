@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ROOM } from './guest-room.js';
+import { ROOM, ROOM_AC_MODES } from './guest-room.js';
 import { hotelSignTexture } from './hotel-sign.js';
 
 export class GuestRoomView {
@@ -22,10 +22,15 @@ export class GuestRoomView {
       silver: new THREE.MeshStandardMaterial({ color: 0xd8e0e3, metalness: 0.78, roughness: 0.22 }),
       stone: new THREE.MeshStandardMaterial({ color: 0xd2ccbc, roughness: 0.35 }),
       black: new THREE.MeshStandardMaterial({ color: 0x171f20, roughness: 0.35 }),
+      red: new THREE.MeshStandardMaterial({ color: 0x9b2d2a, roughness: 0.38, metalness: 0.25 }),
+      emerald: new THREE.MeshStandardMaterial({ color: 0x246b57, roughness: 0.35 }),
       glass: new THREE.MeshStandardMaterial({ color: 0xbfd4d6, transparent: true, opacity: 0.25, roughness: 0.1 }),
       water: new THREE.MeshBasicMaterial({ color: 0x9be4ff, transparent: true, opacity: 0.55 }),
+      steam: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 }),
       ceilingLight: new THREE.MeshBasicMaterial({ color: 0xffebcc }),
       lampLight: new THREE.MeshBasicMaterial({ color: 0xffe4b5 }),
+      audioLed: new THREE.MeshBasicMaterial({ color: 0x3b4d54 }),
+      fridgeLight: new THREE.MeshBasicMaterial({ color: 0xd8f3ff }),
     };
     const m = this.m;
 
@@ -34,7 +39,7 @@ export class GuestRoomView {
     g.add(this.roomPointLight);
 
     const makePickable = (mesh, data) => {
-      mesh.userData = { ...data };
+      mesh.userData = { ...mesh.userData, ...data };
       pickables.push(mesh);
       return mesh;
     };
@@ -156,7 +161,7 @@ export class GuestRoomView {
       makePickable(pillow, bedData);
     }
 
-    // Bedside tables & Interactive Lamps
+    // Bedside tables, Interactive Lamps & Hi-Fi Bluetooth Audio Speaker
     const lightData = { action: 'roomLight', floorIndex: 7 };
     box(g, 'Bedroom_rug', [3.1, 0.012, 3.25], [-0.6, 0.011, 10.95], m.stone);
     for (const x of [-2.06, 0.18]) {
@@ -165,9 +170,128 @@ export class GuestRoomView {
       makePickable(cylinder('Bedside_lamp_shade', 0.17, 0.26, [x, 0.99, 12.23], m.lampLight), lightData);
     }
 
-    // Wall Light Switch inside room near entry door
+    // Interactive Bluetooth Audio Speaker on the right bedside table (x = 0.18, z = 12.06)
+    const audioData = { action: 'roomAudio', floorIndex: 7, dynamic: true };
+    makePickable(box(g, 'Bluetooth_speaker_body', [0.22, 0.12, 0.13], [0.18, 0.58, 12.04], m.dark), audioData);
+    makePickable(box(g, 'Bluetooth_speaker_grille', [0.2, 0.09, 0.01], [0.18, 0.58, 11.97], m.gold), audioData);
+    this.audioIndicator = makePickable(
+      box(g, 'Bluetooth_speaker_led', [0.08, 0.015, 0.012], [0.18, 0.63, 11.97], m.audioLed),
+      audioData
+    );
+    this.audioIndicator.userData.dynamic = true;
+
+    // Wall Light Switch & Smart Digital Thermostat near entry door
     const wallSwitch = box(g, 'Room_light_switch', [0.11, 0.16, 0.03], [-0.67, 1.18, 4.11], m.gold);
     makePickable(wallSwitch, lightData);
+
+    const acData = { action: 'roomThermostat', floorIndex: 7, dynamic: true };
+    makePickable(box(g, 'Smart_thermostat_frame', [0.18, 0.15, 0.025], [-0.42, 1.38, 4.11], m.black), acData);
+    this.acMaterials = ROOM_AC_MODES.map(
+      (ac) =>
+        new THREE.MeshBasicMaterial({
+          map: hotelSignTexture([ac.display, ac.mode]),
+        })
+    );
+    this.acScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.11), this.acMaterials[0]);
+    this.acScreen.name = 'Smart_thermostat_screen';
+    this.acScreen.userData = { ...acData };
+    this.acScreen.position.set(-0.42, 1.38, 4.125);
+    g.add(this.acScreen);
+    pickables.push(this.acScreen);
+
+    // Luxury Open Wardrobe, Bathrobe, Minibar & Digital Safe Credenza on West Wall (x = -2.02, z = 5.4..7.2)
+    box(g, 'Wardrobe_credenza_unit', [0.56, 2.15, 0.86], [-2.02, 1.075, 5.45], m.wood, true);
+    box(g, 'Wardrobe_interior_recess', [0.48, 1.25, 0.78], [-1.96, 1.44, 5.45], m.dark);
+    box(g, 'Wardrobe_hanging_rod', [0.025, 0.025, 0.74], [-1.95, 1.98, 5.45], m.gold);
+
+    // Interactive Plush Hotel Bathrobe & Slippers inside Wardrobe
+    const wardrobeData = { action: 'roomWardrobe', floorIndex: 7, dynamic: true };
+    this.bathrobeGroup = new THREE.Group();
+    this.bathrobeGroup.name = 'Hotel_plush_bathrobe';
+    this.bathrobeGroup.position.set(-1.92, 1.48, 5.45);
+    this.bathrobeGroup.userData.dynamic = true;
+    g.add(this.bathrobeGroup);
+    makePickable(box(this.bathrobeGroup, 'Bathrobe_hanger', [0.03, 0.08, 0.34], [0, 0.44, 0], m.gold), wardrobeData);
+    makePickable(box(this.bathrobeGroup, 'Bathrobe_torso', [0.16, 0.78, 0.38], [0, 0.02, 0], m.linen), wardrobeData);
+    makePickable(box(this.bathrobeGroup, 'Bathrobe_belt', [0.17, 0.06, 0.4], [0, 0.05, 0], m.gold), wardrobeData);
+    makePickable(
+      sign(
+        g,
+        'Wardrobe_label',
+        ['BATHROBE & SLIPPERS', '클릭해 호텔 가운 착용 🥼'],
+        [-1.73, 2.06, 5.45],
+        0.38,
+        0.13,
+        Math.PI / 2
+      ),
+      wardrobeData
+    );
+
+    // Interactive Digital Safe in lower wardrobe compartment
+    const safeData = { action: 'roomSafe', floorIndex: 7, dynamic: true };
+    makePickable(box(g, 'Digital_safe_box', [0.44, 0.28, 0.46], [-1.92, 0.62, 5.45], m.black), safeData);
+    this.safeDoorPivot = new THREE.Group();
+    this.safeDoorPivot.position.set(-1.7, 0.62, 5.23);
+    this.safeDoorPivot.userData.dynamic = true;
+    g.add(this.safeDoorPivot);
+    makePickable(
+      box(this.safeDoorPivot, 'Digital_safe_door', [0.03, 0.25, 0.43], [0, 0, 0.215], m.dark),
+      safeData
+    );
+    makePickable(
+      box(this.safeDoorPivot, 'Safe_keypad', [0.035, 0.09, 0.12], [0.01, 0.02, 0.32], m.gold),
+      safeData
+    );
+
+    // Minibar Counter, Mini Fridge & Espresso Capsule Machine (x = -2.02, z = 6.55)
+    box(g, 'Minibar_counter_cabinet', [0.56, 0.88, 1.15], [-2.02, 0.44, 6.55], m.wood, true);
+    box(g, 'Minibar_stone_top', [0.6, 0.05, 1.2], [-2.0, 0.9, 6.55], m.stone);
+
+    const minibarData = { action: 'roomMinibar', floorIndex: 7, dynamic: true };
+    makePickable(box(g, 'Minibar_fridge_cavity', [0.46, 0.64, 0.56], [-1.92, 0.42, 6.55], m.black), minibarData);
+    makePickable(box(g, 'Minibar_interior_light', [0.4, 0.54, 0.48], [-1.94, 0.42, 6.55], m.fridgeLight), minibarData);
+    for (const [bz, matCol] of [
+      [6.42, m.emerald],
+      [6.55, m.red],
+      [6.68, m.gold],
+    ]) {
+      makePickable(cylinder('Minibar_bottle', 0.038, 0.22, [-1.88, 0.34, bz], matCol), minibarData);
+    }
+    this.minibarDoorPivot = new THREE.Group();
+    this.minibarDoorPivot.position.set(-1.71, 0.42, 6.26);
+    this.minibarDoorPivot.userData.dynamic = true;
+    g.add(this.minibarDoorPivot);
+    makePickable(
+      box(this.minibarDoorPivot, 'Minibar_glass_door', [0.03, 0.66, 0.56], [0, 0, 0.28], m.glass),
+      minibarData
+    );
+    makePickable(
+      box(this.minibarDoorPivot, 'Minibar_door_handle', [0.04, 0.22, 0.03], [0.02, 0.05, 0.5], m.gold),
+      minibarData
+    );
+
+    // Interactive Espresso Capsule Machine on top of the Minibar counter
+    const coffeeData = { action: 'roomCoffee', floorIndex: 7, dynamic: true };
+    makePickable(box(g, 'Espresso_capsule_machine', [0.28, 0.28, 0.22], [-1.98, 1.06, 6.35], m.red), coffeeData);
+    makePickable(box(g, 'Espresso_brew_head', [0.14, 0.09, 0.12], [-1.84, 1.12, 6.35], m.silver), coffeeData);
+    makePickable(cylinder('Espresso_cup_saucer', 0.065, 0.015, [-1.83, 0.935, 6.35], m.linen), coffeeData);
+    makePickable(cylinder('Espresso_porcelain_cup', 0.042, 0.065, [-1.83, 0.97, 6.35], m.linen), coffeeData);
+    makePickable(box(g, 'Capsule_display_box', [0.18, 0.04, 0.22], [-1.92, 0.94, 6.78], m.gold), coffeeData);
+    makePickable(
+      sign(
+        g,
+        'Coffee_bar_sign',
+        ['ESPRESSO & MINIBAR', '커피 머신 · 미니바 ☕🥂'],
+        [-2.27, 1.48, 6.55],
+        0.52,
+        0.16,
+        Math.PI / 2
+      ),
+      coffeeData
+    );
+    this.coffeeSteam = cylinder('Espresso_steam_wisp', 0.03, 0.14, [-1.83, 1.06, 6.35], m.steam);
+    this.coffeeSteam.userData.dynamic = true;
+    this.coffeeSteam.visible = false;
 
     // Writing Desk + Smart Room Service Tablet
     box(g, 'Writing_desk', [0.6, 0.08, 1.65], [1.95, 0.76, 8.75], m.wood, true);
@@ -217,12 +341,14 @@ export class GuestRoomView {
     makePickable(cloche, foodData);
     makePickable(cylinder('Tray_coffee_cup', 0.045, 0.085, [0.04, 0.05, 0.13], m.linen, this.foodTray), foodData);
 
-    box(g, 'Window_armchair', [0.78, 0.42, 0.8], [1.45, 0.35, 11.75], m.fabric, true);
-    box(g, 'Armchair_back', [0.78, 0.58, 0.15], [1.45, 0.77, 12.14], m.fabric);
+    // Interactive Window Lounge Armchair & Side Table
+    const armchairData = { action: 'roomArmchair', floorIndex: 7 };
+    makePickable(box(g, 'Window_armchair', [0.78, 0.42, 0.8], [1.45, 0.35, 11.75], m.fabric, true), armchairData);
+    makePickable(box(g, 'Armchair_back', [0.78, 0.58, 0.15], [1.45, 0.77, 12.14], m.fabric), armchairData);
     for (const x of [1.06, 1.84]) {
-      box(g, 'Armchair_arm', [0.12, 0.38, 0.8], [x, 0.56, 11.75], m.fabric);
+      makePickable(box(g, 'Armchair_arm', [0.12, 0.38, 0.8], [x, 0.56, 11.75], m.fabric), armchairData);
     }
-    cylinder('Window_side_table', 0.24, 0.055, [1.3, 0.6, 10.8], m.wood);
+    makePickable(cylinder('Window_side_table', 0.24, 0.055, [1.3, 0.6, 10.8], m.wood), armchairData);
     cylinder('Side_table_pedestal', 0.04, 0.58, [1.3, 0.29, 10.8], m.gold);
     room.addObstacle(1.04, 1.56, 10.54, 11.06);
 
@@ -349,6 +475,31 @@ export class GuestRoomView {
     const tvMat = this.tvMaterials[this.room.tvMode] || this.tvMaterials.welcome;
     if (this.tvScreen.material !== tvMat) {
       this.tvScreen.material = tvMat;
+    }
+
+    // Update Smart Thermostat Screen
+    const acMat = this.acMaterials[this.room.acIndex ?? 0] || this.acMaterials[0];
+    if (this.acScreen && this.acScreen.material !== acMat) {
+      this.acScreen.material = acMat;
+    }
+
+    // Update Bluetooth Audio Indicator LED
+    if (this.m.audioLed) {
+      this.m.audioLed.color.setHex(this.room.audioTrack?.playing ? 0x5ff2d6 : 0x3b4d54);
+    }
+
+    // Update Minibar Door, Safe Door, Bathrobe, and Coffee Steam
+    if (this.minibarDoorPivot) {
+      this.minibarDoorPivot.rotation.y = (this.room.minibarOpen ?? 0) * 1.35;
+    }
+    if (this.safeDoorPivot) {
+      this.safeDoorPivot.rotation.y = (this.room.safeOpen ?? 0) * 1.45;
+    }
+    if (this.bathrobeGroup) {
+      this.bathrobeGroup.visible = !this.room.wearingRobe;
+    }
+    if (this.coffeeSteam) {
+      this.coffeeSteam.visible = Boolean(this.room.coffeeBrewed);
     }
 
     // Update Room Lighting Mode

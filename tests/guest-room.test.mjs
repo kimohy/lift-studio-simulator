@@ -31,6 +31,28 @@ test('guest room interactive amenities (TV, lighting, curtain, shower, bed rest,
   assert.ok(r.foodItem);
   assert.equal(r.consumeFood().ok,true);
   assert.equal(r.foodItem,null);
+  // New Room 301 amenities: Armchair, Coffee Machine, Minibar, Digital Safe, Wardrobe Bathrobe, Thermostat, Bluetooth Speaker
+  assert.equal(r.sitArmchair(p).ok,true);
+  assert.equal(p.x,0.65);
+  assert.equal(p.z,11.75);
+  assert.equal(r.coffeeBrewed,false);
+  assert.equal(r.brewCoffee().ok,true);
+  assert.equal(r.coffeeBrewed,true);
+  assert.equal(r.useMinibar().open,true);
+  for(let i=0;i<40;i++)r.update(.02,p);
+  assert.equal(r.minibarOpen,1);
+  assert.equal(r.useMinibar().open,false);
+  assert.equal(r.toggleSafe().open,true);
+  for(let i=0;i<40;i++)r.update(.02,p);
+  assert.equal(r.safeOpen,1);
+  assert.equal(r.toggleSafe().open,false);
+  assert.equal(r.wearingRobe,false);
+  assert.equal(r.toggleWardrobe().wearingRobe,true);
+  assert.equal(r.toggleWardrobe().wearingRobe,false);
+  assert.equal(r.acMode.temp,22);
+  assert.equal(r.cycleThermostat().temp,24);
+  assert.equal(r.audioTrack.playing,false);
+  assert.equal(r.cycleAudio().playing,true);
 });
 test('service robot DELI takes room service order, rides elevator to 3F Room 301, delivers food, and returns to 1F',async()=>{
   const {ServiceRobot}=await import('../src/service-robot.js');

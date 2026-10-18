@@ -801,6 +801,8 @@ export class GameMode {
       this.message(this.controller.cycleCabinMusic().message);
     } else if (action === 'cabinIntercom') {
       this.message(this.controller.callIntercom().message);
+    } else if (action === 'cabinAccessible') {
+      this.message(this.controller.toggleAccessibleMode().message);
     } else if (action === 'cabinVip') {
       const vip = this.controller.toggleVipMode();
       this.message(
@@ -919,7 +921,9 @@ export class GameMode {
       case 'hall':
         return `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '올라가기' : '내려가기'} 호출 · 왼쪽 클릭`;
       case 'car':
-        return `${FLOORS[d.floorIndex]}층 ${this.controller.car.has(d.floorIndex) ? '선택 취소 (재클릭)' : '목적층 선택'} · 왼쪽 클릭`;
+        return `${d.accessible ? '♿ 우측 가로형 장애인용 조작반 · ' : ''}${FLOORS[d.floorIndex]}층 ${this.controller.car.has(d.floorIndex) ? '선택 취소 (재클릭)' : '목적층 선택 (문 열림 연장)'} · 왼쪽 클릭`;
+      case 'cabinAccessible':
+        return `♿ 우측 가로형 장애인 배려 운전 버튼 (${this.controller.accessibleMode ? '켜짐 · 문 열림 7.5초 연장' : '꺼짐'}) · 클릭해 전환`;
       case 'cabinLight':
         return `카 내부 무드 조명 (${this.controller.cabinLightMode.label}) · 클릭해 조명 분위기 변경 💡`;
       case 'cabinFan':
@@ -927,13 +931,13 @@ export class GameMode {
       case 'cabinMusic':
         return `카 라운지 오디오 (${this.controller.cabinMusicTrack.label}) · 클릭해 배경음악 변경/음소거 🎵`;
       case 'cabinIntercom':
-        return '엘리베이터 비상/컨시어지 인터폰 · 클릭해 관제실 통화 연결 🎙️';
+        return `${d.accessible ? '♿ 장애인용 가로 조작반 ' : ''}비상/컨시어지 인터폰 · 클릭해 관제실 통화 연결 🎙️`;
       case 'cabinVip':
         return `VIP 직통 운행 스위치 (${this.controller.vipMode ? '켜짐 ★' : '꺼짐 ☆'}) · 클릭해 논스톱 직행 전환`;
       case 'cabinMirror':
         return '엘리베이터 전면 크리스탈 거울 · 클릭해 옷매무새 확인하기 🪞';
       default:
-        return `${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
+        return `${d.accessible ? '♿ 장애인용 가로 조작반 · ' : ''}${{ open: '문 열림 (연장)', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
     }
   }
 

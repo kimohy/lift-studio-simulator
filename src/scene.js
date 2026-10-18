@@ -566,6 +566,152 @@ export class LiftScene {
       this.cabinFanRotor.add(blade);
     }
     this.car.add(this.cabinFanRotor);
+
+    // 4. Right Side Wall Horizontal Accessible COP (장애인용 가로형 조작반, 휠체어 눈높이 y ≈ 0.92m)
+    this.buildAccessibleHorizontalCOP();
+  }
+
+  buildAccessibleHorizontalCOP() {
+    if (!this.car) return;
+    // Right side wall when looking inside from the doorway is x = +0.878 (facing -X toward cabin center),
+    // and we also mirror a companion unit on x = -0.878 so whichever side the passenger considers "right"
+    // (standing inside facing the door vs facing into the cabin), the horizontal wheelchair COP is right there!
+    this.accessibleToggleButtons = [];
+    for (const side of [1, -1]) {
+      const panelGroup = new THREE.Group();
+      panelGroup.name = side === 1 ? 'Accessible_horizontal_COP_R' : 'Accessible_horizontal_COP_L';
+      panelGroup.position.set(side * 0.874, 1.03, 0.04);
+      panelGroup.rotation.y = side === 1 ? -Math.PI / 2 : Math.PI / 2;
+
+      // Brushed stainless horizontal faceplate (wide horizontal format: 0.92m wide × 0.165m high)
+      const plate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.92, 0.165, 0.014),
+        new THREE.MeshStandardMaterial({
+          color: 0x2a3944,
+          roughness: 0.26,
+          metalness: 0.82,
+        })
+      );
+      plate.name = `Accessible_COP_faceplate_${side > 0 ? 'R' : 'L'}`;
+      panelGroup.add(plate);
+
+      // Blue wheelchair accessibility emblem badge & braille header strip on the left of the horizontal panel
+      const badgeCanvas = document.createElement('canvas');
+      badgeCanvas.width = 256;
+      badgeCanvas.height = 256;
+      const bctx = badgeCanvas.getContext('2d');
+      if (bctx?.fillRect) {
+        bctx.fillStyle = '#0d5cab';
+        bctx.fillRect(0, 0, 256, 256);
+        bctx.strokeStyle = '#8fd4ff';
+        bctx.lineWidth = 10;
+        bctx.strokeRect(10, 10, 236, 236);
+        bctx.fillStyle = '#ffffff';
+        bctx.font = 'bold 118px sans-serif';
+        bctx.textAlign = 'center';
+        bctx.fillText('♿', 128, 148);
+        bctx.font = 'bold 28px sans-serif';
+        bctx.fillText('장애인용 · 연장', 128, 212);
+      }
+      const badgeTex = new THREE.CanvasTexture(badgeCanvas);
+      badgeTex.colorSpace = THREE.SRGBColorSpace;
+      const badgeMat = new THREE.MeshStandardMaterial({
+        map: bctx?.fillRect ? badgeTex : null,
+        color: 0x1b75d0,
+        emissive: 0x1b75d0,
+        emissiveIntensity: 0.25,
+        roughness: 0.3,
+      });
+      const badgeBtn = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.115, 0.022), badgeMat);
+      badgeBtn.name = `Accessible_mode_button_${side > 0 ? 'R' : 'L'}`;
+      badgeBtn.position.set(-0.38, 0, 0.008);
+      badgeBtn.userData = { action: 'cabinAccessible', dynamic: true };
+      panelGroup.add(badgeBtn);
+      this.pickables.push(badgeBtn);
+      this.accessibleToggleButtons.push(badgeBtn);
+
+      // 15 Horizontal Floor Buttons arranged in 2 accessible rows (Row 1: 1F~8F, Row 2: B5~B1 + 9F~10F)
+      const topRowFloors = [5, 6, 7, 8, 9, 10, 11, 12]; // 1F .. 8F
+      const bottomRowFloors = [0, 1, 2, 3, 4, 13, 14]; // B5 .. B1, 9F, 10F
+      const btnGeo = new THREE.BoxGeometry(0.056, 0.046, 0.02);
+
+      const addFloorBtn = (floorIndex, col, rowY) => {
+        const x = -0.265 + col * 0.066;
+        const btnMat = new THREE.MeshStandardMaterial({
+          color: 0x8e9aa3,
+          roughness: 0.32,
+          metalness: 0.55,
+        });
+        const btn = new THREE.Mesh(btnGeo, btnMat);
+        btn.name = `Accessible_Button_${FLOORS[floorIndex]}_${side > 0 ? 'R' : 'L'}`;
+        btn.position.set(x, rowY, 0.008);
+        btn.userData = {
+          action: 'car',
+          floorIndex,
+          accessible: true,
+          ownMaterial: true,
+          dynamic: true,
+        };
+        panelGroup.add(btn);
+        this.pickables.push(btn);
+
+        // Tactile label face on each horizontal button
+        const lblCanvas = document.createElement('canvas');
+        lblCanvas.width = 96;
+        lblCanvas.height = 80;
+        const lctx = lblCanvas.getContext('2d');
+        if (lctx?.fillRect) {
+          lctx.fillStyle = '#18242c';
+          lctx.fillRect(0, 0, 96, 80);
+          lctx.strokeStyle = floorIndex === 5 ? '#56d8c4' : '#536878';
+          lctx.lineWidth = 4;
+          lctx.strokeRect(3, 3, 90, 74);
+          lctx.fillStyle = floorIndex === 5 ? '#7ef7e1' : '#eef5f9';
+          lctx.font = 'bold 34px sans-serif';
+          lctx.textAlign = 'center';
+          lctx.fillText(FLOORS[floorIndex], 48, 46);
+          lctx.fillStyle = '#8fa6b5';
+          lctx.font = '14px monospace';
+          lctx.fillText('⠇⠋', 48, 68);
+          const lTex = new THREE.CanvasTexture(lblCanvas);
+          lTex.colorSpace = THREE.SRGBColorSpace;
+          const cap = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.05, 0.04),
+            new THREE.MeshBasicMaterial({ map: lTex })
+          );
+          cap.position.set(0, 0, 0.011);
+          cap.userData = { action: 'car', floorIndex, accessible: true, dynamic: true };
+          btn.add(cap);
+          this.pickables.push(cap);
+        }
+      };
+
+      topRowFloors.forEach((floorIndex, idx) => addFloorBtn(floorIndex, idx, 0.036));
+      bottomRowFloors.forEach((floorIndex, idx) => addFloorBtn(floorIndex, idx, -0.036));
+
+      // Right side of the horizontal panel: Open (◀▶), Close (▶◀), SOS (🔔), Intercom (🎙️)
+      const auxSpecs = [
+        { action: 'open', label: '◀│▶', sub: '열림연장', x: 0.305, y: 0.036, color: 0x26483f },
+        { action: 'close', label: '▶│◀', sub: '닫힘', x: 0.385, y: 0.036, color: 0x293844 },
+        { action: 'alarm', label: 'SOS', sub: '비상', x: 0.305, y: -0.036, color: 0xa83025 },
+        { action: 'cabinIntercom', label: '🎙️', sub: '통화', x: 0.385, y: -0.036, color: 0x3b2c44 },
+      ];
+      for (const spec of auxSpecs) {
+        const mat = new THREE.MeshStandardMaterial({
+          color: spec.color,
+          roughness: 0.32,
+          metalness: 0.5,
+        });
+        const abtn = new THREE.Mesh(new THREE.BoxGeometry(0.068, 0.046, 0.02), mat);
+        abtn.name = `Accessible_Aux_${spec.action}_${side > 0 ? 'R' : 'L'}`;
+        abtn.position.set(spec.x, spec.y, 0.008);
+        abtn.userData = { action: spec.action, accessible: true, ownMaterial: true, dynamic: true };
+        panelGroup.add(abtn);
+        this.pickables.push(abtn);
+      }
+
+      this.car.add(panelGroup);
+    }
   }
 
   setView(view, c) {
@@ -731,6 +877,12 @@ export class LiftScene {
       }
     }
 
+    if (this.accessibleToggleButtons) {
+      for (const btn of this.accessibleToggleButtons) {
+        btn.material.emissiveIntensity = c.accessibleMode ? 0.75 : 0.22;
+      }
+    }
+
     for (const o of this.doors) {
       const open =
         o.userData.simRole === 'carDoor' || (o.userData.floorIndex === c.floor && c.aligned()) ? c.door : 0;
@@ -751,7 +903,7 @@ export class LiftScene {
       this.followY = y;
     }
 
-    const displayKey = `${c.floor}/${c.state}/${c.direction}/${c.alarm}/${c.vipMode}/${c.target}/${c.cabinLightIndex}/${c.cabinFanIndex}/${c.cabinMusicIndex}/${Math.round(c.velocity * 10)}`;
+    const displayKey = `${c.floor}/${c.state}/${c.direction}/${c.alarm}/${c.vipMode}/${c.accessibleMode}/${c.target}/${c.cabinLightIndex}/${c.cabinFanIndex}/${c.cabinMusicIndex}/${Math.round(c.velocity * 10)}`;
     if (displayKey !== this.displayKey) {
       this.displayKey = displayKey;
       const ctx = this.lcdctx;
@@ -761,7 +913,7 @@ export class LiftScene {
       ctx.font = 'bold 64px monospace';
       ctx.textAlign = 'left';
       ctx.fillText(
-        `${FLOORS[c.floor]}F  ${c.alarm ? 'ALARM' : c.vipMode ? 'VIP EXPRESS' : c.state.toUpperCase()}`,
+        `${FLOORS[c.floor]}F  ${c.alarm ? 'ALARM' : c.vipMode ? 'VIP EXPRESS' : c.accessibleMode ? '♿ ACCESSIBLE' : c.state.toUpperCase()}`,
         24,
         76
       );
@@ -777,7 +929,7 @@ export class LiftScene {
       f.font = 'bold 74px monospace';
       f.textAlign = 'center';
       const arrow = c.direction === 1 ? '↑' : c.direction === -1 ? '↓' : '–';
-      const targetStr = c.target !== null && c.target !== c.floor ? ` ▸${FLOORS[c.target]}` : c.vipMode ? ' ★' : '';
+      const targetStr = c.target !== null && c.target !== c.floor ? ` ▸${FLOORS[c.target]}` : c.vipMode ? ' ★' : c.accessibleMode ? ' ♿' : '';
       f.fillText(`${FLOORS[c.floor]} ${arrow}${targetStr}`, 256, 91);
       this.floorTex.needsUpdate = true;
 
@@ -791,7 +943,7 @@ export class LiftScene {
         ic.fillStyle = '#8deee0';
         ic.font = 'bold 26px sans-serif';
         ic.textAlign = 'left';
-        ic.fillText(`GRAND HOTEL · ${FLOORS[c.floor]}F`, 20, 42);
+        ic.fillText(`GRAND HOTEL · ${FLOORS[c.floor]}F${c.accessibleMode ? ' ♿' : ''}`, 20, 42);
         ic.fillStyle = '#e5f2ee';
         ic.font = '21px sans-serif';
         ic.fillText(`💡 ${c.cabinLightMode?.label || ''}`, 20, 84);
@@ -804,7 +956,9 @@ export class LiftScene {
 
     for (const o of this.pickables) {
       const action = o.userData.action;
-      if (!o.isMesh || !['car', 'hall', 'alarm'].includes(action)) continue;
+      if (!o.isMesh || !o.material?.color || !o.material?.emissive || !['car', 'hall', 'alarm'].includes(action)) {
+        continue;
+      }
       const selected =
         action === 'car'
           ? c.car.has(o.userData.floorIndex)

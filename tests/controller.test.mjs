@@ -73,5 +73,15 @@ test('car call cancellation, clearCarCalls, ETA, and cabin environment controls 
  assert.equal(c.cycleCabinMusic().track.playing,false);
  assert.equal(c.callIntercom().ok,true);
  assert.ok(c.intercomActiveUntil>c.time);
+ // Horizontal accessible COP (장애인 배려 운전 모드): extends door dwell to 7.5s and close time to 2.8s
+ assert.equal(c.accessibleMode,false);
+ assert.equal(c.effectiveDwellSeconds,3);
+ assert.equal(c.toggleAccessibleMode().accessibleMode,true);
+ assert.equal(c.effectiveDwellSeconds,7.5);
+ assert.equal(c.effectiveCloseSeconds,2.8);
+ c.openDoor();
+ assert.equal(c.dwell,7.5);
+ assert.equal(c.toggleAccessibleMode(false).accessibleMode,false);
 });
+
 

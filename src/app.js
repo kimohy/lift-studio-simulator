@@ -182,9 +182,9 @@ function act(action, floor, direction, data) {
     game?.toggleStairDoor(floor);
     return;
   }
-  if (['cabinLight', 'cabinFan', 'cabinMusic', 'cabinIntercom', 'cabinVip', 'cabinMirror'].includes(action)) {
+  if (['cabinLight', 'cabinFan', 'cabinMusic', 'cabinIntercom', 'cabinVip', 'cabinAccessible', 'cabinMirror'].includes(action)) {
     if (action === 'cabinIntercom') sfx.playRobot();
-    else if (action === 'cabinVip') sfx.playKeycard(true);
+    else if (action === 'cabinVip' || action === 'cabinAccessible') sfx.playKeycard(true);
     else sfx.playButton();
     if (game?.active) {
       game.interactCabin(action);
@@ -196,6 +196,8 @@ function act(action, floor, direction, data) {
       say(controller.cycleCabinMusic().message);
     } else if (action === 'cabinIntercom') {
       say(controller.callIntercom().message);
+    } else if (action === 'cabinAccessible') {
+      say(controller.toggleAccessibleMode().message);
     } else if (action === 'cabinVip') {
       const vip = controller.toggleVipMode();
       say(
@@ -212,19 +214,24 @@ function act(action, floor, direction, data) {
   if (action === 'car') {
     sfx.playButton();
     game?.stepInsideCabinIfInDoorway();
+    if (data?.accessible && !controller.accessibleMode) {
+      controller.toggleAccessibleMode(true);
+    }
     const res = controller.toggleCar(floor, { allowCancel: true });
+    const accPrefix = data?.accessible ? '♿ [장애인용 가로 조작반] ' : '';
     if (res.action === 'cancelled') {
-      const msg = `${FLOORS[floor]}층 목적지 선택을 취소했습니다.`;
+      const msg = `${accPrefix}${FLOORS[floor]}층 목적지 선택을 취소했습니다.`;
       say(msg);
       if (game?.active) game.message(msg);
     } else if (res.action === 'locked') {
-      const msg = `${FLOORS[floor]}층은 이미 감속 구간에 진입해 취소할 수 없습니다.`;
+      const msg = `${accPrefix}${FLOORS[floor]}층은 이미 감속 구간에 진입해 취소할 수 없습니다.`;
       say(msg);
       if (game?.active) game.message(msg);
     } else {
       const eta = controller.etaToFloor(floor);
       const etaStr = eta ? ` (약 ${eta}초)` : '';
-      const msg = `${FLOORS[floor]}층 목적지가 등록되었습니다.${etaStr} (다시 누르면 취소)`;
+      const accTail = controller.accessibleMode ? ' · ♿ 문 열림 7.5초 연장' : '';
+      const msg = `${accPrefix}${FLOORS[floor]}층 목적지가 등록되었습니다.${etaStr}${accTail}`;
       say(msg);
       if (game?.active) game.message(msg);
     }
@@ -240,7 +247,17 @@ function act(action, floor, direction, data) {
   }
   if (action === 'open') {
     sfx.playButton();
-    say(controller.openDoor() ? '문을 열고 대기 시간을 연장합니다.' : '운행 중에는 문을 열 수 없습니다.');
+    if (data?.accessible && !controller.accessibleMode) {
+      controller.toggleAccessibleMode(true);
+    }
+    const opened = controller.openDoor();
+    const msg = opened
+      ? controller.accessibleMode
+        ? '♿ 장애인 배려 모드로 문을 열고 대기 시간을 7.5초로 연장합니다.'
+        : '문을 열고 대기 시간을 연장합니다.'
+      : '운행 중에는 문을 열 수 없습니다.';
+    say(msg);
+    if (game?.active) game.message(msg);
   }
   if (action === 'close') {
     sfx.playButton();
@@ -269,6 +286,7 @@ function act(action, floor, direction, data) {
 const rowButtons = [];
 const rowElements = [];
 const carButtons = [];
+const accCarButtons = [];
 
 for (let i = 14; i >= 0; i--) {
   const meta = floorMeta(i, FLOORS[i]);
@@ -307,10 +325,33 @@ for (const i of [12, 13, 14, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2]) {
   carButtons.push({ b, i });
 }
 
+if ($('accessible-car-buttons')) {
+  for (const i of [5, 6, 7, 8, 9, 10, 11, 12, 0, 1, 2, 3, 4, 13, 14]) {
+    const meta = floorMeta(i, FLOORS[i]);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = FLOORS[i];
+    b.dataset.accFloor = i;
+    b.title = `♿ 장애인용 가로형 버튼 · ${meta.title} (문 열림 7.5초 연장)`;
+    b.className = i === 5 ? 'home' : '';
+    b.setAttribute('aria-label', `장애인용 ${FLOORS[i]}층 목적지`);
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => act('car', i, 0, { accessible: true }));
+    $('accessible-car-buttons').append(b);
+    accCarButtons.push({ b, i });
+  }
+}
+
 $('open-door').onclick = () => act('open');
 $('close-door').onclick = () => act('close');
 $('alarm').onclick = () => act('alarm');
 
+if ($('accessible-mode')) {
+  $('accessible-mode').onclick = () => act('cabinAccessible');
+}
+if ($('accessible-open')) {
+  $('accessible-open').onclick = () => act('open', 0, 0, { accessible: true });
+}
 if ($('vip-mode')) {
   $('vip-mode').onclick = () => act('cabinVip');
 }
@@ -510,6 +551,12 @@ function updateUI() {
     b.setAttribute('aria-pressed', String(active));
   }
 
+  for (const { b, i } of accCarButtons) {
+    const active = c.car.has(i);
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', String(active));
+  }
+
   for (const { b, i, dir } of rowButtons) {
     const active = (dir === 1 ? c.up : c.down).has(i);
     b.classList.toggle('active', active);
@@ -540,6 +587,7 @@ function updateUI() {
     ['obstruction', c.obstructionSources.has('manual')],
     ['alarm', c.alarm],
     ['vip-mode', c.vipMode],
+    ['accessible-mode', c.accessibleMode],
     ['cabin-light', c.cabinLightIndex > 0],
     ['cabin-fan', c.cabinFanMode.speed > 0],
     ['cabin-music', c.cabinMusicTrack.playing],

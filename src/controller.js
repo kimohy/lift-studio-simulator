@@ -49,6 +49,7 @@ export class LiftController {
     this.obstructionSources = new Set();
     this.alarm = false;
     this.vipMode = false;
+    this.accessibleMode = false;
     this.paused = false;
     this.cabinLightIndex = 0;
     this.cabinFanIndex = 0;
@@ -67,6 +68,14 @@ export class LiftController {
     this.maxSpeed = 1.75;
     this.accel = 0.8;
     this.log('시스템 준비 · 1층 대기');
+  }
+
+  get effectiveDwellSeconds() {
+    return this.accessibleMode ? Math.max(this.doorDwellSeconds, 7.5) : this.doorDwellSeconds;
+  }
+
+  get effectiveCloseSeconds() {
+    return this.accessibleMode ? Math.max(this.doorCloseSeconds, 2.8) : this.doorCloseSeconds;
   }
 
   get cabinLightMode() {
@@ -151,6 +160,26 @@ export class LiftController {
       if (this.cancelCar(n)) cleared++;
     }
     return cleared;
+  }
+
+  toggleAccessibleMode(force) {
+    this.accessibleMode = typeof force === 'boolean' ? force : !this.accessibleMode;
+    if (this.accessibleMode && ['open', 'opening'].includes(this.state)) {
+      this.dwell = Math.max(this.dwell, this.effectiveDwellSeconds);
+    }
+    this.log(
+      this.accessibleMode
+        ? '♿ 장애인 배려 운전 활성화 · 문 열림 대기(7.5초) 및 저속 안전 닫힘 연장'
+        : '♿ 장애인 배려 운전 해제 · 표준 도어 타이밍 복귀',
+      'info'
+    );
+    return {
+      ok: true,
+      accessibleMode: this.accessibleMode,
+      message: this.accessibleMode
+        ? '♿ 우측 가로형 장애인용 조작반(배려 모드)이 활성화되었습니다. 휠체어·교통약자 승하차를 위해 문 열림 유지 시간(7.5초)과 닫힘 속도가 여유 있게 연장됩니다.'
+        : '♿ 장애인 배려 운전 모드를 해제하고 일반 도어 개폐 시간으로 복귀했습니다.',
+    };
   }
 
   cycleCabinLight() {
@@ -283,7 +312,7 @@ export class LiftController {
 
   openDoor() {
     if (!this.aligned() || this.state === 'moving') return false;
-    this.dwell = this.doorDwellSeconds;
+    this.dwell = this.effectiveDwellSeconds;
     if (this.state !== 'open' && this.state !== 'opening') {
       this.state = 'opening';
       this.log('문 열림 시작');
@@ -308,11 +337,11 @@ export class LiftController {
     this.log(active ? '출입문 감지선 차단' : '출입문 감지선 복구', active ? 'warn' : 'info');
     if (active && this.state === 'closing') {
       this.state = 'opening';
-      this.dwell = this.doorDwellSeconds;
+      this.dwell = this.effectiveDwellSeconds;
       this.log('감지선 작동 · 문 다시 열림', 'warn');
     }
     if (!active && this.state === 'open') {
-      this.dwell = this.doorDwellSeconds;
+      this.dwell = this.effectiveDwellSeconds;
     }
   }
 
@@ -347,7 +376,7 @@ export class LiftController {
       this.door = Math.min(1, this.door + dt / this.doorOpenSeconds);
       if (this.door >= 1) {
         this.state = 'open';
-        this.dwell = this.doorDwellSeconds;
+        this.dwell = this.effectiveDwellSeconds;
         this.log('문 열림 완료');
       }
       return;
@@ -364,7 +393,7 @@ export class LiftController {
         this.state = 'opening';
         return;
       }
-      this.door = Math.max(0, this.door - dt / this.doorCloseSeconds);
+      this.door = Math.max(0, this.door - dt / this.effectiveCloseSeconds);
       if (this.door <= 0) {
         this.state = 'idle';
         this.log('도어 잠금 확인');
@@ -471,7 +500,7 @@ export class LiftController {
     this.log(`${FLOORS[this.floor]}층 도착`, 'arrival');
     this.target = null;
     this.state = 'opening';
-    this.dwell = this.doorDwellSeconds;
+    this.dwell = this.effectiveDwellSeconds;
   }
 
   snapshot() {
@@ -486,6 +515,7 @@ export class LiftController {
       obstruction: this.obstruction,
       alarm: this.alarm,
       vipMode: this.vipMode,
+      accessibleMode: this.accessibleMode,
       paused: this.paused,
       pending: this.pending(),
       stops: [...this.stops],

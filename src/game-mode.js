@@ -3,7 +3,7 @@ import { FLOORS } from './controller.js';
 import { Escalators } from './escalator.js';
 import { GuestRoom } from './guest-room.js';
 import { HotelNPCSystem } from './hotel-npcs.js';
-import { HotelStay } from './hotel-stay.js';
+import { FAST_TRAVEL_SPOTS, HotelStay } from './hotel-stay.js';
 import { HotelWorld } from './hotel-world.js';
 import { WalkingPlayer } from './player.js';
 import { RooftopPool } from './rooftop-pool.js';
@@ -61,18 +61,32 @@ export class GameMode {
     document.body.classList.toggle('touch-device', this.isTouch);
     this.previousView = 'lobby';
 
-    const keycardDialog = $('keycard-dialog');
-    if (keycardDialog && $('viewport')) {
-      $('viewport').append(keycardDialog);
+    for (const dialogId of ['keycard-dialog', 'concierge-dialog']) {
+      const dialog = $(dialogId);
+      if (dialog && $('viewport')) {
+        $('viewport').append(dialog);
+      }
     }
 
     const canvas = view.canvas;
     canvas.tabIndex = 0;
 
     window.addEventListener('keydown', (e) => {
-      if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable="true"],dialog')) return;
+      if (e.target.closest?.('input,select,textarea,[contenteditable="true"],dialog')) return;
+      if (e.code === 'Tab' && this.view.ready && !e.repeat) {
+        e.preventDefault();
+        if (this.active) this.exit();
+        else this.enter();
+        return;
+      }
+      if (!this.active) return;
       if (e.code === 'Escape' && document.body.classList.contains('game-fullscreen')) {
         this.leaveFullscreen();
+        return;
+      }
+      if (e.code === 'KeyG' && !e.repeat) {
+        e.preventDefault();
+        this.openConciergeGuide();
         return;
       }
       if ((e.code === 'KeyE' || e.code === 'KeyF') && !e.repeat) {
@@ -221,10 +235,12 @@ export class GameMode {
       if (this.stay.keycard) {
         this.clearInput();
         if (document.pointerLockElement) document.exitPointerLock();
-        $('keycard-dialog').showModal();
+        $('keycard-dialog')?.showModal();
       }
     });
-    $('keycard-close')?.addEventListener('click', () => $('keycard-dialog').close());
+    $('keycard-close')?.addEventListener('click', () => $('keycard-dialog')?.close());
+    $('guide-button')?.addEventListener('click', () => this.openConciergeGuide());
+    $('concierge-close')?.addEventListener('click', () => $('concierge-dialog')?.close());
     $('game-toggle')?.addEventListener('click', () => (this.active ? this.exit() : this.enter()));
     $('game-fullscreen')?.addEventListener('click', () => this.toggleFullscreen());
     document.addEventListener('fullscreenchange', () => this.syncFullscreen());
@@ -242,6 +258,91 @@ export class GameMode {
         this.message('화면을 드래그해 시점을 바꿀 수 있습니다.');
       }
     });
+  }
+
+  openConciergeGuide() {
+    const dialog = $('concierge-dialog');
+    if (!dialog) return;
+    this.clearInput();
+    if (document.pointerLockElement) document.exitPointerLock();
+    this.renderConciergeGuide();
+    dialog.showModal?.();
+  }
+
+  renderConciergeGuide() {
+    const status = this.stay.getChecklistStatus();
+    if ($('concierge-progress')) {
+      $('concierge-progress').textContent = `${status.doneCount} / ${status.totalCount} 완료 (${status.percent}%)`;
+    }
+    const listEl = $('concierge-checklist');
+    if (listEl) {
+      listEl.replaceChildren();
+      for (const item of status.items) {
+        const li = document.createElement('li');
+        li.className = item.done ? 'done' : '';
+        li.textContent = `${item.done ? '✓ ' : '○ '}${item.title}`;
+        listEl.append(li);
+      }
+    }
+    const spotsEl = $('concierge-spots');
+    if (spotsEl && !spotsEl.children.length) {
+      for (const spot of FAST_TRAVEL_SPOTS) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'fast-travel-btn';
+        btn.dataset.spotId = spot.id;
+        btn.innerHTML = `<strong>${spot.label}</strong><small>${spot.subtitle}</small>`;
+        btn.addEventListener('click', () => {
+          $('concierge-dialog')?.close?.();
+          this.fastTravelTo(spot.id);
+        });
+        spotsEl.append(btn);
+      }
+    }
+  }
+
+  fastTravelTo(spotId) {
+    const spot = FAST_TRAVEL_SPOTS.find((s) => s.id === spotId);
+    if (!spot) return { ok: false, message: '이동할 위치를 찾을 수 없습니다.' };
+    if (!this.active && this.view?.ready) {
+      this.enter();
+    }
+    this.player.leaveDoorway();
+    this.controller.setObstruction(false, 'player');
+
+    if (spot.id === 'room-301') {
+      if (!this.stay.keycard) {
+        this.stay.checkIn('reception-a');
+        if ($('keycard-button')) $('keycard-button').hidden = false;
+      }
+      this.room.target = 1;
+      this.room.open = 1;
+      this.stay.completeMilestone('room301');
+    } else if (spot.id === 'rooftop-pool') {
+      this.stay.completeMilestone('rooftopPool');
+    }
+    if (spot.floor !== 5) {
+      this.stay.completeMilestone('verticalTransit');
+    }
+
+    Object.assign(this.player, {
+      floor: spot.floor,
+      zone: spot.zone,
+      x: spot.x,
+      z: spot.z,
+      yaw: spot.yaw,
+      pitch: spot.pitch,
+      worldY: (spot.floor - 5) * 3.5,
+      stairY: (spot.floor - 5) * 3.5,
+      escalatorY: (spot.floor - 5) * 3.5,
+    });
+    this.view?.applyVisibility?.(this.controller);
+    this.applyCamera();
+    const msg = `✨ [${spot.label}](으)로 빠르게 이동했습니다.`;
+    this.message(msg);
+    this.messageUntil = performance.now() + 4500;
+    this.updateHUD();
+    return { ok: true, spot, message: msg };
   }
 
   triggerCurrentHit() {
@@ -443,6 +544,10 @@ export class GameMode {
     this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
     this.applyCamera();
 
+    if (this.player.floor !== 5) this.stay.completeMilestone('verticalTransit');
+    if (this.player.zone === 'room') this.stay.completeMilestone('room301');
+    if (this.player.zone === 'pool') this.stay.completeMilestone('rooftopPool');
+
     this.hoverTime += dt;
     if (this.hoverTime > 0.1) {
       this.hoverTime = 0;
@@ -470,6 +575,12 @@ export class GameMode {
     }
     if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar'].includes(data.action)) {
       return this.player.floor === 14 && ['lobby', 'pool'].includes(this.player.zone);
+    }
+    if (['cafeOrder', 'cafeSit', 'loungeSit'].includes(data.action)) {
+      return this.player.floor === 5 && this.player.zone === 'lobby';
+    }
+    if (data.action === 'parkingCar') {
+      return this.player.floor < 5 && this.player.floor === data.floorIndex && this.player.zone === 'lobby';
     }
     if (data.action === 'otherRoomDoor') return this.player.zone === 'lobby' && data.floorIndex === this.player.floor;
     if (data.action === 'staff') return this.player.zone === 'lobby' && this.player.floor === 5;
@@ -525,6 +636,7 @@ export class GameMode {
 
   talkToRobot() {
     if (!this.active) return;
+    this.stay.completeMilestone('roomService');
     const reply = this.robot.interact(this.controller.time);
     if (reply) {
       this.message(reply);
@@ -532,8 +644,34 @@ export class GameMode {
     }
   }
 
+  interactLobby(action, data) {
+    if (!this.active || this.player.floor !== 5) return;
+    if (action === 'cafeOrder') {
+      const res = this.stay.orderCafe();
+      this.message(res.message);
+    } else if (action === 'cafeSit') {
+      const res = this.stay.sitAtCafe(this.player, data?.seatX, data?.seatZ, data?.yaw);
+      this.applyCamera();
+      this.message(res.message);
+    } else if (action === 'loungeSit') {
+      const res = this.stay.sitAtLounge(this.player, data?.seatX, data?.seatZ, data?.yaw);
+      this.applyCamera();
+      this.message(res.message);
+    }
+    this.messageUntil = performance.now() + 5000;
+  }
+
+  interactParking(data) {
+    if (!this.active || this.player.floor >= 5 || !data) return;
+    const res = this.stay.inspectCar(data);
+    this.view.hotelScene?.flashCarLights(data.carId, this.controller.time);
+    this.message(res.message);
+    this.messageUntil = performance.now() + 5000;
+  }
+
   interactRoom(action) {
     if (!this.active || this.player.floor !== 7 || this.player.zone !== 'room') return;
+    this.stay.completeMilestone('room301');
     if (action === 'roomTV') {
       this.message(this.room.cycleTV().message);
     } else if (action === 'roomLight') {
@@ -547,11 +685,13 @@ export class GameMode {
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'roomServiceOrder') {
+      this.stay.completeMilestone('roomService');
       const res = this.robot.orderRoomService();
       this.message(res.message);
       this.messageUntil = performance.now() + 6500;
       return;
     } else if (action === 'roomFood') {
+      this.stay.completeMilestone('roomService');
       this.message(this.room.consumeFood().message);
     }
     this.messageUntil = performance.now() + 4500;
@@ -559,6 +699,7 @@ export class GameMode {
 
   interactPool(action, data) {
     if (!this.active || this.player.floor !== 14) return;
+    this.stay.completeMilestone('rooftopPool');
     if (action === 'poolSwim') {
       const res = this.pool.toggleSwim(this.player);
       this.applyCamera();
@@ -582,6 +723,7 @@ export class GameMode {
   toggleRoomDoor() {
     if (!this.active || this.player.floor !== 7) return;
     const result = this.room.toggle(this.player);
+    if (this.player.zone === 'room') this.stay.completeMilestone('room301');
     this.message(result.message);
   }
 
@@ -616,6 +758,64 @@ export class GameMode {
     return `${FLOORS[lower]}층 ↔ ${FLOORS[lower + 1]}층 · 계단`;
   }
 
+  getActionHint(d) {
+    const p = this.player;
+    switch (d.action) {
+      case 'roomDoor':
+        return `301호 · ${
+          this.room.target ? '문 닫기' : this.stay.canAccess('301') || p.zone === 'room' ? '문 열기' : '키카드 필요'
+        } · 클릭`;
+      case 'roomTV':
+        return `스마트 TV (현재: ${this.room.tvMode.toUpperCase()}) · 클릭해 채널/전원 전환`;
+      case 'roomLight':
+        return '객실 조명 스위치 · 클릭해 조명 분위기 전환';
+      case 'roomCurtain':
+        return `전동 커튼 · 클릭해 ${this.room.curtainTarget ? '닫기' : '열기'}`;
+      case 'roomShower':
+        return `욕실 수전/레인 샤워기 · 클릭해 ${this.room.showerOn ? '잠그기' : '물 틀기'}`;
+      case 'roomBed':
+        return '킹사이즈 침대 · 클릭해 편안히 휴식하기';
+      case 'roomServiceOrder':
+        return '스마트 컨시어지 태블릿 · 클릭해 룸서비스 로봇 배달 주문 🤖';
+      case 'roomFood':
+        return `룸서비스 트레이 (${this.room.foodItem}) · 클릭해 식사 즐기기 ☕🥐`;
+      case 'poolSwim':
+        return `루프탑 인피니티 풀 · 클릭해 ${this.pool.inPool(p.x, p.z) ? '데크로 나오기' : '수영장 입수하기 🏊'}`;
+      case 'poolJacuzzi':
+        return `루프탑 온수 자쿠지 스파 · 클릭해 ${this.pool.inJacuzzi(p.x, p.z) ? '월풀 버블 전환' : '온수 스파 입수 ♨️'}`;
+      case 'poolLight':
+        return `인피니티 풀 컨트롤 패널 (${this.pool.lightMode.label}) · 클릭해 수중 조명/분수 전환 ✨`;
+      case 'poolSunbed':
+        return '풀사이드 선베드 / 카바나 · 클릭해 누워서 시티뷰 휴식하기 🏖️';
+      case 'poolBar':
+        return '루프탑 스카이 풀 바 · 클릭해 트로피컬 칵테일/음료 주문하기 🍹';
+      case 'cafeOrder':
+        return `${d.cafeLabel || 'Grand Café 바 카운터'} · 클릭해 스페셜티 커피 & 베이커리 주문하기 ☕🥐`;
+      case 'cafeSit':
+        return `${d.cafeLabel || 'Grand Café 테이블'} · 클릭해 착석 후 커피 타임 즐기기 ☕`;
+      case 'loungeSit':
+        return `${d.loungeLabel || '로비 라운지 소파'} · 클릭해 착석해 휴식하기 🛋️`;
+      case 'parkingCar':
+        return `${d.carModel || '주차 차량'} (${d.bayLabel || '주차 구역'}) · 클릭해 스마트키 웰컴 라이트 & 상태 확인 🚗`;
+      case 'otherRoomDoor':
+        return `${d.room}호 · ${this.stay.keycard ? '배정된 객실 아님 (301호 배정)' : '체크인 필요'} · 클릭`;
+      case 'staff':
+        return `${d.staffName} · ${d.staffId.startsWith('reception-') ? '클릭해 체크인' : '클릭해 이야기하기'}`;
+      case 'npc':
+        return `${d.npcName} (${this.npcs.statusLabel(this.npcs.getNPC(d.npcId) || {})}) · 클릭해 대화하기`;
+      case 'robot':
+        return `${d.robotName} (${this.robot.statusLabel()}) · 클릭해 상호작용/룸서비스 요청`;
+      case 'stairDoor':
+        return `${FLOORS[d.floorIndex]}층 계단실 문 ${this.stairs.doors[d.floorIndex].target ? '닫기' : '열기'} · 왼쪽 클릭`;
+      case 'hall':
+        return `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '올라가기' : '내려가기'} 호출 · 왼쪽 클릭`;
+      case 'car':
+        return `${FLOORS[d.floorIndex]}층 선택 · 왼쪽 클릭`;
+      default:
+        return `${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
+    }
+  }
+
   updateHUD() {
     const p = this.player;
     const c = this.controller;
@@ -640,6 +840,12 @@ export class GameMode {
       c.state === 'moving' ? (c.direction > 0 ? '올라가는 중' : '내려가는 중') : c.door > 0 ? '문 열림' : '대기'
     }`;
 
+    const guideBtn = $('guide-button');
+    if (guideBtn) {
+      const status = this.stay.getChecklistStatus();
+      guideBtn.textContent = `호텔 가이드 · ${status.doneCount}/${status.totalCount}`;
+    }
+
     const ndc =
       document.pointerLockElement === this.view.canvas || this.isTouch
         ? { x: 0, y: 0 }
@@ -654,51 +860,7 @@ export class GameMode {
 
     let text;
     if (hit) {
-      const d = hit.userData;
-      text =
-        d.action === 'roomDoor'
-          ? `301호 · ${
-              this.room.target ? '문 닫기' : this.stay.canAccess('301') || p.zone === 'room' ? '문 열기' : '키카드 필요'
-            } · 클릭`
-          : d.action === 'roomTV'
-            ? `스마트 TV (현재: ${this.room.tvMode.toUpperCase()}) · 클릭해 채널/전원 전환`
-            : d.action === 'roomLight'
-              ? `객실 조명 스위치 · 클릭해 조명 분위기 전환`
-              : d.action === 'roomCurtain'
-                ? `전동 커튼 · 클릭해 ${this.room.curtainTarget ? '닫기' : '열기'}`
-                : d.action === 'roomShower'
-                  ? `욕실 수전/레인 샤워기 · 클릭해 ${this.room.showerOn ? '잠그기' : '물 틀기'}`
-                  : d.action === 'roomBed'
-                    ? `킹사이즈 침대 · 클릭해 편안히 휴식하기`
-                    : d.action === 'roomServiceOrder'
-                      ? `스마트 컨시어지 태블릿 · 클릭해 룸서비스 로봇 배달 주문 🤖`
-                      : d.action === 'roomFood'
-                        ? `룸서비스 트레이 (${this.room.foodItem}) · 클릭해 식사 즐기기 ☕🥐`
-                        : d.action === 'poolSwim'
-                          ? `루프탑 인피니티 풀 · 클릭해 ${this.pool.inPool(p.x, p.z) ? '데크로 나오기' : '수영장 입수하기 🏊'}`
-                          : d.action === 'poolJacuzzi'
-                            ? `루프탑 온수 자쿠지 스파 · 클릭해 ${this.pool.inJacuzzi(p.x, p.z) ? '월풀 버블 전환' : '온수 스파 입수 ♨️'}`
-                            : d.action === 'poolLight'
-                              ? `인피니티 풀 컨트롤 패널 (${this.pool.lightMode.label}) · 클릭해 수중 조명/분수 전환 ✨`
-                              : d.action === 'poolSunbed'
-                                ? `풀사이드 선베드 / 카바나 · 클릭해 누워서 시티뷰 휴식하기 🏖️`
-                                : d.action === 'poolBar'
-                                  ? `루프탑 스카이 풀 바 · 클릭해 트로피컬 칵테일/음료 주문하기 🍹`
-                                  : d.action === 'otherRoomDoor'
-                                    ? `${d.room}호 · ${this.stay.keycard ? '배정된 객실 아님 (301호 배정)' : '체크인 필요'} · 클릭`
-                                    : d.action === 'staff'
-                                      ? `${d.staffName} · ${d.staffId.startsWith('reception-') ? '클릭해 체크인' : '클릭해 이야기하기'}`
-                                      : d.action === 'npc'
-                                        ? `${d.npcName} (${this.npcs.statusLabel(this.npcs.getNPC(d.npcId) || {})}) · 클릭해 대화하기`
-                                        : d.action === 'robot'
-                                          ? `${d.robotName} (${this.robot.statusLabel()}) · 클릭해 상호작용/룸서비스 요청`
-                                          : d.action === 'stairDoor'
-                                            ? `${FLOORS[d.floorIndex]}층 계단실 문 ${this.stairs.doors[d.floorIndex].target ? '닫기' : '열기'} · 왼쪽 클릭`
-                                            : d.action === 'hall'
-                                              ? `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '올라가기' : '내려가기'} 호출 · 왼쪽 클릭`
-                                              : d.action === 'car'
-                                                ? `${FLOORS[d.floorIndex]}층 선택 · 왼쪽 클릭`
-                                                : `${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
+      text = this.getActionHint(hit.userData);
     } else if (p.zone === 'ramp') {
       text = '차량용 경사로입니다. WASD로 주차장 층 사이를 이동할 수 있습니다.';
     } else if (p.zone === 'room') {
@@ -722,7 +884,7 @@ export class GameMode {
     } else if (p.floor === 14) {
       text = '10층입니다. 정면 아치 통로로 걸어가면 루프탑 인피니티 풀 & 스카이 라운지로 이어집니다.';
     } else {
-      text = '왼쪽 에스컬레이터 · 오른쪽 계단 · 뒤쪽 통로는 로비와 주차장입니다.';
+      text = '왼쪽 에스컬레이터 · 오른쪽 계단 · 뒤쪽 통로는 로비와 주차장입니다. [G/Tab] 호텔 가이드';
     }
     $('game-target').textContent = text;
   }

@@ -287,22 +287,33 @@ export class HotelScene {
       false
     );
 
+    const makePickable = (mesh, data) => {
+      if (!mesh) return mesh;
+      mesh.userData = { ...mesh.userData, ...data };
+      this.pickables?.push(mesh);
+      return mesh;
+    };
+
     // Lounge seating, tables, plants, and a luggage trolley.
-    const sofa = (x, z, rotation = 0) => {
+    const sofa = (x, z, rotation = 0, seatZ = z + 0.95, seatYaw = Math.PI) => {
       const group = new THREE.Group();
       group.position.set(x, 0, z);
       group.rotation.y = rotation;
       g.add(group);
-      this.box(group, 'Lounge_sofa_base', [2.6, 0.38, 0.85], [0, 0.3, 0], m.fabric);
-      this.box(group, 'Lounge_sofa_back', [2.6, 0.62, 0.2], [0, 0.76, 0.36], m.fabric);
+      const sofaData = { action: 'loungeSit', floorIndex: 5, seatX: x, seatZ, seatYaw };
+      makePickable(this.box(group, 'Lounge_sofa_base', [2.6, 0.38, 0.85], [0, 0.3, 0], m.fabric), sofaData);
+      makePickable(this.box(group, 'Lounge_sofa_back', [2.6, 0.62, 0.2], [0, 0.76, 0.36], m.fabric), sofaData);
       for (const side of [-1, 1]) {
-        this.box(group, 'Sofa_arm', [0.18, 0.5, 0.95], [side * 1.25, 0.55, 0], m.fabric);
-        this.box(group, 'Sofa_cushion', [1.1, 0.14, 0.65], [side * 0.6, 0.54, -0.05], m.fabric);
+        makePickable(this.box(group, 'Sofa_arm', [0.18, 0.5, 0.95], [side * 1.25, 0.55, 0], m.fabric), sofaData);
+        makePickable(
+          this.box(group, 'Sofa_cushion', [1.1, 0.14, 0.65], [side * 0.6, 0.54, -0.05], m.fabric),
+          sofaData
+        );
       }
       this.world.addObstacle(5, x - 1.5, x + 1.5, z - 0.6, z + 0.6);
     };
-    sofa(-7.6, 11.5);
-    sofa(-7.6, 15.6, Math.PI);
+    sofa(-7.6, 11.5, 0, 12.45, Math.PI);
+    sofa(-7.6, 15.6, Math.PI, 14.65, 0);
     this.box(g, 'Lounge_rug', [5.1, 0.009, 5.3], [-7.6, 0.016, 13.5], m.fabric);
     this.box(g, 'Lounge_coffee_table', [1.6, 0.07, 0.85], [-7.6, 0.57, 13.6], m.marble, 5);
     for (const x of [-8.2, -7]) {
@@ -322,14 +333,18 @@ export class HotelScene {
     this.makeTrolley(g, -10, 18.5);
 
     // Cafe bar with equipment and seating.
-    this.box(g, 'Cafe_counter', [5.1, 1.02, 1.1], [8, 0.51, 17.6], m.wood, 5);
-    this.box(g, 'Cafe_stone_top', [5.2, 0.08, 1.18], [8, 1.06, 17.6], m.marble);
-    this.sign(g, 'Cafe_front', ['그랜드 카페', 'GRAND CAFÉ'], [8, 0.62, 17.04], [2.2, 0.45]);
-    this.sign(g, 'Cafe_menu', ['COFFEE  ·  TEA  ·  DESSERT', '카페 · CAFÉ'], [9.2, 2.45, 21.7], [3, 0.85]);
+    const cafeOrderData = { action: 'cafeOrder', floorIndex: 5 };
+    makePickable(this.box(g, 'Cafe_counter', [5.1, 1.02, 1.1], [8, 0.51, 17.6], m.wood, 5), cafeOrderData);
+    makePickable(this.box(g, 'Cafe_stone_top', [5.2, 0.08, 1.18], [8, 1.06, 17.6], m.marble), cafeOrderData);
+    makePickable(this.sign(g, 'Cafe_front', ['그랜드 카페', 'GRAND CAFÉ'], [8, 0.62, 17.04], [2.2, 0.45]), cafeOrderData);
+    makePickable(
+      this.sign(g, 'Cafe_menu', ['COFFEE  ·  TEA  ·  DESSERT', '카페 · CAFÉ'], [9.2, 2.45, 21.7], [3, 0.85]),
+      cafeOrderData
+    );
     this.box(g, 'Cafe_back_wall', [5.5, 2.95, 0.12], [8, 1.475, 22], m.wood, 5);
     this.box(g, 'Cafe_back_counter', [5.1, 0.9, 0.6], [8, 0.45, 21.5], m.wood, 5);
-    this.box(g, 'Espresso_machine', [0.92, 0.48, 0.48], [8.8, 1.34, 17.6], m.metal);
-    this.box(g, 'Espresso_machine_face', [0.84, 0.27, 0.02], [8.8, 1.32, 17.347], m.black);
+    makePickable(this.box(g, 'Espresso_machine', [0.92, 0.48, 0.48], [8.8, 1.34, 17.6], m.metal), cafeOrderData);
+    makePickable(this.box(g, 'Espresso_machine_face', [0.84, 0.27, 0.02], [8.8, 1.32, 17.347], m.black), cafeOrderData);
     for (const x of [8.6, 8.98]) {
       this.cylinder(g, 'Espresso_portafilter', 0.035, 0.035, 0.1, [x, 1.15, 17.32], m.metal);
       this.cylinder(g, 'Coffee_cup', 0.065, 0.05, 0.085, [x, 1.14, 17.16], m.white);
@@ -337,9 +352,9 @@ export class HotelScene {
     for (const x of [6.0, 6.3, 6.6]) {
       this.cylinder(g, 'Cafe_display_cup', 0.065, 0.05, 0.08, [x, 1.14, 17.4], m.white);
     }
-    this.box(g, 'Pastry_display_glass', [0.75, 0.38, 0.4], [7.3, 1.29, 17.6], m.glass);
+    makePickable(this.box(g, 'Pastry_display_glass', [0.75, 0.38, 0.4], [7.3, 1.29, 17.6], m.glass), cafeOrderData);
     for (const x of [7.08, 7.32, 7.52]) {
-      this.sphere(g, 'Cafe_pastry', 0.11, [x, 1.16, 17.57], m.gold, [1, 0.5, 0.7]);
+      makePickable(this.sphere(g, 'Cafe_pastry', 0.11, [x, 1.16, 17.57], m.gold, [1, 0.5, 0.7]), cafeOrderData);
     }
     this.makeStaff(
       g,
@@ -372,15 +387,22 @@ export class HotelScene {
 
   cafeTable(g, x, z) {
     const m = this.m;
-    this.cylinder(g, 'Cafe_table_top', 0.48, 0.48, 0.055, [x, 0.76, z], m.marble);
+    const seatData = { action: 'cafeSit', floorIndex: 5, seatX: x, seatZ: z - 0.85, seatYaw: Math.PI };
+    const top = this.cylinder(g, 'Cafe_table_top', 0.48, 0.48, 0.055, [x, 0.76, z], m.marble);
+    top.userData = { ...seatData };
+    this.pickables?.push(top);
     this.cylinder(g, 'Cafe_table_pedestal', 0.07, 0.12, 0.7, [x, 0.37, z], m.gold);
     this.cylinder(g, 'Cafe_table_base', 0.28, 0.28, 0.045, [x, 0.03, z], m.black);
     this.world.addObstacle(5, x - 0.5, x + 0.5, z - 0.5, z + 0.5);
     this.cylinder(g, 'Table_cup', 0.06, 0.05, 0.08, [x + 0.15, 0.83, z], m.white);
     for (const direction of [-1, 1]) {
       const cx = x + direction * 0.85;
-      this.box(g, 'Cafe_chair_seat', [0.42, 0.08, 0.44], [cx, 0.45, z], m.wood, 5);
-      this.box(g, 'Cafe_chair_back', [0.09, 0.43, 0.44], [cx + direction * 0.17, 0.71, z], m.fabric);
+      const seat = this.box(g, 'Cafe_chair_seat', [0.42, 0.08, 0.44], [cx, 0.45, z], m.wood, 5);
+      seat.userData = { ...seatData };
+      this.pickables?.push(seat);
+      const back = this.box(g, 'Cafe_chair_back', [0.09, 0.43, 0.44], [cx + direction * 0.17, 0.71, z], m.fabric);
+      back.userData = { ...seatData };
+      this.pickables?.push(back);
       for (const dz of [-0.16, 0.16]) {
         this.box(g, 'Chair_leg', [0.03, 0.42, 0.03], [cx, 0.22, z + dz], m.gold);
       }
@@ -482,13 +504,22 @@ export class HotelScene {
   }
 
   car(g, x, z, color, floor = 0, rotation = 0) {
+    const idx = this.cars.length;
     const root = new THREE.Group();
-    root.name = `Parked_car_${this.cars.length}`;
+    root.name = `Parked_car_${idx}`;
     root.position.set(x, 0, z);
     root.rotation.y = rotation;
     g.add(root);
 
     const paint = new THREE.MeshStandardMaterial({ color, metalness: 0.42, roughness: 0.26 });
+    const headlampMat =
+      floor !== null
+        ? new THREE.MeshStandardMaterial({
+            color: 0xffe6b6,
+            emissive: 0xffc47b,
+            emissiveIntensity: 0.65,
+          })
+        : this.m.warm;
     const m = this.m;
 
     this.box(root, 'Car_body', [1.82, 0.4, 4.1], [0, 0.59, 0], paint);
@@ -507,7 +538,8 @@ export class HotelScene {
       }
       this.box(root, 'Side_mirror', [0.13, 0.1, 0.17], [side * 0.97, 1.03, 0.71], paint);
       this.box(root, 'Door_handle', [0.025, 0.035, 0.15], [side * 0.923, 0.88, -0.35], m.metal);
-      this.box(root, 'Headlamp', [0.47, 0.14, 0.035], [side * 0.58, 0.64, 2.064], m.warm);
+      const lamp = this.box(root, 'Headlamp', [0.47, 0.14, 0.035], [side * 0.58, 0.64, 2.064], headlampMat);
+      lamp.userData.dynamic = true;
       this.box(root, 'Tail_light', [0.42, 0.13, 0.035], [side * 0.59, 0.64, -2.064], m.red);
       this.box(root, 'Window_pillar', [0.055, 0.51, 0.08], [side * 0.782, 1.07, -0.19], paint);
     }
@@ -516,6 +548,26 @@ export class HotelScene {
 
     if (floor !== null) {
       this.world.addObstacle(floor, x - 1.02, x + 1.02, z - 2.16, z + 2.16);
+      const carModels = [
+        '그랜드 리무진 세단',
+        '일렉트릭 GT 쿠페',
+        '이그제큐티브 SUV',
+        '클래식 투어링 세단',
+      ];
+      const carData = {
+        action: 'parkingCar',
+        floorIndex: floor,
+        carId: root.name,
+        carName: carModels[idx % carModels.length],
+        floorLabel: `${FLOORS[floor]}층`,
+      };
+      root.userData = { ...root.userData, ...carData, headlampMat, flashUntil: 0 };
+      root.traverse((o) => {
+        if (o.isMesh) {
+          o.userData = { ...o.userData, ...carData };
+          this.pickables?.push(o);
+        }
+      });
     }
     this.cars.push(root);
     return root;
@@ -869,6 +921,14 @@ export class HotelScene {
     }
   }
 
+  flashCarLights(carId, time) {
+    const car = this.cars.find((c) => c.name === carId);
+    if (car) {
+      car.userData.flashStart = time;
+      car.userData.flashUntil = time + 2.6;
+    }
+  }
+
   update(time, player) {
     for (const s of this.staff) {
       s.head.rotation.z = Math.sin(time * 0.8 + s.phase) * 0.025;
@@ -880,6 +940,16 @@ export class HotelScene {
       s.elbows[1].rotation.z = wave * (1.8 + Math.sin(age * 6) * 0.1);
       s.elbows[1].rotation.x = 0.2 * wave;
       s.head.rotation.x = -0.07 * wave;
+    }
+    for (const c of this.cars) {
+      const mat = c.userData?.headlampMat;
+      if (!mat) continue;
+      if (time < (c.userData.flashUntil ?? 0)) {
+        const pulse = Math.sin((time - (c.userData.flashStart ?? 0)) * 12) > 0 ? 2.4 : 0.2;
+        mat.emissiveIntensity = pulse;
+      } else if (mat.emissiveIntensity !== 0.65) {
+        mat.emissiveIntensity = 0.65;
+      }
     }
   }
 

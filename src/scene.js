@@ -14,6 +14,48 @@ import { RooftopPoolView } from './rooftop-pool-view.js';
 import { ServiceRobotView } from './service-robot-view.js';
 import { StairwellView } from './stairwell-view.js';
 
+export const TIME_OF_DAY_MODES = [
+  {
+    id: 'day',
+    label: '☀️ 주간',
+    sky: 0xb7cbd6,
+    hemiSky: 0xe1efff,
+    hemiGround: 0x3a4144,
+    hemiIntensity: 1.4,
+    keyColor: 0xffedcc,
+    keyIntensity: 2.0,
+    fillColor: 0xb4dbff,
+    fillIntensity: 1.0,
+    exposure: 1.05,
+  },
+  {
+    id: 'sunset',
+    label: '🌅 노을',
+    sky: 0xd48c6f,
+    hemiSky: 0xffcda2,
+    hemiGround: 0x3b2b2d,
+    hemiIntensity: 1.15,
+    keyColor: 0xff934f,
+    keyIntensity: 1.7,
+    fillColor: 0xd499b9,
+    fillIntensity: 0.85,
+    exposure: 0.98,
+  },
+  {
+    id: 'night',
+    label: '🌙 야간',
+    sky: 0x0d1824,
+    hemiSky: 0x4f729c,
+    hemiGround: 0x161f29,
+    hemiIntensity: 0.72,
+    keyColor: 0x82b0ff,
+    keyIntensity: 0.65,
+    fillColor: 0x416788,
+    fillIntensity: 0.55,
+    exposure: 0.9,
+  },
+];
+
 export class LiftScene {
   constructor(canvas, onAction) {
     this.canvas = canvas;
@@ -22,6 +64,7 @@ export class LiftScene {
     this.ready = false;
     this.followY = 0;
     this.lastFloor = -1;
+    this.timeOfDayIndex = 0;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(44, 1, 0.03, 250);
@@ -51,14 +94,15 @@ export class LiftScene {
     pmrem.dispose();
     this.scene.environmentIntensity = 1.2;
 
-    this.scene.add(new THREE.HemisphereLight(0xe1efff, 0x3a4144, 1.4));
-    const key = new THREE.DirectionalLight(0xffedcc, 2);
-    key.position.set(4, 10, 7);
-    this.scene.add(key);
+    this.hemiLight = new THREE.HemisphereLight(0xe1efff, 0x3a4144, 1.4);
+    this.scene.add(this.hemiLight);
+    this.keyLight = new THREE.DirectionalLight(0xffedcc, 2);
+    this.keyLight.position.set(4, 10, 7);
+    this.scene.add(this.keyLight);
 
-    const fill = new THREE.DirectionalLight(0xb4dbff, 1);
-    fill.position.set(-5, 3, -5);
-    this.scene.add(fill);
+    this.fillLight = new THREE.DirectionalLight(0xb4dbff, 1);
+    this.fillLight.position.set(-5, 3, -5);
+    this.scene.add(this.fillLight);
 
     this.cabinLight = new THREE.PointLight(0xffe8c5, 16, 5, 2);
     this.cabinLight.position.set(0, 2, 0);
@@ -71,6 +115,7 @@ export class LiftScene {
     this.doors = [];
     this.parts = [];
     this.ropes = [];
+    this.cachedStaticOcclusionMeshes = null;
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas.parentElement);
@@ -211,6 +256,7 @@ export class LiftScene {
       ...(this.stairwellView?.root.children ?? []),
       ...(this.escalatorView?.root.children ?? []),
       this.rooftopPoolView?.root,
+      this.guestRoomView?.root,
     ]) {
       if (root) batchStaticMeshes(root);
     }
@@ -222,6 +268,25 @@ export class LiftScene {
       loadingEl.hidden = true;
       loadingEl.style.display = 'none';
     }
+  }
+
+  rebuildOcclusionCache() {
+    const meshes = [];
+    for (const root of [
+      this.model,
+      this.gameRoom,
+      this.guestRoomView?.root,
+      this.rooftopPoolView?.root,
+      this.stairwellView?.root,
+      this.escalatorView?.root,
+      this.hotelScene?.root,
+      this.hotelScene?.exterior,
+    ]) {
+      root?.traverseVisible((o) => {
+        if (o.isMesh) meshes.push(o);
+      });
+    }
+    this.cachedStaticOcclusionMeshes = meshes;
   }
 
   getInteraction(ndc, maxDistance = Infinity) {
@@ -243,19 +308,11 @@ export class LiftScene {
     const maxHitDist = actionable[actionable.length - 1].distance + 0.05;
     this.ray.far = Math.min(maxDistance, maxHitDist);
 
-    const meshes = [];
-    for (const root of [
-      this.model,
-      this.gameRoom,
-      this.guestRoomView?.root,
-      this.rooftopPoolView?.root,
-      this.stairwellView?.root,
-      this.escalatorView?.root,
-      this.hotelScene?.root,
-      this.hotelScene?.exterior,
-      this.npcView?.root,
-      this.robotView?.root,
-    ]) {
+    if (!this.cachedStaticOcclusionMeshes) {
+      this.rebuildOcclusionCache();
+    }
+    const meshes = [...this.cachedStaticOcclusionMeshes];
+    for (const root of [this.npcView?.root, this.robotView?.root]) {
       root?.traverseVisible((o) => {
         if (o.isMesh) meshes.push(o);
       });
@@ -439,18 +496,56 @@ export class LiftScene {
     if (this.ready) this.applyVisibility(c);
   }
 
+  get timeOfDay() {
+    return TIME_OF_DAY_MODES[this.timeOfDayIndex ?? 0] || TIME_OF_DAY_MODES[0];
+  }
+
+  setTimeOfDay(idOrIndex, c = null) {
+    const idx =
+      typeof idOrIndex === 'number'
+        ? ((idOrIndex % TIME_OF_DAY_MODES.length) + TIME_OF_DAY_MODES.length) % TIME_OF_DAY_MODES.length
+        : TIME_OF_DAY_MODES.findIndex((m) => m.id === idOrIndex);
+    if (idx < 0) return this.timeOfDay;
+    this.timeOfDayIndex = idx;
+    const mode = this.timeOfDay;
+    if (this.hemiLight) {
+      this.hemiLight.color.setHex(mode.hemiSky);
+      this.hemiLight.groundColor.setHex(mode.hemiGround);
+      this.hemiLight.intensity = mode.hemiIntensity;
+    }
+    if (this.keyLight) {
+      this.keyLight.color.setHex(mode.keyColor);
+      this.keyLight.intensity = mode.keyIntensity;
+    }
+    if (this.fillLight) {
+      this.fillLight.color.setHex(mode.fillColor);
+      this.fillLight.intensity = mode.fillIntensity;
+    }
+    if (this.renderer) {
+      this.renderer.toneMappingExposure = mode.exposure;
+    }
+    this.guestRoomView?.setTimeOfDay?.(mode.id);
+    if (this.ready) this.applyVisibility(c);
+    return mode;
+  }
+
+  cycleTimeOfDay(c = null) {
+    return this.setTimeOfDay((this.timeOfDayIndex ?? 0) + 1, c);
+  }
+
   applyVisibility(c) {
     if (!this.ready) return;
     const floor = this.game?.active ? this.game.player.floor : (c?.floor ?? 5);
     const v = this.view;
+    const tod = this.timeOfDay;
     this.guestRoomView?.updateVisibility(floor, v === 'game');
     this.rooftopPoolView?.updateVisibility(floor, v === 'game', v === 'exterior');
     this.escalatorView?.updateVisibility(floor, v === 'game');
     this.stairwellView?.updateVisibility(floor, v === 'game');
     this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior');
     this.scene.background =
-      v === 'exterior' || (v === 'game' && (floor === 5 || floor === 14)) ? new THREE.Color(0xb7cbd6) : null;
-    this.scene.fog = v === 'exterior' ? new THREE.Fog(0xb7cbd6, 90, 190) : null;
+      v === 'exterior' || (v === 'game' && (floor === 5 || floor === 14)) ? new THREE.Color(tod.sky) : null;
+    this.scene.fog = v === 'exterior' ? new THREE.Fog(tod.sky, 90, 190) : null;
     if (this.gameRoom) {
       this.gameRoom.visible = v === 'game';
       for (const room of this.gameRoom.children) {
@@ -477,6 +572,7 @@ export class LiftScene {
       }
     }
     this.lastFloor = floor;
+    this.rebuildOcclusionCache();
   }
 
   update(c) {

@@ -1,7 +1,7 @@
 import { HotelAnnouncements } from './announcements.js';
-import { floorUsage } from './building.js';
-import { FLOORS, LiftController, PITCH } from './controller.js';
-import { computeElevatorAudioGain } from './elevator-audio.js';
+import { floorMeta } from './building.js';
+import { computeCabinLoad, FLOORS, LiftController, PITCH } from './controller.js';
+import { computeElevatorAudioGain, HotelSoundEffects } from './elevator-audio.js';
 import { EmergencyAlarm } from './emergency-alarm.js';
 import { GameMode } from './game-mode.js';
 import { LiftScene } from './scene.js';
@@ -92,8 +92,15 @@ const announcer = new HotelAnnouncements({
   getProximityGain: getElevatorAudioGain,
 });
 
+const sfx = new HotelSoundEffects(
+  () => audioContext,
+  () => announcer.volume,
+  () => sound
+);
+
 function act(action, floor, direction, data) {
   if (action === 'roomDoor') {
+    sfx.playKeycard(game?.stay?.canAccess('301') || game?.player?.zone === 'room');
     game?.toggleRoomDoor();
     return;
   }
@@ -102,46 +109,74 @@ function act(action, floor, direction, data) {
       action
     )
   ) {
+    if (action === 'roomShower') sfx.playWater();
+    else if (action === 'roomServiceOrder') sfx.playRobot();
+    else sfx.playButton();
     game?.interactRoom(action);
     return;
   }
   if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar'].includes(action)) {
+    if (action === 'poolSwim' || action === 'poolJacuzzi') sfx.playWater();
+    else sfx.playButton();
     game?.interactPool(action, data);
     return;
   }
+  if (['cafeOrder', 'cafeSit', 'loungeSit'].includes(action)) {
+    sfx.playButton();
+    game?.interactLobby(action, data);
+    return;
+  }
+  if (action === 'parkingCar') {
+    sfx.playKeycard(true);
+    game?.interactParking(data);
+    return;
+  }
   if (action === 'otherRoomDoor') {
+    sfx.playKeycard(false);
     game?.inspectOtherRoom(data);
     return;
   }
   if (action === 'staff') {
+    sfx.playKeycard(true);
     game?.talkToStaff(data);
     return;
   }
   if (action === 'npc') {
+    sfx.playButton();
     game?.talkToNPC(data);
     return;
   }
   if (action === 'robot') {
+    sfx.playRobot();
     game?.talkToRobot();
     return;
   }
   if (action === 'stairDoor') {
+    sfx.playButton();
     game?.toggleStairDoor(floor);
     return;
   }
   if (action === 'car') {
+    sfx.playButton();
     game?.stepInsideCabinIfInDoorway();
     controller.callCar(floor);
     say(`${FLOORS[floor]}층 목적지가 등록되었습니다.`);
   }
   if (action === 'hall') {
+    sfx.playButton();
     controller.callHall(floor, direction);
-    say(`${FLOORS[floor]}층 ${direction === 1 ? '상행' : '하행'} 호출이 등록되었습니다.`);
+    say(
+      controller.vipMode
+        ? `VIP 직통 모드가 켜져 있어 승강장 호출이 보류됩니다.`
+        : `${FLOORS[floor]}층 ${direction === 1 ? '상행' : '하행'} 호출이 등록되었습니다.`
+    );
   }
   if (action === 'open') {
+    sfx.playButton();
     say(controller.openDoor() ? '문을 열고 대기 시간을 연장합니다.' : '운행 중에는 문을 열 수 없습니다.');
   }
   if (action === 'close') {
+    sfx.playButton();
     game?.stepInsideCabinIfInDoorway();
     say(
       controller.closeDoor()
@@ -169,13 +204,12 @@ const rowElements = [];
 const carButtons = [];
 
 for (let i = 14; i >= 0; i--) {
+  const meta = floorMeta(i, FLOORS[i]);
   const row = document.createElement('div');
   row.className = 'floor-row' + (i < 5 ? ' basement' : '');
   row.dataset.floor = i;
-  row.title = i === 14 ? '10층 · 루프탑 인피니티 풀 & 객실' : `${FLOORS[i]}층 · ${floorUsage(i).ko}`;
-  row.innerHTML = `<span class="floor-name">${FLOORS[i]}<small>F</small><small class="floor-purpose">${
-    i === 14 ? '루프탑 풀' : floorUsage(i).kind === 'guest' ? '객실' : floorUsage(i).ko
-  }</small></span><span class="floor-track"><span class="car-marker"></span></span><div class="hall-controls"></div>`;
+  row.title = meta.title;
+  row.innerHTML = `<span class="floor-name">${FLOORS[i]}<small>F</small><small class="floor-purpose">${meta.badge}</small></span><span class="floor-track"><span class="car-marker"></span></span><div class="hall-controls"></div>`;
 
   for (const dir of [1, -1]) {
     const b = document.createElement('button');
@@ -193,10 +227,11 @@ for (let i = 14; i >= 0; i--) {
 }
 
 for (const i of [12, 13, 14, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2]) {
+  const meta = floorMeta(i, FLOORS[i]);
   const b = document.createElement('button');
   b.textContent = FLOORS[i];
   b.dataset.carFloor = i;
-  b.title = i === 14 ? '10층 · 루프탑 인피니티 풀 & 객실' : `${FLOORS[i]}층 · ${floorUsage(i).ko}`;
+  b.title = meta.title;
   b.className = i === 5 ? 'home' : '';
   b.setAttribute('aria-label', `${FLOORS[i]}층 목적지`);
   b.setAttribute('aria-pressed', 'false');
@@ -208,6 +243,42 @@ for (const i of [12, 13, 14, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2]) {
 $('open-door').onclick = () => act('open');
 $('close-door').onclick = () => act('close');
 $('alarm').onclick = () => act('alarm');
+
+if ($('vip-mode')) {
+  $('vip-mode').onclick = () => {
+    sfx.playButton();
+    const vip = controller.toggleVipMode();
+    say(
+      vip
+        ? 'VIP 직통 운행 모드가 켜졌습니다. 카 내부 목적층 호출만 직통으로 처리합니다.'
+        : 'VIP 직통 운행 모드를 해제했습니다. 승강장 호출을 정상 처리합니다.'
+    );
+    updateUI();
+  };
+}
+
+function handleCycleTimeOfDay() {
+  if (!view) return;
+  sfx.playButton();
+  const mode = view.cycleTimeOfDay();
+  const label = `${mode.icon} ${mode.label}`;
+  setText('time-of-day', label);
+  setText('game-time-of-day', label);
+  say(`호텔 시간대 조명을 '${mode.label}' 모드로 전환했습니다.`);
+  if (game?.active) {
+    game.message(`시간대 분위기 전환: ${mode.icon} ${mode.label}`);
+    game.messageUntil = performance.now() + 3500;
+  }
+}
+
+if ($('time-of-day')) $('time-of-day').onclick = handleCycleTimeOfDay;
+if ($('game-time-of-day')) $('game-time-of-day').onclick = handleCycleTimeOfDay;
+if ($('topbar-guide')) {
+  $('topbar-guide').onclick = () => {
+    if (!game?.active) game?.enter();
+    game?.openConciergeGuide(true);
+  };
+}
 
 $('obstruction').onclick = () => {
   controller.setObstruction(!controller.obstructionSources.has('manual'));
@@ -373,12 +444,25 @@ function updateUI() {
     }
   }
 
+  const load = computeCabinLoad({
+    gameActive: !!game?.active,
+    player: game?.player ?? null,
+    npcs: game?.npcs ?? null,
+    robot: game?.robot ?? null,
+  });
+  setText('cabin-load', load.summary);
+  setText('load-sensor', `${load.weightKg}kg (${load.percent}%)`);
+  $('load-sensor')?.classList.toggle('warn', load.percent >= 80);
+
   for (const [id, on] of [
     ['obstruction', c.obstructionSources.has('manual')],
     ['alarm', c.alarm],
+    ['vip-mode', c.vipMode],
   ]) {
-    $(id).classList.toggle('active', on);
-    $(id).setAttribute('aria-pressed', String(on));
+    if ($(id)) {
+      $(id).classList.toggle('active', on);
+      $(id).setAttribute('aria-pressed', String(on));
+    }
   }
 
   const pending = c.pending();
@@ -458,6 +542,7 @@ window.liftStudio = {
   controller,
   announcer,
   emergencyAlarm,
+  sfx,
   getElevatorAudioGain,
   get view() {
     return view;
@@ -468,7 +553,7 @@ window.liftStudio = {
   get game() {
     return game;
   },
-  version: '2.0.5',
+  version: '2.1.0',
 };
 
 let last = performance.now();

@@ -21,6 +21,7 @@ export class LiftController {
     this.obstruction = false;
     this.obstructionSources = new Set();
     this.alarm = false;
+    this.vipMode = false;
     this.paused = false;
     this.car = new Set();
     this.up = new Set();
@@ -42,6 +43,9 @@ export class LiftController {
   }
 
   pending() {
+    if (this.vipMode) {
+      return [...this.car].sort((a, b) => a - b);
+    }
     return [...new Set([...this.car, ...this.up, ...this.down])].sort((a, b) => a - b);
   }
 
@@ -65,7 +69,7 @@ export class LiftController {
     if (set.has(n)) return false;
     const wasEmpty = this.pending().length === 0;
     set.add(n);
-    if (wasEmpty && this.state === 'idle') {
+    if (wasEmpty && this.state === 'idle' && (!this.vipMode || set === this.car)) {
       this.direction = Math.sign(n * PITCH - this.position);
     }
     this.log(`${FLOORS[n]}층 · ${label} 등록`);
@@ -83,6 +87,9 @@ export class LiftController {
   }
 
   canServeHere() {
+    if (this.vipMode) {
+      return this.car.has(this.floor);
+    }
     return (
       this.car.has(this.floor) ||
       (this.direction >= 0 && this.up.has(this.floor)) ||
@@ -93,6 +100,7 @@ export class LiftController {
 
   serveHere() {
     this.car.delete(this.floor);
+    if (this.vipMode) return;
     if (this.direction >= 0) this.up.delete(this.floor);
     if (this.direction <= 0) this.down.delete(this.floor);
     if (this.ahead().length === 0) {
@@ -119,7 +127,7 @@ export class LiftController {
     if (!ahead.length) return all.includes(this.floor) ? this.floor : null;
     ahead.sort((a, b) => (a - b) * this.direction);
     const eligible = ahead.filter(
-      (n) => this.car.has(n) || (this.direction === 1 ? this.up : this.down).has(n)
+      (n) => this.car.has(n) || (!this.vipMode && (this.direction === 1 ? this.up : this.down).has(n))
     );
     return eligible.length ? eligible[0] : ahead.at(-1);
   }
@@ -162,6 +170,15 @@ export class LiftController {
   toggleAlarm() {
     this.alarm = !this.alarm;
     this.log(this.alarm ? '비상 호출 신호 · 시뮬레이션' : '비상 호출 해제', this.alarm ? 'warn' : 'info');
+  }
+
+  toggleVipMode() {
+    this.vipMode = !this.vipMode;
+    this.log(
+      this.vipMode ? 'VIP 직통 운전 활성화 · 외부 호출 보류' : 'VIP 직통 운전 해제 · 정상 운행',
+      this.vipMode ? 'warn' : 'info'
+    );
+    return this.vipMode;
   }
 
   tick(dt) {
@@ -227,7 +244,7 @@ export class LiftController {
       const candidates = this.ahead().filter(
         (n) =>
           (n - this.target) * this.direction < 0 &&
-          (this.car.has(n) || (this.direction === 1 ? this.up : this.down).has(n)) &&
+          (this.car.has(n) || (!this.vipMode && (this.direction === 1 ? this.up : this.down).has(n))) &&
           Math.abs(n * PITCH - this.position) > braking
       );
       if (candidates.length) {
@@ -295,7 +312,7 @@ export class LiftController {
       this.direction !== 0 &&
       !incoming.has(this.floor) &&
       this.ahead().length === 0 &&
-      (opposite.has(this.floor) || this.ahead(-this.direction).length > 0);
+      (!this.vipMode ? opposite.has(this.floor) || this.ahead(-this.direction).length > 0 : this.ahead(-this.direction).length > 0);
     // Clear the arrival's served calls in the incoming direction before
     // committing the departure direction; otherwise turnaround calls stay lit.
     // A matching hall pickup keeps its direction while passengers choose a floor.
@@ -319,9 +336,30 @@ export class LiftController {
       door: this.door,
       obstruction: this.obstruction,
       alarm: this.alarm,
+      vipMode: this.vipMode,
       paused: this.paused,
       pending: this.pending(),
       stops: [...this.stops],
     };
   }
 }
+
+export function computeCabinLoad({ gameActive = false, player = null, npcs = null, robot = null } = {}) {
+  const playerInCabin = Boolean(gameActive && player?.zone === 'cabin');
+  const npcRiders = npcs?.npcs ? npcs.npcs.filter((n) => n.zone === 'cabin').length : 0;
+  const robotInCabin = Boolean(robot?.zone === 'cabin');
+  const passengers = (playerInCabin ? 1 : 0) + npcRiders;
+  const weightKg = (playerInCabin ? 70 : 0) + npcRiders * 68 + (robotInCabin ? 45 : 0);
+  const percent = Math.min(100, Math.round((weightKg / 1000) * 100));
+  return {
+    passengers,
+    robotInCabin,
+    weightKg,
+    percent,
+    summary:
+      weightKg === 0
+        ? '공차 · 0 kg'
+        : `${passengers}명${robotInCabin ? ' + 로봇' : ''} · ${weightKg} kg (${percent}%)`,
+  };
+}
+

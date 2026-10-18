@@ -129,9 +129,11 @@ export class GuestRoomView {
       new THREE.MeshBasicMaterial({ map: tex })
     );
     view.name = 'Window_city_view';
+    view.userData.dynamic = true;
     view.position.set(0, 1.8, 13.87);
     view.rotation.y = Math.PI;
     g.add(view);
+    this.windowView = view;
 
     this.curtains = [];
     for (const side of [-1, 1]) {
@@ -241,10 +243,11 @@ export class GuestRoomView {
     };
     this.tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(1.28, 0.73), this.tvMaterials.welcome);
     this.tvScreen.name = 'TV_welcome';
+    this.tvScreen.userData.dynamic = true;
     this.tvScreen.position.set(-2.247, 1.65, 8.6);
     this.tvScreen.rotation.y = Math.PI / 2;
     g.add(this.tvScreen);
-    makePickable(this.tvScreen, tvData);
+    makePickable(this.tvScreen, { ...tvData, dynamic: true });
 
     // Bathroom with an open doorway, vanity, mirror, shower and toilet.
     box(g, 'Bathroom_tile_floor', [1.85, 0.012, 3.05], [1.37, 0.012, 5.6], m.stone);
@@ -291,6 +294,7 @@ export class GuestRoomView {
 
     // Hinged guest door and card reader, both available from either side.
     const pivot = (this.door = new THREE.Group());
+    pivot.userData.dynamic = true;
     pivot.position.set(-1.9, 0, 3.57);
     g.add(pivot);
 
@@ -322,8 +326,19 @@ export class GuestRoomView {
       [-0.67, 1.17, 3.543],
       new THREE.MeshBasicMaterial({ color: 0xb4775e })
     );
-    this.led.userData = data;
+    this.led.userData = { ...data, dynamic: true };
     pickables.push(this.led);
+  }
+
+  setTimeOfDay(modeId) {
+    if (!this.windowView?.material?.color) return;
+    if (modeId === 'sunset') {
+      this.windowView.material.color.setHex(0xffb88c);
+    } else if (modeId === 'night') {
+      this.windowView.material.color.setHex(0x3a5270);
+    } else {
+      this.windowView.material.color.setHex(0xffffff);
+    }
   }
 
   update() {

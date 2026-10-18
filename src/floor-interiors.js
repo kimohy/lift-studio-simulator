@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { floorUsage } from './building.js';
+import { floorMeta, floorUsage } from './building.js';
 import { FLOORS } from './controller.js';
 import { hotelSignTexture } from './hotel-sign.js';
 
@@ -17,6 +17,7 @@ const materials = {
 
 export function decorateFloor(room, floor, { expanded = false, pickables = null } = {}) {
   const usage = floorUsage(floor);
+  const meta = floorMeta(floor, FLOORS[floor]);
   room.userData.floorUsage = usage.ko;
   room.userData.floorKind = usage.kind;
 
@@ -51,14 +52,14 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
   box(`Floor_finish_${FLOORS[floor]}`, [4.9, 0.018, 2.23], [0, 0.008, 2.485], materials[usage.kind]);
   sign(
     `Floor_purpose_sign_${FLOORS[floor]}`,
-    floor === 14 ? ['10 · 루프탑 수영장 · 객실', 'ROOFTOP POOL & SUITES'] : [`${FLOORS[floor]} · ${usage.ko}`, usage.en],
+    [meta.signKo, meta.signEn],
     [0, floor === 14 ? 2.86 : 2.67, 3.607],
     1.8,
     0.6
   );
   sign(
     `Floor_side_sign_${FLOORS[floor]}`,
-    [usage.kind === 'parking' ? `P · ${FLOORS[floor]}` : floor === 14 ? '루프탑 수영장' : usage.ko, floor === 14 ? 'ROOFTOP POOL' : usage.en],
+    [meta.sideKo, meta.sideEn],
     [-2.468, 2.72, 2.3],
     1.0,
     0.48,

@@ -56,6 +56,9 @@ export class GameMode {
     this.pointerDownInfo = null;
     this.hoverTime = 0;
     this.cursor = { x: 0, y: 0 };
+    this.currentHit = null;
+    this.isTouch = Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+    document.body.classList.toggle('touch-device', this.isTouch);
     this.previousView = 'lobby';
 
     const keycardDialog = $('keycard-dialog');
@@ -70,6 +73,11 @@ export class GameMode {
       if (!this.active || e.target.closest?.('input,select,textarea,[contenteditable="true"],dialog')) return;
       if (e.code === 'Escape' && document.body.classList.contains('game-fullscreen')) {
         this.leaveFullscreen();
+        return;
+      }
+      if ((e.code === 'KeyE' || e.code === 'KeyF') && !e.repeat) {
+        e.preventDefault();
+        this.triggerCurrentHit();
         return;
       }
       if (MOVE_KEYS.has(e.code)) {
@@ -99,22 +107,28 @@ export class GameMode {
 
     canvas.addEventListener('pointerdown', (e) => {
       if (!this.active) return;
+      if (e.pointerType === 'touch') {
+        this.isTouch = true;
+        document.body.classList.add('touch-device');
+      }
       canvas.focus({ preventScroll: true });
       if (e.button === 2) {
         this.dragging = true;
         this.pointerDownInfo = {
           id: e.pointerId,
           button: 2,
+          touch: false,
           startX: e.clientX,
           startY: e.clientY,
           lastX: e.clientX,
           lastY: e.clientY,
         };
         canvas.setPointerCapture(e.pointerId);
-      } else if (e.button === 0 && document.pointerLockElement !== canvas) {
+      } else if (e.button === 0 && document.pointerLockElement !== canvas && !this.pointerDownInfo) {
         this.pointerDownInfo = {
           id: e.pointerId,
           button: 0,
+          touch: e.pointerType === 'touch',
           startX: e.clientX,
           startY: e.clientY,
           lastX: e.clientX,
@@ -125,23 +139,35 @@ export class GameMode {
 
     canvas.addEventListener('pointerup', (e) => {
       if (this.pointerDownInfo && e.pointerId === this.pointerDownInfo.id) {
+        const wasTouch = this.pointerDownInfo.touch;
         this.dragging = false;
         this.pointerDownInfo = null;
         if (canvas.hasPointerCapture(e.pointerId)) {
           canvas.releasePointerCapture(e.pointerId);
         }
+        if (wasTouch) {
+          this.cursor = { x: 0, y: 0 };
+          this.updateHUD();
+        }
       }
     });
 
-    canvas.addEventListener('pointercancel', () => this.clearInput());
+    canvas.addEventListener('pointercancel', (e) => {
+      if (this.pointerDownInfo && e.pointerId === this.pointerDownInfo.id) {
+        this.dragging = false;
+        this.pointerDownInfo = null;
+      }
+    });
 
     canvas.addEventListener('pointermove', (e) => {
       if (!this.active) return;
       const rect = canvas.getBoundingClientRect();
-      this.cursor = {
-        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        y: -((e.clientY - rect.top) / rect.height) * 2 + 1,
-      };
+      if (e.pointerType !== 'touch') {
+        this.cursor = {
+          x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          y: -((e.clientY - rect.top) / rect.height) * 2 + 1,
+        };
+      }
 
       if (document.pointerLockElement === canvas) {
         this.player.look(e.movementX, e.movementY);
@@ -154,8 +180,12 @@ export class GameMode {
         const dy = e.clientY - this.pointerDownInfo.lastY;
         this.pointerDownInfo.lastX = e.clientX;
         this.pointerDownInfo.lastY = e.clientY;
+        const dragThreshold = this.pointerDownInfo.touch ? 10 : 5;
 
-        if (!this.dragging && Math.hypot(e.clientX - this.pointerDownInfo.startX, e.clientY - this.pointerDownInfo.startY) > 5) {
+        if (
+          !this.dragging &&
+          Math.hypot(e.clientX - this.pointerDownInfo.startX, e.clientY - this.pointerDownInfo.startY) > dragThreshold
+        ) {
           this.dragging = true;
           try {
             canvas.setPointerCapture(e.pointerId);
@@ -163,8 +193,12 @@ export class GameMode {
         }
 
         if (this.dragging) {
-          this.player.look(e.movementX || dx, e.movementY || dy);
+          const sens = this.pointerDownInfo.touch ? 1.85 : 1.0;
+          this.player.look((e.movementX || dx) * sens, (e.movementY || dy) * sens);
           this.applyCamera();
+          if (this.pointerDownInfo.touch) {
+            this.cursor = { x: 0, y: 0 };
+          }
         }
       }
     });
@@ -178,6 +212,10 @@ export class GameMode {
     );
 
     this.bindTouchControls();
+
+    $('game-target')?.addEventListener('click', () => {
+      if (this.active) this.triggerCurrentHit();
+    });
 
     $('keycard-button')?.addEventListener('click', () => {
       if (this.stay.keycard) {
@@ -206,22 +244,44 @@ export class GameMode {
     });
   }
 
+  triggerCurrentHit() {
+    const ndc = document.pointerLockElement === this.view.canvas || this.isTouch ? { x: 0, y: 0 } : this.cursor;
+    const hit = this.currentHit || this.view.getInteraction(ndc, 2.5);
+    if (hit && hit.userData?.action) {
+      this.view.onAction?.(hit.userData.action, hit.userData.floorIndex, hit.userData.direction, hit.userData);
+      this.updateHUD();
+    }
+  }
+
   bindTouchControls() {
     for (const btn of document.querySelectorAll('[data-move]')) {
       const code = btn.dataset.move;
+      const activePointers = new Set();
       const press = (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        if (e.pointerType === 'touch') {
+          this.isTouch = true;
+          document.body.classList.add('touch-device');
+        }
+        activePointers.add(e.pointerId);
+        try {
+          btn.setPointerCapture(e.pointerId);
+        } catch {}
         this.virtualKeys.add(code);
         btn.classList.add('active');
       };
-      const release = () => {
-        this.virtualKeys.delete(code);
-        btn.classList.remove('active');
+      const release = (e) => {
+        activePointers.delete(e.pointerId);
+        if (activePointers.size === 0) {
+          this.virtualKeys.delete(code);
+          btn.classList.remove('active');
+        }
       };
       btn.addEventListener('pointerdown', press);
       btn.addEventListener('pointerup', release);
-      btn.addEventListener('pointerleave', release);
       btn.addEventListener('pointercancel', release);
+      btn.addEventListener('lostpointercapture', release);
     }
   }
 
@@ -580,10 +640,15 @@ export class GameMode {
       c.state === 'moving' ? (c.direction > 0 ? '올라가는 중' : '내려가는 중') : c.door > 0 ? '문 열림' : '대기'
     }`;
 
-    const ndc = document.pointerLockElement === this.view.canvas ? { x: 0, y: 0 } : this.cursor;
+    const ndc =
+      document.pointerLockElement === this.view.canvas || this.isTouch
+        ? { x: 0, y: 0 }
+        : this.cursor;
     const hit = this.view.getInteraction(ndc, 2.5);
+    this.currentHit = hit;
     this.view.canvas.style.cursor = hit ? 'pointer' : this.dragging ? 'grabbing' : 'crosshair';
-    $('game-crosshair').classList.toggle('targeted', !!hit);
+    $('game-crosshair')?.classList.toggle('targeted', !!hit);
+    $('game-target')?.classList.toggle('actionable', !!hit);
 
     if (performance.now() < (this.messageUntil || 0)) return;
 

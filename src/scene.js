@@ -78,14 +78,18 @@ export class LiftScene {
 
     let down = null;
     canvas.addEventListener('pointerdown', (e) => {
-      if (e.button === 0) down = [e.clientX, e.clientY];
+      if (e.button === 0) {
+        down = { x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType === 'touch' };
+      }
     });
     canvas.addEventListener('pointerup', (e) => {
-      if (e.button !== 0 || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5 || !this.ready) {
-        down = null;
+      if (!down || e.pointerId !== down.id) return;
+      const maxMove = down.touch ? 18 : 6;
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+      down = null;
+      if (e.button !== 0 || moved > maxMove || !this.ready) {
         return;
       }
-      down = null;
       const r = canvas.getBoundingClientRect();
       const point =
         document.pointerLockElement === canvas
@@ -115,11 +119,17 @@ export class LiftScene {
     const aspect = this.camera.aspect || 1.6;
     if (this.view === 'game') {
       const baseFov = 58;
-      this.camera.fov = aspect > 1.8 ? baseFov * Math.pow(1.8 / aspect, 0.45) : baseFov;
+      if (aspect > 1.8) {
+        this.camera.fov = baseFov * Math.pow(1.8 / aspect, 0.45);
+      } else if (aspect < 1.0) {
+        this.camera.fov = Math.min(82, baseFov * Math.pow(1.0 / Math.max(0.45, aspect), 0.45));
+      } else {
+        this.camera.fov = baseFov;
+      }
     } else if (this.view === 'cabin') {
-      this.camera.fov = 66;
+      this.camera.fov = aspect < 1.0 ? Math.min(84, 66 * Math.pow(1.0 / Math.max(0.5, aspect), 0.35)) : 66;
     } else {
-      this.camera.fov = 44;
+      this.camera.fov = aspect < 1.0 ? Math.min(64, 44 * Math.pow(1.0 / Math.max(0.5, aspect), 0.4)) : 44;
     }
     this.camera.updateProjectionMatrix();
   }

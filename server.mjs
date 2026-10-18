@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream';
 import { createGzip } from 'node:zlib';
@@ -16,9 +17,23 @@ const types = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.mp3': 'audio/mpeg',
+  '.json': 'application/json; charset=utf-8',
 };
 
-const compressible = new Set(['.html', '.js', '.css', '.svg']);
+const compressible = new Set(['.html', '.js', '.css', '.svg', '.json']);
+
+export function getNetworkUrls(port = 4173) {
+  const urls = [`http://localhost:${port}`];
+  const interfaces = os.networkInterfaces();
+  for (const list of Object.values(interfaces)) {
+    for (const iface of list || []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        urls.push(`http://${iface.address}:${port}`);
+      }
+    }
+  }
+  return urls;
+}
 
 export function createSimulatorServer() {
   return http.createServer(async (req, res) => {
@@ -45,9 +60,19 @@ export function createSimulatorServer() {
       const etag = `W/"${info.size}-${Math.floor(info.mtimeMs)}"`;
       const isImmutableAsset = ext === '.glb' || ext === '.mp3' || ext === '.png' || ext === '.svg';
       const cacheControl = isImmutableAsset ? 'public, max-age=3600, must-revalidate' : 'no-cache';
+      const corsHeaders = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      };
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, corsHeaders);
+        res.end();
+        return;
+      }
 
       if (req.headers['if-none-match'] === etag) {
-        res.writeHead(304, { ETag: etag, 'Cache-Control': cacheControl });
+        res.writeHead(304, { ETag: etag, 'Cache-Control': cacheControl, ...corsHeaders });
         res.end();
         return;
       }
@@ -62,7 +87,7 @@ export function createSimulatorServer() {
           end = info.size - 1;
         }
         if (start >= info.size || end >= info.size || start > end) {
-          res.writeHead(416, { 'Content-Range': `bytes */${info.size}` });
+          res.writeHead(416, { 'Content-Range': `bytes */${info.size}`, ...corsHeaders });
           res.end();
           return;
         }
@@ -73,6 +98,7 @@ export function createSimulatorServer() {
           'Content-Length': end - start + 1,
           ETag: etag,
           'Cache-Control': cacheControl,
+          ...corsHeaders,
         });
         if (req.method === 'HEAD') {
           res.end();
@@ -90,6 +116,7 @@ export function createSimulatorServer() {
         'Accept-Ranges': 'bytes',
         ETag: etag,
         'Cache-Control': cacheControl,
+        ...corsHeaders,
       };
 
       if (useGzip) {
@@ -121,16 +148,22 @@ export function createSimulatorServer() {
 }
 
 if (import.meta.main || process.argv[1] === import.meta.filename) {
+  const port = Number(process.env.PORT) || 4173;
+  const host = process.env.HOST || '0.0.0.0';
   const server = createSimulatorServer();
-  server.listen(4173, '0.0.0.0', () => {
-    console.log('Lift Studio: http://localhost:4173');
+  server.listen(port, host, () => {
+    const urls = getNetworkUrls(port);
+    console.log(`Lift Studio (Local):   ${urls[0]}`);
+    for (const netUrl of urls.slice(1)) {
+      console.log(`Lift Studio (Network): ${netUrl}`);
+    }
     if (process.argv.includes('--open')) {
       const command =
         process.platform === 'win32' ? 'cmd.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
       const args =
         process.platform === 'win32'
-          ? ['/c', 'start', '', 'http://localhost:4173']
-          : ['http://localhost:4173'];
+          ? ['/c', 'start', '', `http://localhost:${port}`]
+          : [`http://localhost:${port}`];
       const child = spawn(command, args, { detached: true, stdio: 'ignore' });
       child.on('error', () => {});
       child.unref();
@@ -139,7 +172,7 @@ if (import.meta.main || process.argv[1] === import.meta.filename) {
   server.on('error', (error) => {
     console.error(
       error.code === 'EADDRINUSE'
-        ? 'Port 4173 is in use. Close the existing simulator, or open http://localhost:4173.'
+        ? `Port ${port} is in use. Close the existing simulator, or open http://localhost:${port}.`
         : error.message
     );
     process.exitCode = 1;

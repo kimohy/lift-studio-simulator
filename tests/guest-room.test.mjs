@@ -53,6 +53,32 @@ test('guest room interactive amenities (TV, lighting, curtain, shower, bed rest,
   assert.equal(r.cycleThermostat().temp,24);
   assert.equal(r.audioTrack.playing,false);
   assert.equal(r.cycleAudio().playing,true);
+  // Second batch of Room 301 amenities: Laptop Desk, Vanity Mirror, Smart Toilet, Concierge Phone, Aroma Diffuser, Suitcase, Privacy Sign
+  assert.equal(r.workLaptopOn,true);
+  assert.equal(r.sitDesk(p).laptopOn,false);
+  assert.equal(r.sitDesk(p).laptopOn,true);
+  assert.equal(p.x,0.68);
+  assert.equal(p.z,8.6);
+  assert.equal(r.mirrorLit,true);
+  assert.equal(r.toggleVanityMirror().mirrorLit,false);
+  assert.equal(r.toggleVanityMirror().mirrorLit,true);
+  assert.equal(r.toiletFlushing,0);
+  assert.equal(r.flushToilet().flushing,true);
+  assert.ok(r.toiletFlushing>1);
+  for(let i=0;i<100;i++)r.update(.02,p);
+  assert.equal(r.toiletFlushing,0);
+  assert.equal(r.callConciergePhone().ok,true);
+  assert.equal(r.diffuserScent.active,false);
+  assert.equal(r.cycleDiffuser().scent,'cedar');
+  assert.equal(r.diffuserScent.active,true);
+  assert.equal(r.toggleSuitcase().open,true);
+  for(let i=0;i<40;i++)r.update(.02,p);
+  assert.equal(r.suitcaseOpen,1);
+  assert.equal(r.toggleSuitcase().open,false);
+  assert.equal(r.privacyMode.id,'normal');
+  assert.equal(r.cyclePrivacySign().mode,'dnd');
+  assert.equal(r.cyclePrivacySign().mode,'makeup');
+  assert.equal(r.cyclePrivacySign().mode,'normal');
 });
 test('service robot DELI takes room service order, rides elevator to 3F Room 301, delivers food, and returns to 1F',async()=>{
   const {ServiceRobot}=await import('../src/service-robot.js');

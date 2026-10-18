@@ -565,7 +565,9 @@ export class GameMode {
 
   accepts(data) {
     if (!this.active) return true;
-    if (data.action === 'roomDoor') return this.player.floor === 7 && ['lobby', 'room'].includes(this.player.zone);
+    if (data.action === 'roomDoor' || data.action === 'roomPrivacy') {
+      return this.player.floor === 7 && ['lobby', 'room'].includes(this.player.zone);
+    }
     if (
       [
         'roomTV',
@@ -580,6 +582,12 @@ export class GameMode {
         'roomWardrobe',
         'roomThermostat',
         'roomAudio',
+        'roomMirror',
+        'roomToilet',
+        'roomPhone',
+        'roomDiffuser',
+        'roomSuitcase',
+        'roomDeskWork',
         'roomServiceOrder',
         'roomFood',
       ].includes(data.action)
@@ -683,7 +691,8 @@ export class GameMode {
   }
 
   interactRoom(action) {
-    if (!this.active || this.player.floor !== 7 || this.player.zone !== 'room') return;
+    if (!this.active || this.player.floor !== 7) return;
+    if (action !== 'roomPrivacy' && this.player.zone !== 'room') return;
     this.stay.completeMilestone('room301');
     if (action === 'roomTV') {
       this.message(this.room.cycleTV().message);
@@ -701,6 +710,10 @@ export class GameMode {
       const res = this.room.sitArmchair(this.player);
       this.applyCamera();
       this.message(res.message);
+    } else if (action === 'roomDeskWork') {
+      const res = this.room.sitDesk(this.player);
+      this.applyCamera();
+      this.message(res.message);
     } else if (action === 'roomCoffee') {
       this.message(this.room.brewCoffee().message);
     } else if (action === 'roomMinibar') {
@@ -713,6 +726,18 @@ export class GameMode {
       this.message(this.room.cycleThermostat().message);
     } else if (action === 'roomAudio') {
       this.message(this.room.cycleAudio().message);
+    } else if (action === 'roomMirror') {
+      this.message(this.room.toggleVanityMirror().message);
+    } else if (action === 'roomToilet') {
+      this.message(this.room.flushToilet().message);
+    } else if (action === 'roomPhone') {
+      this.message(this.room.callConciergePhone().message);
+    } else if (action === 'roomDiffuser') {
+      this.message(this.room.cycleDiffuser().message);
+    } else if (action === 'roomSuitcase') {
+      this.message(this.room.toggleSuitcase().message);
+    } else if (action === 'roomPrivacy') {
+      this.message(this.room.cyclePrivacySign().message);
     } else if (action === 'roomServiceOrder') {
       this.stay.completeMilestone('roomService');
       const res = this.robot.orderRoomService();
@@ -806,6 +831,8 @@ export class GameMode {
         return '킹사이즈 침대 · 클릭해 편안히 휴식하기';
       case 'roomArmchair':
         return '창가 라운지 암체어 · 클릭해 앉아서 시티뷰 감상하기 🪑';
+      case 'roomDeskWork':
+        return `워크 데스크 & 노트북 (${this.room.workLaptopOn ? '켜짐' : '대기'}) · 클릭해 착석 및 워크스테이션 사용 💻`;
       case 'roomCoffee':
         return '에스프레소 캡슐 커피 머신 · 클릭해 스페셜티 커피 추출하기 ☕';
       case 'roomMinibar':
@@ -818,6 +845,18 @@ export class GameMode {
         return `스마트 온도조절기 (${this.room.acMode.temp}°C · ${this.room.acMode.mode}) · 클릭해 온도/모드 변경 🌡️`;
       case 'roomAudio':
         return `블루투스 스피커 (${this.room.audioTrack.label}) · 클릭해 음악 전환/정지 🎵`;
+      case 'roomMirror':
+        return `욕실 스마트 터치 거울 · 클릭해 김서림 방지 할로 LED 조명 ${this.room.mirrorLit ? '끄기' : '켜기'} 🪞`;
+      case 'roomToilet':
+        return '스마트 비데 양변기 · 클릭해 자동 물내림 & UV 살균 클리닝 🚽';
+      case 'roomPhone':
+        return '호텔 직통 내선 전화기 · 클릭해 프런트/하우스키핑/컨시어지 통화 ☎️';
+      case 'roomDiffuser':
+        return `아로마 스톤 디퓨저 (${this.room.diffuserScent.label}) · 클릭해 향기 미스트 전환 🌿`;
+      case 'roomSuitcase':
+        return `여행용 하드 캐리어 · 클릭해 ${this.room.suitcaseTarget ? '닫기' : '열어 짐 정리하기'} 🧳`;
+      case 'roomPrivacy':
+        return `객실 프라이버시 사인 (${this.room.privacyMode.label}) · 클릭해 방해금지(DND)/객실정비 전환 🔔`;
       case 'roomServiceOrder':
         return '스마트 컨시어지 태블릿 · 클릭해 룸서비스 로봇 배달 주문 🤖';
       case 'roomFood':
@@ -866,7 +905,7 @@ export class GameMode {
       p.zone === 'cabin'
         ? `엘리베이터 안 · ${FLOORS[c.floor]}층${c.state === 'moving' ? ' 이동 중' : ''}`
         : p.zone === 'room'
-          ? `3층 · 301호 객실${this.room.wearingRobe ? ' (호텔 가운 🥼)' : ''}`
+          ? `3층 · 301호 객실${this.room.wearingRobe ? ' (호텔 가운 🥼)' : ''}${this.room.privacyMode.id === 'dnd' ? ' · 🔕 DND' : this.room.privacyMode.id === 'makeup' ? ' · 🧹 정비요청' : ''}`
           : p.zone === 'pool'
             ? this.pool.inPool(p.x, p.z)
               ? '10층 · 루프탑 인피니티 풀 (수영 중 🏊)'
@@ -908,7 +947,7 @@ export class GameMode {
       text = '차량용 경사로입니다. WASD로 주차장 층 사이를 이동할 수 있습니다.';
     } else if (p.zone === 'room') {
       text =
-        '301호 객실입니다. TV·조명·커튼·침대·암체어·커피머신·미니바·금고·옷장·온도조절기·스피커·룸서비스 태블릿을 클릭해 보세요.';
+        '301호 객실입니다. TV·조명·커튼·침대·암체어·노트북·커피머신·미니바·금고·캐리어·전화기·디퓨저·욕실 거울·비데 등을 클릭해 보세요.';
     } else if (p.zone === 'pool') {
       text = this.pool.inPool(p.x, p.z)
         ? '🏊 루프탑 인피니티 풀에서 수영 중입니다! WASD로 헤엄치거나 사다리/수면을 클릭해 데크로 나올 수 있습니다.'

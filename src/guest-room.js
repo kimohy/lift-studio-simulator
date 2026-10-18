@@ -47,6 +47,26 @@ export const ROOM_AUDIO_TRACKS = [
   { id: 'classic', label: 'Debussy Clair de Lune Piano 🎹', playing: true },
 ];
 
+export const ROOM_PHONE_SERVICES = [
+  '프런트 데스크: "301호 고객님, 레이트 체크아웃(14:00) 요청을 무료로 등록해 드렸습니다." 📞',
+  '하우스키핑: "구스다운 추가 베개와 호텔 시그니처 배스 어메니티 세트를 곧 준비해 드리겠습니다." 🛏️',
+  '컨시어지 데스크: "루프탑 인피니티 풀(10F)은 현재 쾌적하게 운영 중이며 수건이 비치되어 있습니다." 🏊',
+  '모닝콜 서비스: "내일 아침 07:30 부드러운 재즈 해피콜 알람이 설정되었습니다." ⏰',
+];
+
+export const ROOM_DIFFUSER_SCENTS = [
+  { id: 'off', label: '꺼짐 (OFF)', active: false, color: 0x3b4d54 },
+  { id: 'cedar', label: '그랜드 시그니처 화이트 시더 & 베르가못 🌿', active: true, color: 0x76e8c7 },
+  { id: 'lavender', label: '프로방스 프렌치 라벤더 수면 테라피 💜', active: true, color: 0xc28cff },
+  { id: 'fig', label: '지중해 무화과 & 앰버 우드 🕯️', active: true, color: 0xffb86b },
+];
+
+export const ROOM_PRIVACY_MODES = [
+  { id: 'normal', label: '일반 대기', badge: 'ROOM 301', sub: 'WELCOME', color: 0x3b4d54 },
+  { id: 'dnd', label: '방해 금지 (Do Not Disturb)', badge: 'DO NOT DISTURB', sub: '방해 금지 🔕', color: 0xe05a47 },
+  { id: 'makeup', label: '객실 정비 요청 (Make Up Room)', badge: 'MAKE UP ROOM', sub: '객실 청소 요청 🧹', color: 0x4cc990 },
+];
+
 const within = (v, a, b) => v >= a - 1e-7 && v <= b + 1e-7;
 
 export class GuestRoom {
@@ -74,8 +94,15 @@ export class GuestRoom {
     this.safeTarget = 0;
     this.acIndex = 0;
     this.audioIndex = 0;
-    this.WearingRobe = false;
     this.wearingRobe = false;
+    this.mirrorLit = true;
+    this.toiletFlushing = 0;
+    this.phoneIndex = 0;
+    this.diffuserIndex = 0;
+    this.suitcaseOpen = 0;
+    this.suitcaseTarget = 0;
+    this.privacyIndex = 0;
+    this.workLaptopOn = true;
   }
 
   get tvMode() {
@@ -92,6 +119,14 @@ export class GuestRoom {
 
   get audioTrack() {
     return ROOM_AUDIO_TRACKS[this.audioIndex];
+  }
+
+  get diffuserScent() {
+    return ROOM_DIFFUSER_SCENTS[this.diffuserIndex];
+  }
+
+  get privacyMode() {
+    return ROOM_PRIVACY_MODES[this.privacyIndex];
   }
 
   addObstacle(minX, maxX, minZ, maxZ) {
@@ -191,6 +226,23 @@ export class GuestRoom {
     };
   }
 
+  sitDesk(player) {
+    if (player && player.floor === ROOM.floor && player.zone === 'room') {
+      player.x = 0.68;
+      player.z = 8.6;
+      player.yaw = -Math.PI / 2;
+      player.pitch = -0.08;
+    }
+    this.workLaptopOn = !this.workLaptopOn;
+    return {
+      ok: true,
+      laptopOn: this.workLaptopOn,
+      message: this.workLaptopOn
+        ? '💻 워크 데스크에 앉아 초고속 호텔 Wi-Fi로 노트북 워크스테이션을 켰습니다. (WASD로 언제든 이동 가능)'
+        : '💻 데스크에 앉아 노트북을 슬립 모드로 전환하고 잠시 눈의 피로를 풉니다.',
+    };
+  }
+
   brewCoffee() {
     const capsule = ROOM_ESPRESSO_CAPSULES[this.coffeeIndex % ROOM_ESPRESSO_CAPSULES.length];
     this.coffeeIndex++;
@@ -268,6 +320,69 @@ export class GuestRoom {
     };
   }
 
+  toggleVanityMirror() {
+    this.mirrorLit = !this.mirrorLit;
+    return {
+      ok: true,
+      mirrorLit: this.mirrorLit,
+      message: this.mirrorLit
+        ? '🪞 욕실 스마트 터치 거울의 김서림 방지(Anti-Fog) 및 할로 LED 메이크업 조명을 켰습니다.'
+        : '🪞 욕실 스마트 터치 거울의 할로 LED 조명을 껐습니다.',
+    };
+  }
+
+  flushToilet() {
+    this.toiletFlushing = 1.6;
+    return {
+      ok: true,
+      flushing: true,
+      message: '🚽 스마트 비데 양변기의 자동 물내림 및 UV 살균 클리닝 기능이 작동합니다.',
+    };
+  }
+
+  callConciergePhone() {
+    const msg = ROOM_PHONE_SERVICES[this.phoneIndex % ROOM_PHONE_SERVICES.length];
+    this.phoneIndex++;
+    return {
+      ok: true,
+      message: msg,
+    };
+  }
+
+  cycleDiffuser() {
+    this.diffuserIndex = (this.diffuserIndex + 1) % ROOM_DIFFUSER_SCENTS.length;
+    const scent = this.diffuserScent;
+    return {
+      ok: true,
+      scent: scent.id,
+      active: scent.active,
+      message: scent.active
+        ? `🌿 아로마 스톤 디퓨저에서 [${scent.label}] 향기 미스트가 은은하게 피어오릅니다.`
+        : '아로마 디퓨저 미스트 분사를 정지했습니다.',
+    };
+  }
+
+  toggleSuitcase() {
+    this.suitcaseTarget = this.suitcaseTarget ? 0 : 1;
+    return {
+      ok: true,
+      open: Boolean(this.suitcaseTarget),
+      message: this.suitcaseTarget
+        ? '🧳 러기지 랙 위의 여행용 하드 캐리어를 열어 짐과 카메라, 여권 파우치를 정리합니다.'
+        : '🧳 여행용 하드 캐리어를 깔끔하게 닫았습니다.',
+    };
+  }
+
+  cyclePrivacySign() {
+    this.privacyIndex = (this.privacyIndex + 1) % ROOM_PRIVACY_MODES.length;
+    const mode = this.privacyMode;
+    return {
+      ok: true,
+      mode: mode.id,
+      message: `🔔 객실 도어 프라이버시 패널을 [${mode.label}] 상태로 전환했습니다. 복도 외부 표시등에 즉시 반영됩니다.`,
+    };
+  }
+
   deliverFood(item) {
     this.foodItem = item;
   }
@@ -305,6 +420,13 @@ export class GuestRoom {
     this.safeOpen = this.safeTarget
       ? Math.min(1, this.safeOpen + md)
       : Math.max(0, this.safeOpen - md);
+    this.suitcaseOpen = this.suitcaseTarget
+      ? Math.min(1, this.suitcaseOpen + md)
+      : Math.max(0, this.suitcaseOpen - md);
+
+    if (this.toiletFlushing > 0) {
+      this.toiletFlushing = Math.max(0, this.toiletFlushing - clamped);
+    }
   }
 
   canOccupy(x, z, p, c) {

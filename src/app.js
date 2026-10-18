@@ -112,20 +112,32 @@ function act(action, floor, direction, data) {
       'roomShower',
       'roomBed',
       'roomArmchair',
+      'roomDeskWork',
       'roomCoffee',
       'roomMinibar',
       'roomSafe',
       'roomWardrobe',
       'roomThermostat',
       'roomAudio',
+      'roomMirror',
+      'roomToilet',
+      'roomPhone',
+      'roomDiffuser',
+      'roomSuitcase',
+      'roomPrivacy',
       'roomServiceOrder',
       'roomFood',
     ].includes(action)
   ) {
-    if (action === 'roomShower' || action === 'roomCoffee') sfx.playWater();
-    else if (action === 'roomServiceOrder') sfx.playRobot();
-    else if (action === 'roomSafe') sfx.playKeycard(true);
-    else sfx.playButton();
+    if (action === 'roomShower' || action === 'roomCoffee' || action === 'roomToilet' || action === 'roomDiffuser') {
+      sfx.playWater();
+    } else if (action === 'roomServiceOrder' || action === 'roomPhone') {
+      sfx.playRobot();
+    } else if (action === 'roomSafe' || action === 'roomPrivacy') {
+      sfx.playKeycard(true);
+    } else {
+      sfx.playButton();
+    }
     game?.interactRoom(action);
     return;
   }

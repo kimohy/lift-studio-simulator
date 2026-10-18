@@ -1,6 +1,33 @@
 export const FLOORS = ['B5', 'B4', 'B3', 'B2', 'B1', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
 export const PITCH = 3.5;
 
+export const CABIN_LIGHT_MODES = [
+  { id: 'warm', label: '웜 샴페인 골드', color: 0xffe8c5, led: 0xffe2b3, intensity: 16 },
+  { id: 'daylight', label: '크리스탈 데이라이트', color: 0xeaf6ff, led: 0xd8f0ff, intensity: 20 },
+  { id: 'lounge', label: '스카이 라운지 앰비언트', color: 0xc2b8ff, led: 0x9888ff, intensity: 12 },
+  { id: 'night', label: '나이트 무드 디밍', color: 0xffb36b, led: 0xd98a4c, intensity: 8 },
+];
+
+export const CABIN_FAN_MODES = [
+  { id: 'auto', label: '자동 청정 환기 (AUTO)', speed: 1, aqi: '좋음 8 µg/m³' },
+  { id: 'turbo', label: '터보 쾌속 환기 (TURBO)', speed: 2.8, aqi: '매우 좋음 5 µg/m³' },
+  { id: 'eco', label: '저소음 정숙 환기 (QUIET)', speed: 0.45, aqi: '좋음 9 µg/m³' },
+  { id: 'off', label: '환기 팬 대기 (OFF)', speed: 0, aqi: '보통 14 µg/m³' },
+];
+
+export const CABIN_MUSIC_TRACKS = [
+  { id: 'chanson', label: 'Grand Hotel Lounge Piano 🎹', playing: true },
+  { id: 'bossa', label: 'Classic Bossa Nova Elevator 🎷', playing: true },
+  { id: 'strings', label: 'Vivaldi Four Seasons Strings 🎻', playing: true },
+  { id: 'off', label: '배경음악 끔 (MUTE)', playing: false },
+];
+
+export const CABIN_INTERCOM_RESPONSES = [
+  '방재센터: "그랜드 호텔 24시간 엘리베이터 관제실입니다. 현재 엘리베이터는 모든 안전 센서가 정상 작동 중입니다." 🎙️',
+  '컨시어지 데스크: "객실 301호는 3층, 루프탑 인피니티 풀은 10층, 그랜드 카페는 1층 로비에 위치해 있습니다." ✨',
+  '기술지원팀: "로프 장력·비상 브레이크·도어 광전센서 실시간 원격 모니터링 결과 이상 없습니다. 편안한 탑승 되세요." 🛡️',
+];
+
 const valid = (n) => Number.isInteger(n) && n >= 0 && n < FLOORS.length;
 
 export class LiftController {
@@ -23,6 +50,11 @@ export class LiftController {
     this.alarm = false;
     this.vipMode = false;
     this.paused = false;
+    this.cabinLightIndex = 0;
+    this.cabinFanIndex = 0;
+    this.cabinMusicIndex = 0;
+    this.intercomIndex = 0;
+    this.intercomActiveUntil = 0;
     this.car = new Set();
     this.up = new Set();
     this.down = new Set();
@@ -35,6 +67,18 @@ export class LiftController {
     this.maxSpeed = 1.75;
     this.accel = 0.8;
     this.log('시스템 준비 · 1층 대기');
+  }
+
+  get cabinLightMode() {
+    return CABIN_LIGHT_MODES[this.cabinLightIndex % CABIN_LIGHT_MODES.length];
+  }
+
+  get cabinFanMode() {
+    return CABIN_FAN_MODES[this.cabinFanIndex % CABIN_FAN_MODES.length];
+  }
+
+  get cabinMusicTrack() {
+    return CABIN_MUSIC_TRACKS[this.cabinMusicIndex % CABIN_MUSIC_TRACKS.length];
   }
 
   log(message, type = 'info') {
@@ -56,6 +100,111 @@ export class LiftController {
   callCar(n) {
     if (!valid(n)) return false;
     return this.add(this.car, n, '내부');
+  }
+
+  cancelCar(n) {
+    if (!valid(n) || !this.car.has(n)) return false;
+    if (this.state === 'moving' && this.target === n) {
+      const braking = (this.velocity * this.velocity) / (2 * this.accel) + 0.08;
+      if (Math.abs(n * PITCH - this.position) <= braking) {
+        return false;
+      }
+      this.car.delete(n);
+      this.log(`${FLOORS[n]}층 · 내부 호출 취소`);
+      const next = this.chooseTarget();
+      if (next !== null && (next - this.position / PITCH) * this.direction > 0) {
+        this.target = next;
+        this.planMotion();
+      }
+      return true;
+    }
+    this.car.delete(n);
+    this.log(`${FLOORS[n]}층 · 내부 호출 취소`);
+    if (this.state === 'idle' && this.pending().length === 0) {
+      this.direction = 0;
+      this.target = null;
+    }
+    return true;
+  }
+
+  toggleCar(n, { allowCancel = false } = {}) {
+    if (!valid(n)) return { ok: false, action: 'invalid', floor: n };
+    if (allowCancel && this.car.has(n)) {
+      const cancelled = this.cancelCar(n);
+      return {
+        ok: cancelled,
+        action: cancelled ? 'cancelled' : 'locked',
+        floor: n,
+      };
+    }
+    const added = this.callCar(n);
+    return {
+      ok: added,
+      action: added ? 'added' : 'exists',
+      floor: n,
+    };
+  }
+
+  clearCarCalls() {
+    let cleared = 0;
+    for (const n of [...this.car]) {
+      if (this.cancelCar(n)) cleared++;
+    }
+    return cleared;
+  }
+
+  cycleCabinLight() {
+    this.cabinLightIndex = (this.cabinLightIndex + 1) % CABIN_LIGHT_MODES.length;
+    const mode = this.cabinLightMode;
+    this.log(`카 내부 조명 · ${mode.label}`);
+    return {
+      ok: true,
+      mode,
+      message: `💡 엘리베이터 내부 천장 조명을 [${mode.label}] 모드로 변경했습니다.`,
+    };
+  }
+
+  cycleCabinFan() {
+    this.cabinFanIndex = (this.cabinFanIndex + 1) % CABIN_FAN_MODES.length;
+    const mode = this.cabinFanMode;
+    this.log(`카 공기청정 환기 · ${mode.label}`);
+    return {
+      ok: true,
+      mode,
+      message: `🌀 엘리베이터 공기청정 환기 시스템을 [${mode.label} · 미세먼지 ${mode.aqi}]로 설정했습니다.`,
+    };
+  }
+
+  cycleCabinMusic() {
+    this.cabinMusicIndex = (this.cabinMusicIndex + 1) % CABIN_MUSIC_TRACKS.length;
+    const track = this.cabinMusicTrack;
+    this.log(`카 배경음악 · ${track.label}`);
+    return {
+      ok: true,
+      track,
+      message: track.playing
+        ? `🎵 엘리베이터 라운지 스피커에서 [${track.label}] 선율이 흐릅니다.`
+        : '🔇 엘리베이터 내부 배경음악을 음소거했습니다.',
+    };
+  }
+
+  callIntercom() {
+    const reply = CABIN_INTERCOM_RESPONSES[this.intercomIndex % CABIN_INTERCOM_RESPONSES.length];
+    this.intercomIndex++;
+    this.intercomActiveUntil = this.time + 5;
+    this.log('비상 인터폰 통화 연결', 'info');
+    return {
+      ok: true,
+      message: reply,
+    };
+  }
+
+  etaToFloor(floorIndex = this.target) {
+    if (!valid(floorIndex)) return null;
+    const dist = Math.abs(floorIndex * PITCH - this.position);
+    if (dist < 0.02) return 0;
+    const speed = Math.max(0.6, Math.abs(this.velocity) || this.maxSpeed * 0.78);
+    return Math.max(1, Math.round(dist / speed));
   }
 
   callHall(n, dir) {

@@ -790,6 +790,33 @@ export class GameMode {
     }
   }
 
+  interactCabin(action) {
+    if (!this.active) return;
+    this.stepInsideCabinIfInDoorway();
+    if (action === 'cabinLight') {
+      this.message(this.controller.cycleCabinLight().message);
+    } else if (action === 'cabinFan') {
+      this.message(this.controller.cycleCabinFan().message);
+    } else if (action === 'cabinMusic') {
+      this.message(this.controller.cycleCabinMusic().message);
+    } else if (action === 'cabinIntercom') {
+      this.message(this.controller.callIntercom().message);
+    } else if (action === 'cabinVip') {
+      const vip = this.controller.toggleVipMode();
+      this.message(
+        vip
+          ? '★ 엘리베이터 VIP 직통 운전 모드가 켜졌습니다. 내부 선택 층으로 논스톱 직행합니다.'
+          : '☆ 엘리베이터 VIP 직통 운전 모드를 해제했습니다.'
+      );
+    } else if (action === 'cabinMirror') {
+      const robeText = this.room.wearingRobe
+        ? '구김 없는 순면 호텔 배스로브(가운) 차림이 아주 편안해 보입니다. 🥼'
+        : '단정한 호텔 투어 복장이 엘리베이터 크리스탈 거울에 비칩니다. ✨';
+      this.message(`🪞 엘리베이터 전면 거울을 바라보며 옷매무새를 정돈합니다. ${robeText}`);
+    }
+    this.messageUntil = performance.now() + 4500;
+  }
+
   toggleStairDoor(floor) {
     if (!this.active || floor !== this.player.floor || this.player.zone === 'cabin') return;
     const ok = this.stairs.toggleDoor(floor, this.player);
@@ -892,7 +919,19 @@ export class GameMode {
       case 'hall':
         return `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '올라가기' : '내려가기'} 호출 · 왼쪽 클릭`;
       case 'car':
-        return `${FLOORS[d.floorIndex]}층 선택 · 왼쪽 클릭`;
+        return `${FLOORS[d.floorIndex]}층 ${this.controller.car.has(d.floorIndex) ? '선택 취소 (재클릭)' : '목적층 선택'} · 왼쪽 클릭`;
+      case 'cabinLight':
+        return `카 내부 무드 조명 (${this.controller.cabinLightMode.label}) · 클릭해 조명 분위기 변경 💡`;
+      case 'cabinFan':
+        return `카 공기청정 환기 시스템 (${this.controller.cabinFanMode.label}) · 클릭해 풍량 변경 🌀`;
+      case 'cabinMusic':
+        return `카 라운지 오디오 (${this.controller.cabinMusicTrack.label}) · 클릭해 배경음악 변경/음소거 🎵`;
+      case 'cabinIntercom':
+        return '엘리베이터 비상/컨시어지 인터폰 · 클릭해 관제실 통화 연결 🎙️';
+      case 'cabinVip':
+        return `VIP 직통 운행 스위치 (${this.controller.vipMode ? '켜짐 ★' : '꺼짐 ☆'}) · 클릭해 논스톱 직행 전환`;
+      case 'cabinMirror':
+        return '엘리베이터 전면 크리스탈 거울 · 클릭해 옷매무새 확인하기 🪞';
       default:
         return `${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
     }

@@ -54,3 +54,24 @@ test('passenger in doorway reopens closing door and prevents departure',()=>{
  const c=new LiftController();c.openDoor();run(c,x=>x.state==='open');c.callCar(6);c.closeDoor();run(c,x=>x.door<.9);c.setObstruction(true,'player');run(c,x=>x.state==='open');
  for(let i=0;i<120*8;i++)c.tick(1/120);assert.equal(c.position,17.5);assert.equal(c.door,1);c.setObstruction(false,'player');run(c,drained);assert.equal(c.floor,6);
 });
+test('car call cancellation, clearCarCalls, ETA, and cabin environment controls (light, fan, music, intercom) work properly',()=>{
+ const c=new LiftController();
+ assert.equal(c.toggleCar(10,{allowCancel:true}).action,'added');
+ assert.equal(c.car.has(10),true);
+ assert.ok(c.etaToFloor(10)>0);
+ assert.equal(c.toggleCar(10,{allowCancel:true}).action,'cancelled');
+ assert.equal(c.car.has(10),false);
+ c.callCar(8);c.callCar(12);
+ assert.equal(c.clearCarCalls(),2);
+ assert.equal(c.car.size,0);
+ assert.equal(c.cabinLightMode.id,'warm');
+ assert.equal(c.cycleCabinLight().mode.id,'daylight');
+ assert.equal(c.cabinFanMode.id,'auto');
+ assert.equal(c.cycleCabinFan().mode.id,'turbo');
+ assert.equal(c.cabinMusicTrack.playing,true);
+ c.cycleCabinMusic();c.cycleCabinMusic();
+ assert.equal(c.cycleCabinMusic().track.playing,false);
+ assert.equal(c.callIntercom().ok,true);
+ assert.ok(c.intercomActiveUntil>c.time);
+});
+

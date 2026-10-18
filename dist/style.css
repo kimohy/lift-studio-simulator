@@ -708,6 +708,47 @@ h2 {
   color: #ffd8d0 !important;
 }
 
+.cabin-utility-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0 18px 12px;
+}
+
+.cabin-utility-buttons button {
+  border: 1px solid #314450;
+  border-radius: 5px;
+  background: #16222b;
+  color: #a9bac5;
+  font-size: 12px;
+  padding: 7px 4px;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.cabin-utility-buttons button:hover {
+  border-color: var(--cyan);
+  color: #fff;
+}
+
+.cabin-utility-buttons button.active {
+  border-color: #4f8a7b;
+  background: #1c3631;
+  color: var(--accent);
+}
+
+#cabin-clear {
+  grid-column: span 2;
+  background: #232128;
+  border-color: #4b3d4a;
+  color: #d6b4c2;
+}
+
+#cabin-clear:hover {
+  border-color: #e69e98;
+  color: #ffd8d0;
+}
+
 .sensor-button {
   display: flex;
   align-items: center;

@@ -182,11 +182,52 @@ function act(action, floor, direction, data) {
     game?.toggleStairDoor(floor);
     return;
   }
+  if (['cabinLight', 'cabinFan', 'cabinMusic', 'cabinIntercom', 'cabinVip', 'cabinMirror'].includes(action)) {
+    if (action === 'cabinIntercom') sfx.playRobot();
+    else if (action === 'cabinVip') sfx.playKeycard(true);
+    else sfx.playButton();
+    if (game?.active) {
+      game.interactCabin(action);
+    } else if (action === 'cabinLight') {
+      say(controller.cycleCabinLight().message);
+    } else if (action === 'cabinFan') {
+      say(controller.cycleCabinFan().message);
+    } else if (action === 'cabinMusic') {
+      say(controller.cycleCabinMusic().message);
+    } else if (action === 'cabinIntercom') {
+      say(controller.callIntercom().message);
+    } else if (action === 'cabinVip') {
+      const vip = controller.toggleVipMode();
+      say(
+        vip
+          ? 'VIP 직통 운행 모드가 켜졌습니다. 카 내부 목적층 호출만 직통으로 처리합니다.'
+          : 'VIP 직통 운행 모드를 해제했습니다. 승강장 호출을 정상 처리합니다.'
+      );
+    } else if (action === 'cabinMirror') {
+      say('엘리베이터 전면 크리스탈 거울을 점검합니다.');
+    }
+    updateUI();
+    return;
+  }
   if (action === 'car') {
     sfx.playButton();
     game?.stepInsideCabinIfInDoorway();
-    controller.callCar(floor);
-    say(`${FLOORS[floor]}층 목적지가 등록되었습니다.`);
+    const res = controller.toggleCar(floor, { allowCancel: true });
+    if (res.action === 'cancelled') {
+      const msg = `${FLOORS[floor]}층 목적지 선택을 취소했습니다.`;
+      say(msg);
+      if (game?.active) game.message(msg);
+    } else if (res.action === 'locked') {
+      const msg = `${FLOORS[floor]}층은 이미 감속 구간에 진입해 취소할 수 없습니다.`;
+      say(msg);
+      if (game?.active) game.message(msg);
+    } else {
+      const eta = controller.etaToFloor(floor);
+      const etaStr = eta ? ` (약 ${eta}초)` : '';
+      const msg = `${FLOORS[floor]}층 목적지가 등록되었습니다.${etaStr} (다시 누르면 취소)`;
+      say(msg);
+      if (game?.active) game.message(msg);
+    }
   }
   if (action === 'hall') {
     sfx.playButton();
@@ -257,7 +298,7 @@ for (const i of [12, 13, 14, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2]) {
   const b = document.createElement('button');
   b.textContent = FLOORS[i];
   b.dataset.carFloor = i;
-  b.title = meta.title;
+  b.title = `${meta.title} (다시 클릭 시 취소)`;
   b.className = i === 5 ? 'home' : '';
   b.setAttribute('aria-label', `${FLOORS[i]}층 목적지`);
   b.setAttribute('aria-pressed', 'false');
@@ -271,14 +312,27 @@ $('close-door').onclick = () => act('close');
 $('alarm').onclick = () => act('alarm');
 
 if ($('vip-mode')) {
-  $('vip-mode').onclick = () => {
+  $('vip-mode').onclick = () => act('cabinVip');
+}
+if ($('cabin-light')) {
+  $('cabin-light').onclick = () => act('cabinLight');
+}
+if ($('cabin-fan')) {
+  $('cabin-fan').onclick = () => act('cabinFan');
+}
+if ($('cabin-music')) {
+  $('cabin-music').onclick = () => act('cabinMusic');
+}
+if ($('cabin-intercom')) {
+  $('cabin-intercom').onclick = () => act('cabinIntercom');
+}
+if ($('cabin-clear')) {
+  $('cabin-clear').onclick = () => {
     sfx.playButton();
-    const vip = controller.toggleVipMode();
-    say(
-      vip
-        ? 'VIP 직통 운행 모드가 켜졌습니다. 카 내부 목적층 호출만 직통으로 처리합니다.'
-        : 'VIP 직통 운행 모드를 해제했습니다. 승강장 호출을 정상 처리합니다.'
-    );
+    const count = controller.clearCarCalls();
+    const msg = count > 0 ? `내부 목적층 선택 ${count}건을 모두 취소했습니다.` : '취소할 내부 목적층 호출이 없습니다.';
+    say(msg);
+    if (game?.active) game.message(msg);
     updateUI();
   };
 }
@@ -430,14 +484,16 @@ function updateUI() {
   );
 
   $('speed-value').innerHTML = `${Math.abs(c.velocity).toFixed(2)} <small>m/s</small>`;
-  setText('target-value', c.target !== null ? FLOORS[c.target] + 'F' : '—');
+  const eta = c.target !== null ? c.etaToFloor(c.target) : null;
+  setText('target-value', c.target !== null ? `${FLOORS[c.target]}F${eta ? ` (${eta}s)` : ''}` : '—');
   setText('door-value', c.door === 0 ? '닫힘' : c.door === 1 ? '열림' : `${Math.round(c.door * 100)}%`);
 
   setText('interlock', c.door === 0 ? '잠금' : '해제');
   setText('drive', c.state === 'moving' ? (c.direction > 0 ? '상행 구동' : '하행 구동') : '대기');
   setText('brake', c.state === 'moving' ? '해제' : '체결');
   setText('sensor', c.obstruction ? '차단 감지' : '정상');
-  setText('logic-state', c.state.toUpperCase());
+  setText('cabin-env', `${c.cabinLightMode.label} · ${c.cabinFanMode.id.toUpperCase()}`);
+  setText('logic-state', c.vipMode ? `${c.state.toUpperCase()} · VIP` : c.state.toUpperCase());
 
   $('sensor').classList.toggle('warn', c.obstruction);
   $('interlock').classList.toggle('warn', c.door > 0);
@@ -484,6 +540,10 @@ function updateUI() {
     ['obstruction', c.obstructionSources.has('manual')],
     ['alarm', c.alarm],
     ['vip-mode', c.vipMode],
+    ['cabin-light', c.cabinLightIndex > 0],
+    ['cabin-fan', c.cabinFanMode.speed > 0],
+    ['cabin-music', c.cabinMusicTrack.playing],
+    ['cabin-intercom', c.time < (c.intercomActiveUntil || 0)],
   ]) {
     if ($(id)) {
       $(id).classList.toggle('active', on);

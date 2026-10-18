@@ -463,6 +463,109 @@ export class LiftScene {
       indicator.parent.add(display);
       this.landings.push(display);
     }
+
+    this.decorateCabinAmenities();
+  }
+
+  decorateCabinAmenities() {
+    if (!this.car) return;
+    this.pickables ??= [];
+    this.cabinLeds = [];
+    this.car.traverse((o) => {
+      if (o.isMesh && o.name.startsWith('Linear_ceiling_LED')) {
+        o.material = o.material.clone();
+        this.cabinLeds.push(o);
+      }
+      if (o.isMesh && o.name === 'Rear_mirror') {
+        o.userData = { ...o.userData, action: 'cabinMirror', dynamic: true };
+        if (!this.pickables.includes(o)) this.pickables.push(o);
+      }
+    });
+
+    // 1. COP Smart Touch Infotainment Display (above floor buttons on the right COP panel)
+    this.copInfoCanvas = document.createElement('canvas');
+    this.copInfoCanvas.width = 384;
+    this.copInfoCanvas.height = 192;
+    this.copInfoCtx = this.copInfoCanvas.getContext('2d');
+    this.copInfoTex = new THREE.CanvasTexture(this.copInfoCanvas);
+    this.copInfoTex.colorSpace = THREE.SRGBColorSpace;
+    if (this.copInfoCtx?.fillRect) {
+      const bezel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.25, 0.135, 0.014),
+        new THREE.MeshStandardMaterial({ color: 0x162129, roughness: 0.25, metalness: 0.8 })
+      );
+      bezel.position.set(0.69, 1.615, 0.774);
+      this.car.add(bezel);
+
+      const infoScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.23, 0.115),
+        new THREE.MeshBasicMaterial({ map: this.copInfoTex })
+      );
+      infoScreen.name = 'Cabin_COP_info_screen';
+      infoScreen.position.set(0.69, 1.615, 0.766);
+      infoScreen.rotation.y = Math.PI;
+      infoScreen.userData = { action: 'cabinMusic', dynamic: true };
+      this.car.add(infoScreen);
+      this.pickables.push(infoScreen);
+    }
+
+    // 2. 3D COP Smart Amenity Buttons (Light, Fan, Music, Intercom, VIP)
+    this.cabinAmenityButtons = {};
+    const btnSpecs = [
+      { action: 'cabinLight', x: 0.79, y: 0.565, color: 0x2c3c48, glow: 0xffd27d },
+      { action: 'cabinFan', x: 0.69, y: 0.565, color: 0x2c3c48, glow: 0x6ae8d4 },
+      { action: 'cabinMusic', x: 0.59, y: 0.565, color: 0x2c3c48, glow: 0xb998ff },
+      { action: 'cabinIntercom', x: 0.74, y: 0.48, color: 0x3a2a2e, glow: 0xff7b6b },
+      { action: 'cabinVip', x: 0.64, y: 0.48, color: 0x3b3322, glow: 0xf5c869 },
+    ];
+    const btnGeo = new THREE.BoxGeometry(0.068, 0.048, 0.018);
+    for (const spec of btnSpecs) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: spec.color,
+        roughness: 0.3,
+        metalness: 0.65,
+        emissive: spec.glow,
+        emissiveIntensity: 0.2,
+      });
+      const btn = new THREE.Mesh(btnGeo, mat);
+      btn.name = `Cabin_button_${spec.action}`;
+      btn.position.set(spec.x, spec.y, 0.765);
+      btn.userData = { action: spec.action, glowColor: spec.glow, dynamic: true };
+      this.car.add(btn);
+      this.pickables.push(btn);
+      this.cabinAmenityButtons[spec.action] = btn;
+    }
+
+    // 3. Ceiling HEPA Air Purifier Diffuser & Rotating Turbine Ring
+    const diffuserRing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.22, 0.018, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0x22303a,
+        roughness: 0.3,
+        metalness: 0.75,
+      })
+    );
+    diffuserRing.name = 'Cabin_ceiling_purifier';
+    diffuserRing.position.set(0, 2.362, -0.59);
+    diffuserRing.userData = { action: 'cabinFan', dynamic: true };
+    this.car.add(diffuserRing);
+    this.pickables.push(diffuserRing);
+
+    this.cabinFanRotor = new THREE.Group();
+    this.cabinFanRotor.position.set(0, 2.352, -0.59);
+    const bladeGeo = new THREE.BoxGeometry(0.32, 0.006, 0.032);
+    this.cabinFanLedMat = new THREE.MeshStandardMaterial({
+      color: 0x8deee0,
+      emissive: 0x56d8c4,
+      emissiveIntensity: 0.6,
+      roughness: 0.25,
+    });
+    for (let i = 0; i < 3; i++) {
+      const blade = new THREE.Mesh(bladeGeo, this.cabinFanLedMat);
+      blade.rotation.y = (i * Math.PI) / 3;
+      this.cabinFanRotor.add(blade);
+    }
+    this.car.add(this.cabinFanRotor);
   }
 
   setView(view, c) {
@@ -593,6 +696,41 @@ export class LiftScene {
     this.weight.position.y = this.weightBase.y - y;
     this.cabinLight.position.y = y + 2.1;
 
+    const lightMode = c.cabinLightMode;
+    if (lightMode && this.lastCabinLightId !== lightMode.id) {
+      this.lastCabinLightId = lightMode.id;
+      this.cabinLight.color.setHex(lightMode.color);
+      this.cabinLight.intensity = lightMode.intensity;
+      for (const led of this.cabinLeds ?? []) {
+        led.material.color?.setHex(lightMode.led);
+        led.material.emissive?.setHex(lightMode.led);
+      }
+    }
+
+    const fanMode = c.cabinFanMode;
+    if (this.cabinFanRotor && fanMode) {
+      if (!c.paused && fanMode.speed > 0) {
+        this.cabinFanRotor.rotation.y += 0.06 * fanMode.speed;
+      }
+      if (this.cabinFanLedMat) {
+        this.cabinFanLedMat.emissiveIntensity = fanMode.speed > 0 ? 0.65 : 0.08;
+      }
+    }
+
+    if (this.cabinAmenityButtons) {
+      const states = {
+        cabinLight: c.cabinLightIndex > 0,
+        cabinFan: (c.cabinFanMode?.speed ?? 1) > 0,
+        cabinMusic: Boolean(c.cabinMusicTrack?.playing),
+        cabinIntercom: c.time < (c.intercomActiveUntil || 0),
+        cabinVip: Boolean(c.vipMode),
+      };
+      for (const [key, btn] of Object.entries(this.cabinAmenityButtons)) {
+        const on = Boolean(states[key]);
+        btn.material.emissiveIntensity = on ? 0.55 : 0.12;
+      }
+    }
+
     for (const o of this.doors) {
       const open =
         o.userData.simRole === 'carDoor' || (o.userData.floorIndex === c.floor && c.aligned()) ? c.door : 0;
@@ -613,7 +751,7 @@ export class LiftScene {
       this.followY = y;
     }
 
-    const displayKey = `${c.floor}/${c.state}/${c.direction}/${c.alarm}/${Math.round(c.velocity * 10)}`;
+    const displayKey = `${c.floor}/${c.state}/${c.direction}/${c.alarm}/${c.vipMode}/${c.target}/${c.cabinLightIndex}/${c.cabinFanIndex}/${c.cabinMusicIndex}/${Math.round(c.velocity * 10)}`;
     if (displayKey !== this.displayKey) {
       this.displayKey = displayKey;
       const ctx = this.lcdctx;
@@ -622,7 +760,11 @@ export class LiftScene {
       ctx.fillStyle = c.alarm ? '#ff9d81' : '#aaffdc';
       ctx.font = 'bold 64px monospace';
       ctx.textAlign = 'left';
-      ctx.fillText(`${FLOORS[c.floor]}F  ${c.alarm ? 'ALARM' : c.state.toUpperCase()}`, 24, 76);
+      ctx.fillText(
+        `${FLOORS[c.floor]}F  ${c.alarm ? 'ALARM' : c.vipMode ? 'VIP EXPRESS' : c.state.toUpperCase()}`,
+        24,
+        76
+      );
       ctx.font = '34px monospace';
       ctx.fillStyle = '#7fae9c';
       ctx.fillText(`V ${Math.abs(c.velocity).toFixed(2)} m/s   ${c.door === 0 ? 'LOCKED' : 'DOOR OPEN'}`, 24, 141);
@@ -631,11 +773,33 @@ export class LiftScene {
       const f = this.floorCtx;
       f.fillStyle = '#081816';
       f.fillRect(0, 0, 512, 128);
-      f.fillStyle = '#baf5e0';
-      f.font = '80px monospace';
+      f.fillStyle = c.vipMode ? '#f7d27c' : '#baf5e0';
+      f.font = 'bold 74px monospace';
       f.textAlign = 'center';
-      f.fillText(`${FLOORS[c.floor]}  ${c.direction === 1 ? '↑' : c.direction === -1 ? '↓' : '–'}`, 256, 93);
+      const arrow = c.direction === 1 ? '↑' : c.direction === -1 ? '↓' : '–';
+      const targetStr = c.target !== null && c.target !== c.floor ? ` ▸${FLOORS[c.target]}` : c.vipMode ? ' ★' : '';
+      f.fillText(`${FLOORS[c.floor]} ${arrow}${targetStr}`, 256, 91);
       this.floorTex.needsUpdate = true;
+
+      if (this.copInfoCtx?.fillRect) {
+        const ic = this.copInfoCtx;
+        ic.fillStyle = '#09161d';
+        ic.fillRect(0, 0, 384, 192);
+        ic.strokeStyle = '#2e5563';
+        ic.lineWidth = 4;
+        ic.strokeRect(4, 4, 376, 184);
+        ic.fillStyle = '#8deee0';
+        ic.font = 'bold 26px sans-serif';
+        ic.textAlign = 'left';
+        ic.fillText(`GRAND HOTEL · ${FLOORS[c.floor]}F`, 20, 42);
+        ic.fillStyle = '#e5f2ee';
+        ic.font = '21px sans-serif';
+        ic.fillText(`💡 ${c.cabinLightMode?.label || ''}`, 20, 84);
+        ic.fillText(`🌀 ${c.cabinFanMode?.label || ''}`, 20, 120);
+        ic.fillStyle = '#f3ce95';
+        ic.fillText(`🎵 ${c.cabinMusicTrack?.label || ''}`, 20, 158);
+        this.copInfoTex.needsUpdate = true;
+      }
     }
 
     for (const o of this.pickables) {

@@ -21,7 +21,7 @@ const inRange = (v, a, b) => v >= a - 1e-7 && v <= b + 1e-7;
 
 export class Escalators {
   contains(x, z) {
-    return inRange(x, -10.8, -2.28) && inRange(z, 1.4, 7.2) && (x <= -2.8 || inRange(z, 2, 2.7));
+    return inRange(x, -10.8, -2.28) && inRange(z, 1.4, 7.85) && (x <= -2.8 || inRange(z, 2, 2.7));
   }
 
   lane(z, f = 0) {
@@ -38,7 +38,7 @@ export class Escalators {
     const ys = [];
     for (let f = 0; f < 15; f++) {
       const base = (f - 5) * 3.5;
-      if (x >= -4 || x <= -10 || z >= 5.6) ys.push(base);
+      if (x >= -4 || x <= -10 || z >= 5.3) ys.push(base);
       if (f < 14 && inRange(x, -10, -4) && this.lane(z, f)) {
         const l = escalatorLayout(f);
         const start = this.lane(z, f) === 1 ? l.start : l.end;

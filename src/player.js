@@ -77,15 +77,15 @@ export class WalkingPlayer {
     if (this.zone === 'pool' && !this.pool?.canExit(x, z, this)) {
       return false;
     }
-    if (
-      this.escalators &&
-      this.zone !== 'cabin' &&
-      (this.escalators.contains(x, z) || (this.zone === 'escalator' && x < -2.28 && z < 8))
-    ) {
+    if (this.zone === 'escalator') {
+      if (x < -2.28) {
+        return this.escalators ? this.escalators.surfaceAt(x, z, this.groundY(c)) !== null : false;
+      }
+      if (Math.abs(this.escalatorY - (this.floor - 5) * 3.5) > 0.025) {
+        return false;
+      }
+    } else if (this.escalators && this.zone !== 'cabin' && this.escalators.contains(x, z)) {
       return this.escalators.surfaceAt(x, z, this.groundY(c)) !== null;
-    }
-    if (this.zone === 'escalator' && Math.abs(this.escalatorY - (this.floor - 5) * 3.5) > 0.025) {
-      return false;
     }
     const aligned = c.aligned() && c.floor === this.floor;
     if (this.world && this.zone !== 'cabin' && this.world.isExtendedArea(x, z, this.floor)) {

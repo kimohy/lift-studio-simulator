@@ -55,24 +55,24 @@ export class EscalatorView {
       g.position.y = (f - 5) * 3.5;
       this.root.add(g);
 
-      box(g, 'Entry_platform', [1.2, 0.14, 5.8], [-3.4, -0.07, 4.3], stone);
+      box(g, 'Entry_platform', [1.2, 0.14, 6.6], [-3.4, -0.07, 4.65], stone);
       box(g, 'Entry_bridge', [0.52, 0.14, 0.7], [-2.54, -0.07, 2.35], stone);
-      box(g, 'Exit_platform', [0.8, 0.14, 5.8], [-10.4, -0.07, 4.3], stone);
-      box(g, 'Return_corridor', [6.8, 0.14, 1.6], [-7.4, -0.07, 6.4], stone);
-      box(g, 'Escalator_back_wall', [8.6, 3.56, 0.16], [-6.54, 1.75, 7.28], stone);
+      box(g, 'Exit_platform', [0.8, 0.14, 6.6], [-10.4, -0.07, 4.65], stone);
+      box(g, 'Return_corridor', [6.8, 0.14, 2.65], [-7.4, -0.07, 6.625], stone);
+      box(g, 'Escalator_back_wall', [8.6, 3.56, 0.2], [-6.54, 1.75, 8.0], stone);
       box(g, 'Escalator_front_wall', [8.6, 3.56, 0.16], [-6.54, 1.75, 1.32], stone);
-      box(g, 'Escalator_outer_wall', [0.16, 3.56, 6], [-10.88, 1.75, 4.3], stone);
+      box(g, 'Escalator_outer_wall', [0.16, 3.56, 6.88], [-10.88, 1.75, 4.66], stone);
 
       for (const [z, d] of [
         [1.625, 0.75],
-        [5.025, 4.65],
+        [5.35, 5.3],
       ]) {
         box(g, 'Escalator_inner_wall', [0.3, 3.56, d], [-2.65, 1.75, z], stone);
       }
       box(g, 'Escalator_door_lintel', [0.3, 1.1, 0.7], [-2.65, 2.95, 2.35], stone);
 
-      if (f === 0) box(g, 'Escalator_shaft_bottom_cap', [8.4, 0.2, 6.2], [-6.7, -0.2, 4.3], stone);
-      if (f === 14) box(g, 'Escalator_shaft_top_cap', [8.4, 0.2, 6.2], [-6.7, 3.4, 4.3], stone);
+      if (f === 0) box(g, 'Escalator_shaft_bottom_cap', [8.4, 0.2, 6.9], [-6.7, -0.2, 4.65], stone);
+      if (f === 14) box(g, 'Escalator_shaft_top_cap', [8.4, 0.2, 6.9], [-6.7, 3.4, 4.65], stone);
 
       sign(g, [`${FLOORS[f]}층 · 에스컬레이터`, 'ESCALATORS  ·  ↑ UP / ↓ DOWN'], [-2.46, 2.65, 2.35], Math.PI / 2);
       sign(g, [`${FLOORS[f]}층 · 복도 →`, 'ELEVATOR & HOTEL →'], [-10.78, 1.85, 6.35], Math.PI / 2);

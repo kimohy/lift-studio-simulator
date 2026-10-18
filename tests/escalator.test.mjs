@@ -7,3 +7,16 @@ test('crossed flights allow continuous ascending and descending using adjacent l
 test('hotel and parking west wings remain reachable with escalators attached',()=>{for(const floor of [4,5]){const p=new WalkingPlayer(null,new HotelWorld(),new Escalators()),c=new LiftController();Object.assign(p,{x:0,z:19,floor});walk(p,c,0,-1,4);assert.ok(p.x<-7);assert.equal(p.zone,'lobby');}});
 
 test('opposed lane slopes maintain 3.5m clearance between successive storeys',()=>{const e=new Escalators();for(let f=0;f<13;f++)for(const z of [2.35,4.45])for(const x of [-9.9,-9,-7,-5,-4.1]){const base=(f-5)*3.5,t=z===2.35?(-4-x)/6:(x+10)/6,y=base+t*3.5;assert.ok(Math.abs(e.surfaceAt(x,z,y+3.5)-y-3.5)<1e-7);}});
+
+test('escalator rear space permits comfortable walking and camera stays bounded within back wall', () => {
+  const e = new Escalators(), p = new WalkingPlayer(null, new HotelWorld(), e), c = new LiftController();
+  Object.assign(p, { x: -6.5, z: 6.4, floor: 5, zone: 'escalator', escalatorY: 0, yaw: 0 });
+  walk(p, c, -1, 0, 5, true);
+  assert.ok(p.z > 7.6, `Expected p.z to reach expanded rear corridor (> 7.6), got ${p.z}`);
+  assert.ok(p.z <= 7.85, `Expected p.z to stay bounded within back wall (<= 7.85), got ${p.z}`);
+  walk(p, c, -1, 0, 3, true);
+  assert.ok(p.z <= 7.85);
+  assert.equal(p.zone, 'escalator');
+  assert.equal(p.canOccupy(-6.5, 7.95, c), false);
+  assert.equal(p.canOccupy(-6.5, 8.2, c), false);
+});

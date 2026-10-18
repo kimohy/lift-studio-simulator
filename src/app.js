@@ -141,8 +141,8 @@ function act(action, floor, direction, data) {
     game?.interactRoom(action);
     return;
   }
-  if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar', 'poolTelescope'].includes(action)) {
-    if (action === 'poolSwim' || action === 'poolJacuzzi') {
+  if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar', 'poolTelescope', 'poolSwimmer'].includes(action)) {
+    if (action === 'poolSwim' || action === 'poolJacuzzi' || action === 'poolSwimmer') {
       sfx.playSplash();
       sfx.playWater();
     } else if (action === 'poolTelescope') {

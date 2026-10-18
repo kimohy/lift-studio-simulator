@@ -5,6 +5,8 @@ import { AutomaticDoorSystem } from '../src/automatic-doors.js';
 import { floorMeta, floorUsage } from '../src/building.js';
 import { FLOORS, LiftController } from '../src/controller.js';
 import { GameMode } from '../src/game-mode.js';
+import { RooftopPool } from '../src/rooftop-pool.js';
+import { RooftopPoolView } from '../src/rooftop-pool-view.js';
 
 // Mock minimal DOM and Scene for headless testing of GameMode floor directory and interactions
 function createMockGame() {
@@ -59,7 +61,15 @@ function createMockGame() {
       querySelector: () => ({ addEventListener: () => {} }),
       addEventListener: () => {},
       style: {},
-      dataset: {},
+      getContext: () => ({
+        fillRect() {},
+        strokeRect() {},
+        fillText() {},
+        beginPath() {},
+        moveTo() {},
+        bezierCurveTo() {},
+        stroke() {},
+      }),
     }),
     body: {
       classList: {
@@ -282,4 +292,74 @@ test('AutomaticDoorSystem opens sliding leaves when player approaches and closes
   }
   assert.ok(rooftopDoor.currentOpen < 0.05);
 });
+
+test('RooftopPoolView renders 4 interactive swimmers in swimwear with animations and dialogues', () => {
+  const scene = new THREE.Scene();
+  const pool = new RooftopPool();
+  const pickables = [];
+  const poolView = new RooftopPoolView(scene, pool, pickables);
+
+  assert.ok(poolView.swimmers);
+  assert.equal(poolView.swimmers.length, 4);
+
+  const [jiho, sophia, minwoo, hyerin] = poolView.swimmers;
+  assert.equal(jiho.id, 'swimmer-jiho');
+  assert.equal(sophia.id, 'swimmer-sophia');
+  assert.equal(minwoo.id, 'swimmer-minwoo');
+  assert.equal(hyerin.id, 'swimmer-hyerin');
+
+  // Verify swimwear and pickables are registered
+  const swimmerPickables = pickables.filter((p) => p.userData?.action === 'poolSwimmer');
+  assert.ok(swimmerPickables.length >= 10);
+
+  // Make visible on floor 14 and record initial position
+  poolView.updateVisibility(14, true);
+  const startZ = jiho.root.position.z;
+
+  // Run animation updates
+  for (let i = 1; i <= 20; i++) {
+    poolView.update(0.05 * i);
+  }
+
+  // Lap swimmer moved along z
+  assert.notEqual(jiho.root.position.z, startZ);
+
+  // Dialog interaction
+  const res = poolView.interactSwimmer('swimmer-sophia', null);
+  assert.ok(res.ok);
+  assert.ok(res.message.includes('에밀리 소피아'));
+  assert.ok(sophia.waveUntil > 0);
+
+  const resMinwoo = poolView.interactSwimmer('swimmer-minwoo', null);
+  assert.ok(resMinwoo.ok);
+  assert.ok(resMinwoo.message.includes('박민우'));
+
+  const resHyerin = poolView.interactSwimmer('swimmer-hyerin', null);
+  assert.ok(resHyerin.ok);
+  assert.ok(resHyerin.message.includes('정혜린'));
+
+  const resJiho = poolView.interactSwimmer('swimmer-jiho', null);
+  assert.ok(resJiho.ok);
+  assert.ok(resJiho.message.includes('김지호'));
+});
+
+test('GameMode accepts poolSwimmer interaction on floor 14 and displays action hint', () => {
+  const { game } = createMockGame();
+  game.enter();
+  game.fastTravelToFloor(14); // 10F Rooftop Pool
+
+  const swimmerHitData = {
+    action: 'poolSwimmer',
+    swimmerId: 'swimmer-jiho',
+    swimmerName: '수영객 · 김지호',
+    statusLabel: '자유형 랩 수영 중 🏊',
+    floorIndex: 14,
+  };
+
+  assert.equal(game.accepts(swimmerHitData), true);
+  const hint = game.getActionHint(swimmerHitData);
+  assert.ok(hint.includes('김지호'));
+  assert.ok(hint.includes('자유형 랩 수영 중'));
+});
+
 

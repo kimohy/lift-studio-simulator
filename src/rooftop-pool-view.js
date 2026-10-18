@@ -90,6 +90,28 @@ export class RooftopPoolView {
       led: new THREE.MeshBasicMaterial({ color: 0x5ff2ff }),
       warmLight: new THREE.MeshBasicMaterial({ color: 0xffe4b5 }),
       foam: new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.72, depthWrite: false }),
+      skinTan: new THREE.MeshStandardMaterial({ color: 0xd29d78, roughness: 0.72 }),
+      skinFair: new THREE.MeshStandardMaterial({ color: 0xf0c8a8, roughness: 0.7 }),
+      skinWarm: new THREE.MeshStandardMaterial({ color: 0xb97a55, roughness: 0.74 }),
+      swimNavy: new THREE.MeshStandardMaterial({ color: 0x163f6e, roughness: 0.55 }),
+      swimCyan: new THREE.MeshStandardMaterial({ color: 0x1ec9e8, roughness: 0.45 }),
+      swimCoral: new THREE.MeshStandardMaterial({ color: 0xe2533b, roughness: 0.58 }),
+      swimWhite: new THREE.MeshStandardMaterial({ color: 0xfbfbfb, roughness: 0.55 }),
+      swimFloral: new THREE.MeshStandardMaterial({ color: 0x207882, roughness: 0.6 }),
+      swimEmerald: new THREE.MeshStandardMaterial({ color: 0x146d52, roughness: 0.52 }),
+      tubeYellow: new THREE.MeshStandardMaterial({ color: 0xffcb36, roughness: 0.35 }),
+      tubeTeal: new THREE.MeshStandardMaterial({ color: 0x26c2b5, roughness: 0.35 }),
+      sunglasses: new THREE.MeshStandardMaterial({ color: 0x181818, metalness: 0.75, roughness: 0.2 }),
+      gogglesLens: new THREE.MeshPhysicalMaterial({
+        color: 0x48e4f5,
+        metalness: 0.2,
+        roughness: 0.1,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+      }),
+      hairDark: new THREE.MeshStandardMaterial({ color: 0x1a1615, roughness: 0.9 }),
+      hairBrown: new THREE.MeshStandardMaterial({ color: 0x482d1c, roughness: 0.9 }),
     };
     const m = this.m;
 
@@ -448,6 +470,9 @@ export class RooftopPoolView {
     makePickable(scopeBarrel, telescopeData);
     makePickable(scopeEye, telescopeData);
 
+    // 9. Heated Infinity Pool & Jacuzzi Swimmers in Swimwear
+    this.swimmers = this.buildSwimmers(g);
+
     this.root.visible = false;
   }
 
@@ -480,6 +505,630 @@ export class RooftopPoolView {
     root.add(hair);
 
     return { root, head };
+  }
+
+  buildSwimmers(parent) {
+    const swimmers = [];
+    const m = this.m;
+
+    const makeSwimmerPickable = (mesh, data) => {
+      mesh.userData = { ...data, dynamic: true };
+      this.pickables.push(mesh);
+      return mesh;
+    };
+
+    // 1. Swimmer Jiho (Lap Swimmer in Pool Lane)
+    const jihoRoot = new THREE.Group();
+    jihoRoot.name = 'Swimmer_jiho';
+    jihoRoot.position.set(-2.2, 0.12, 17.0);
+    jihoRoot.userData.dynamic = true;
+    parent.add(jihoRoot);
+
+    const jihoData = {
+      action: 'poolSwimmer',
+      swimmerId: 'swimmer-jiho',
+      swimmerName: '수영객 · 김지호',
+      statusLabel: '자유형 랩 수영 중 🏊',
+      floorIndex: POOL_FLOOR,
+    };
+
+    const jihoBody = new THREE.Group();
+    jihoBody.name = 'Jiho_body';
+    jihoBody.userData.dynamic = true;
+    jihoRoot.add(jihoBody);
+
+    // Streamlined upper torso (tanned skin)
+    const jihoTorso = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.48), m.skinTan),
+      jihoData
+    );
+    jihoBody.add(jihoTorso);
+
+    // Racing swim trunks (navy with cyan side stripe)
+    const jihoTrunks = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.17, 0.26), m.swimNavy),
+      jihoData
+    );
+    jihoTrunks.position.set(0, 0, -0.3);
+    jihoBody.add(jihoTrunks);
+    for (const sx of [-0.176, 0.176]) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.175, 0.24), m.swimCyan);
+      stripe.position.set(sx, 0, -0.3);
+      stripe.userData.dynamic = true;
+      jihoBody.add(stripe);
+    }
+
+    // Head with swim cap and goggles
+    const jihoHeadGroup = new THREE.Group();
+    jihoHeadGroup.position.set(0, 0.03, 0.35);
+    jihoHeadGroup.userData.dynamic = true;
+    jihoBody.add(jihoHeadGroup);
+
+    const jihoHead = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10), m.skinTan),
+      jihoData
+    );
+    jihoHeadGroup.add(jihoHead);
+
+    const jihoCap = new THREE.Mesh(new THREE.SphereGeometry(0.124, 14, 10), m.hairDark);
+    jihoCap.scale.set(1, 0.88, 1.05);
+    jihoCap.position.set(0, 0.03, -0.01);
+    jihoCap.userData.dynamic = true;
+    jihoHeadGroup.add(jihoCap);
+
+    const jihoGoggleStrap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.126, 0.126, 0.02, 14),
+      m.sunglasses
+    );
+    jihoGoggleStrap.rotation.x = Math.PI / 2;
+    jihoGoggleStrap.position.set(0, 0.02, 0);
+    jihoGoggleStrap.userData.dynamic = true;
+    jihoHeadGroup.add(jihoGoggleStrap);
+
+    for (const gx of [-0.042, 0.042]) {
+      const lens = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), m.gogglesLens);
+      lens.scale.set(1.2, 0.8, 0.5);
+      lens.position.set(gx, 0.02, 0.12);
+      lens.userData.dynamic = true;
+      jihoHeadGroup.add(lens);
+    }
+
+    // Arms for freestyle crawl stroke
+    const jihoLeftArm = new THREE.Group();
+    jihoLeftArm.position.set(-0.24, 0.02, 0.16);
+    jihoLeftArm.userData.dynamic = true;
+    jihoBody.add(jihoLeftArm);
+    const jihoLeftArmMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.048, 0.28, 4, 8), m.skinTan),
+      jihoData
+    );
+    jihoLeftArmMesh.position.set(0, 0, 0.14);
+    jihoLeftArmMesh.rotation.x = Math.PI / 2;
+    jihoLeftArm.add(jihoLeftArmMesh);
+
+    const jihoRightArm = new THREE.Group();
+    jihoRightArm.position.set(0.24, 0.02, 0.16);
+    jihoRightArm.userData.dynamic = true;
+    jihoBody.add(jihoRightArm);
+    const jihoRightArmMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.048, 0.28, 4, 8), m.skinTan),
+      jihoData
+    );
+    jihoRightArmMesh.position.set(0, 0, 0.14);
+    jihoRightArmMesh.rotation.x = Math.PI / 2;
+    jihoRightArm.add(jihoRightArmMesh);
+
+    // Legs for flutter kicks
+    const jihoLeftLeg = new THREE.Group();
+    jihoLeftLeg.position.set(-0.1, 0, -0.42);
+    jihoLeftLeg.userData.dynamic = true;
+    jihoBody.add(jihoLeftLeg);
+    const jihoLeftLegMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.42, 4, 8), m.skinTan),
+      jihoData
+    );
+    jihoLeftLegMesh.position.set(0, 0, -0.22);
+    jihoLeftLegMesh.rotation.x = Math.PI / 2;
+    jihoLeftLeg.add(jihoLeftLegMesh);
+
+    const jihoRightLeg = new THREE.Group();
+    jihoRightLeg.position.set(0.1, 0, -0.42);
+    jihoRightLeg.userData.dynamic = true;
+    jihoBody.add(jihoRightLeg);
+    const jihoRightLegMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.42, 4, 8), m.skinTan),
+      jihoData
+    );
+    jihoRightLegMesh.position.set(0, 0, -0.22);
+    jihoRightLegMesh.rotation.x = Math.PI / 2;
+    jihoRightLeg.add(jihoRightLegMesh);
+
+    // Trailing kicking wake
+    const jihoWake = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), m.foam);
+    jihoWake.scale.set(1.5, 0.35, 1.1);
+    jihoWake.position.set(0, -0.02, -0.72);
+    jihoWake.userData.dynamic = true;
+    jihoBody.add(jihoWake);
+
+    const jiho = {
+      id: 'swimmer-jiho',
+      name: '수영객 · 김지호',
+      statusLabel: '자유형 랩 수영 중 🏊',
+      root: jihoRoot,
+      body: jihoBody,
+      headGroup: jihoHeadGroup,
+      leftArm: jihoLeftArm,
+      rightArm: jihoRightArm,
+      leftLeg: jihoLeftLeg,
+      rightLeg: jihoRightLeg,
+      wake: jihoWake,
+      minZ: 15.6,
+      maxZ: 21.8,
+      dir: 1,
+      speed: 1.15,
+      strokePhase: 0,
+      quoteIndex: 0,
+      quotes: [
+        '10층 인피니티 풀에서 시티 파노라마 뷰를 보며 수영하니까 스트레스가 확 풀리네요! 🏊‍♂️',
+        '수온이 28도로 딱 알맞아서 레인 왕복 수영하기 정말 쾌적합니다. 기분 좋은 하루 되세요!',
+        '하늘과 맞닿은 수면 위를 가르며 수영하는 기분, 정말 환상적이지 않나요?',
+        'Swimming laps here under the open sky is absolutely exhilarating!',
+      ],
+      update: (time, dt) => {
+        jihoRoot.position.z += jiho.dir * jiho.speed * dt;
+        if (jiho.dir === 1 && jihoRoot.position.z >= jiho.maxZ) {
+          jiho.dir = -1;
+        } else if (jiho.dir === -1 && jihoRoot.position.z <= jiho.minZ) {
+          jiho.dir = 1;
+        }
+
+        jihoRoot.rotation.y = jiho.dir === 1 ? 0 : Math.PI;
+        jihoRoot.position.y = 0.12 + Math.sin(time * 4) * 0.015;
+
+        jihoBody.rotation.z = Math.sin(time * 3.2) * 0.12;
+
+        jiho.strokePhase = time * 3.2;
+        jihoLeftArm.rotation.x = Math.sin(jiho.strokePhase) * 1.5;
+        jihoRightArm.rotation.x = Math.sin(jiho.strokePhase + Math.PI) * 1.5;
+
+        jihoLeftLeg.rotation.x = Math.sin(time * 12) * 0.26;
+        jihoRightLeg.rotation.x = -Math.sin(time * 12) * 0.26;
+
+        const breath = Math.sin(jiho.strokePhase * 0.5);
+        jihoHeadGroup.rotation.y = breath > 0.65 ? 0.42 : 0;
+
+        const ws = 1 + Math.sin(time * 10) * 0.25;
+        jihoWake.scale.set(1.5 * ws, 0.35, 1.1 * ws);
+      },
+    };
+    swimmers.push(jiho);
+
+    // 2. Swimmer Sophia (Skyline Infinity Edge View)
+    const sophiaRoot = new THREE.Group();
+    sophiaRoot.name = 'Swimmer_sophia';
+    sophiaRoot.position.set(2.4, 0.16, 22.85);
+    sophiaRoot.userData.dynamic = true;
+    parent.add(sophiaRoot);
+
+    const sophiaData = {
+      action: 'poolSwimmer',
+      swimmerId: 'swimmer-sophia',
+      swimmerName: '수영객 · 에밀리 소피아',
+      statusLabel: '인피니티 글래스 전망 감상 중 ✨',
+      floorIndex: POOL_FLOOR,
+    };
+
+    const sophiaTorso = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.38, 0.18), m.skinFair),
+      sophiaData
+    );
+    sophiaTorso.position.set(0, 0.18, 0);
+    sophiaRoot.add(sophiaTorso);
+
+    // Sunset coral bikini top
+    const sophiaBikiniTop = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.326, 0.16, 0.186), m.swimCoral),
+      sophiaData
+    );
+    sophiaBikiniTop.position.set(0, 0.22, 0);
+    sophiaRoot.add(sophiaBikiniTop);
+
+    // Submerged bikini bottom
+    const sophiaBikiniBottom = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.18, 0.19), m.swimCoral),
+      sophiaData
+    );
+    sophiaBikiniBottom.position.set(0, -0.06, 0);
+    sophiaRoot.add(sophiaBikiniBottom);
+
+    // Submerged legs
+    for (const sx of [-0.08, 0.08]) {
+      const leg = makeSwimmerPickable(
+        new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.42, 4, 8), m.skinFair),
+        sophiaData
+      );
+      leg.position.set(sx, -0.32, 0.04);
+      sophiaRoot.add(leg);
+    }
+
+    // Head with resort bun & white sunglasses
+    const sophiaHeadGroup = new THREE.Group();
+    sophiaHeadGroup.position.set(0, 0.46, 0);
+    sophiaHeadGroup.userData.dynamic = true;
+    sophiaRoot.add(sophiaHeadGroup);
+
+    const sophiaHead = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10), m.skinFair),
+      sophiaData
+    );
+    sophiaHeadGroup.add(sophiaHead);
+
+    const sophiaHair = new THREE.Mesh(new THREE.SphereGeometry(0.126, 14, 10), m.hairBrown);
+    sophiaHair.scale.set(1, 0.72, 1);
+    sophiaHair.position.set(0, 0.06, -0.01);
+    sophiaHair.userData.dynamic = true;
+    sophiaHeadGroup.add(sophiaHair);
+
+    const sophiaBun = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), m.hairBrown);
+    sophiaBun.position.set(0, 0.15, -0.03);
+    sophiaBun.userData.dynamic = true;
+    sophiaHeadGroup.add(sophiaBun);
+
+    const sophiaGlasses = new THREE.Group();
+    sophiaGlasses.position.set(0, 0.09, 0.08);
+    sophiaGlasses.rotation.x = -0.3;
+    sophiaGlasses.userData.dynamic = true;
+    sophiaHeadGroup.add(sophiaGlasses);
+    for (const gx of [-0.045, 0.045]) {
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(0.042, 0.026, 0.01), m.swimWhite);
+      rim.position.set(gx, 0, 0);
+      sophiaGlasses.add(rim);
+      const darkLens = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.02, 0.012), m.sunglasses);
+      darkLens.position.set(gx, 0, 0.002);
+      sophiaGlasses.add(darkLens);
+    }
+
+    // Arms resting forward on glass weir
+    const sophiaLeftArm = new THREE.Group();
+    sophiaLeftArm.position.set(-0.2, 0.3, 0);
+    sophiaLeftArm.userData.dynamic = true;
+    sophiaRoot.add(sophiaLeftArm);
+    const sophiaLeftForearm = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.042, 0.28, 4, 8), m.skinFair),
+      sophiaData
+    );
+    sophiaLeftForearm.position.set(0, -0.04, 0.16);
+    sophiaLeftForearm.rotation.x = Math.PI / 2.2;
+    sophiaLeftArm.add(sophiaLeftForearm);
+
+    const sophiaRightArm = new THREE.Group();
+    sophiaRightArm.position.set(0.2, 0.3, 0);
+    sophiaRightArm.userData.dynamic = true;
+    sophiaRoot.add(sophiaRightArm);
+    const sophiaRightForearm = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.042, 0.28, 4, 8), m.skinFair),
+      sophiaData
+    );
+    sophiaRightForearm.position.set(0, -0.04, 0.16);
+    sophiaRightForearm.rotation.x = Math.PI / 2.2;
+    sophiaRightArm.add(sophiaRightForearm);
+
+    const sophia = {
+      id: 'swimmer-sophia',
+      name: '수영객 · 에밀리 소피아',
+      statusLabel: '인피니티 글래스 전망 감상 중 ✨',
+      root: sophiaRoot,
+      headGroup: sophiaHeadGroup,
+      rightArm: sophiaRightArm,
+      waveUntil: 0,
+      quoteIndex: 0,
+      quotes: [
+        '여기 인피니티 풀 유리 난간에서 바라보는 도심 스카이라인이 정말 환상적이에요! ✨',
+        '수영장 물과 푸른 하늘이 하나로 이어진 것 같아요. 완전 인생 사진 명소네요~',
+        '노을 질 때 오면 하늘이 주황빛으로 물들어서 더 예쁘다고 하더라고요!',
+        'This infinity edge overlooking the city skyline is truly breathtaking! Enjoy your swim!',
+      ],
+      update: (time) => {
+        sophiaRoot.position.y = 0.16 + Math.sin(time * 1.8) * 0.012;
+        const isWaving = time < sophia.waveUntil;
+        if (isWaving) {
+          sophiaHeadGroup.rotation.y = Math.PI * 0.65;
+          sophiaRightArm.rotation.x = -0.9;
+          sophiaRightArm.rotation.z = 0.4 + Math.sin((sophia.waveUntil - time) * 9) * 0.25;
+        } else {
+          sophiaHeadGroup.rotation.y = Math.sin(time * 0.6) * 0.14;
+          sophiaRightArm.rotation.x = 0;
+          sophiaRightArm.rotation.z = 0;
+        }
+      },
+    };
+    swimmers.push(sophia);
+
+    // 3. Swimmer Minwoo (Donut Swim Tube Floating)
+    const minwooRoot = new THREE.Group();
+    minwooRoot.name = 'Swimmer_minwoo';
+    minwooRoot.position.set(-0.3, 0.16, 18.2);
+    minwooRoot.userData.dynamic = true;
+    parent.add(minwooRoot);
+
+    const minwooData = {
+      action: 'poolSwimmer',
+      swimmerId: 'swimmer-minwoo',
+      swimmerName: '수영객 · 박민우',
+      statusLabel: '도넛 튜브 위 힐링 중 🍩',
+      floorIndex: POOL_FLOOR,
+    };
+
+    const minwooTubeGroup = new THREE.Group();
+    minwooTubeGroup.name = 'Minwoo_tube_group';
+    minwooTubeGroup.rotation.x = Math.PI / 2;
+    minwooTubeGroup.userData.dynamic = true;
+    minwooRoot.add(minwooTubeGroup);
+
+    const minwooTube = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.18, 14, 28), m.tubeYellow),
+      minwooData
+    );
+    minwooTubeGroup.add(minwooTube);
+
+    for (let a = 0; a < 6; a++) {
+      const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.542, 0.182, 10, 6, Math.PI / 7), m.tubeTeal);
+      stripe.rotation.z = (a * Math.PI) / 3;
+      stripe.userData.dynamic = true;
+      minwooTubeGroup.add(stripe);
+    }
+
+    const minwooChar = new THREE.Group();
+    minwooChar.position.set(0, 0.06, 0);
+    minwooChar.userData.dynamic = true;
+    minwooRoot.add(minwooChar);
+
+    const minwooTorso = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.36, 0.2), m.skinWarm),
+      minwooData
+    );
+    minwooTorso.position.set(0, 0.18, -0.06);
+    minwooTorso.rotation.x = -0.22;
+    minwooChar.add(minwooTorso);
+
+    const minwooShorts = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.22), m.swimFloral),
+      minwooData
+    );
+    minwooShorts.position.set(0, -0.02, 0.04);
+    minwooChar.add(minwooShorts);
+
+    const minwooLeftLeg = new THREE.Group();
+    minwooLeftLeg.position.set(-0.1, -0.08, 0.12);
+    minwooLeftLeg.userData.dynamic = true;
+    minwooChar.add(minwooLeftLeg);
+    const minwooLeftLegMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.38, 4, 8), m.skinWarm),
+      minwooData
+    );
+    minwooLeftLegMesh.position.set(0, -0.16, 0);
+    minwooLeftLeg.add(minwooLeftLegMesh);
+
+    const minwooRightLeg = new THREE.Group();
+    minwooRightLeg.position.set(0.1, -0.08, 0.12);
+    minwooRightLeg.userData.dynamic = true;
+    minwooChar.add(minwooRightLeg);
+    const minwooRightLegMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.38, 4, 8), m.skinWarm),
+      minwooData
+    );
+    minwooRightLegMesh.position.set(0, -0.16, 0);
+    minwooRightLeg.add(minwooRightLegMesh);
+
+    const minwooHeadGroup = new THREE.Group();
+    minwooHeadGroup.position.set(0, 0.44, -0.12);
+    minwooHeadGroup.userData.dynamic = true;
+    minwooChar.add(minwooHeadGroup);
+
+    const minwooHead = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10), m.skinWarm),
+      minwooData
+    );
+    minwooHeadGroup.add(minwooHead);
+
+    const minwooHair = new THREE.Mesh(new THREE.SphereGeometry(0.125, 14, 10), m.hairDark);
+    minwooHair.scale.set(1, 0.65, 1);
+    minwooHair.position.set(0, 0.06, -0.01);
+    minwooHair.userData.dynamic = true;
+    minwooHeadGroup.add(minwooHair);
+
+    const minwooGlasses = new THREE.Group();
+    minwooGlasses.position.set(0, 0.02, 0.115);
+    minwooGlasses.userData.dynamic = true;
+    minwooHeadGroup.add(minwooGlasses);
+    for (const gx of [-0.042, 0.042]) {
+      const lens = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.024, 0.012), m.sunglasses);
+      lens.position.set(gx, 0, 0);
+      minwooGlasses.add(lens);
+    }
+
+    const minwooLeftArm = new THREE.Group();
+    minwooLeftArm.position.set(-0.2, 0.26, -0.04);
+    minwooLeftArm.userData.dynamic = true;
+    minwooChar.add(minwooLeftArm);
+    const minwooLeftArmMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.32, 4, 8), m.skinWarm),
+      minwooData
+    );
+    minwooLeftArmMesh.position.set(-0.16, -0.06, 0.08);
+    minwooLeftArmMesh.rotation.z = Math.PI / 3;
+    minwooLeftArm.add(minwooLeftArmMesh);
+
+    const minwooRightArm = new THREE.Group();
+    minwooRightArm.position.set(0.2, 0.26, -0.04);
+    minwooRightArm.userData.dynamic = true;
+    minwooChar.add(minwooRightArm);
+    const minwooRightArmMesh = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.32, 4, 8), m.skinWarm),
+      minwooData
+    );
+    minwooRightArmMesh.position.set(0.16, -0.06, 0.08);
+    minwooRightArmMesh.rotation.z = -Math.PI / 3;
+    minwooRightArm.add(minwooRightArmMesh);
+
+    const minwoo = {
+      id: 'swimmer-minwoo',
+      name: '수영객 · 박민우',
+      statusLabel: '도넛 튜브 위 힐링 중 🍩',
+      root: minwooRoot,
+      tubeGroup: minwooTubeGroup,
+      leftLeg: minwooLeftLeg,
+      rightLeg: minwooRightLeg,
+      rightArm: minwooRightArm,
+      baseX: -0.3,
+      baseZ: 18.2,
+      waveUntil: 0,
+      quoteIndex: 0,
+      quotes: [
+        '시원한 튜브에 몸을 맡기고 하늘 바라보며 둥둥 떠있으니까 지상낙원이 따로 없네요~ 🍩',
+        '풀 바에서 주문한 트로피컬 무알콜 모히또 마시면서 힐링하고 있습니다. 최고예요!',
+        '물에 둥둥 떠서 선선한 바람 맞으니까 여기가 바로 천국이네요. 푹 쉬다 가세요!',
+        'Floating under the open sky like this is pure bliss. Have a fantastic time here!',
+      ],
+      update: (time) => {
+        minwooRoot.position.x = minwoo.baseX + Math.sin(time * 0.35) * 0.32;
+        minwooRoot.position.z = minwoo.baseZ + Math.cos(time * 0.35) * 0.22;
+        minwooRoot.position.y = 0.16 + Math.sin(time * 2.0) * 0.015;
+
+        minwooRoot.rotation.y = Math.sin(time * 0.25) * 0.18;
+        minwooTubeGroup.rotation.x = Math.PI / 2 + Math.sin(time * 2.0) * 0.04;
+        minwooTubeGroup.rotation.y = Math.cos(time * 1.6) * 0.04;
+
+        minwooLeftLeg.rotation.x = 0.25 + Math.sin(time * 3.0) * 0.14;
+        minwooRightLeg.rotation.x = 0.25 + Math.cos(time * 3.0) * 0.14;
+
+        const isWaving = time < minwoo.waveUntil;
+        if (isWaving) {
+          minwooRightArm.rotation.z = -0.8 + Math.sin((minwoo.waveUntil - time) * 8) * 0.2;
+        } else {
+          minwooRightArm.rotation.z = 0;
+        }
+      },
+    };
+    swimmers.push(minwoo);
+
+    // 4. Swimmer Hyerin (Whirlpool Jacuzzi Spa)
+    const hyerinRoot = new THREE.Group();
+    hyerinRoot.name = 'Swimmer_hyerin';
+    hyerinRoot.position.set(8.5, 0.32, 17.5);
+    hyerinRoot.userData.dynamic = true;
+    parent.add(hyerinRoot);
+
+    const hyerinData = {
+      action: 'poolSwimmer',
+      swimmerId: 'swimmer-hyerin',
+      swimmerName: '스파 투숙객 · 정혜린',
+      statusLabel: '온수 자쿠지 스파 즐기는 중 ♨️',
+      floorIndex: POOL_FLOOR,
+    };
+
+    const hyerinTorso = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.34, 0.18), m.skinFair),
+      hyerinData
+    );
+    hyerinTorso.position.set(0, 0.16, 0);
+    hyerinRoot.add(hyerinTorso);
+
+    const hyerinSwimsuit = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.BoxGeometry(0.326, 0.28, 0.186), m.swimEmerald),
+      hyerinData
+    );
+    hyerinSwimsuit.position.set(0, 0.14, 0);
+    hyerinRoot.add(hyerinSwimsuit);
+
+    const hyerinHeadGroup = new THREE.Group();
+    hyerinHeadGroup.position.set(0, 0.44, 0);
+    hyerinHeadGroup.userData.dynamic = true;
+    hyerinRoot.add(hyerinHeadGroup);
+
+    const hyerinHead = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10), m.skinFair),
+      hyerinData
+    );
+    hyerinHeadGroup.add(hyerinHead);
+
+    const hyerinTurban = new THREE.Mesh(new THREE.SphereGeometry(0.138, 14, 10), m.linen);
+    hyerinTurban.scale.set(1.05, 1.25, 1.15);
+    hyerinTurban.position.set(0, 0.08, -0.02);
+    hyerinTurban.userData.dynamic = true;
+    hyerinHeadGroup.add(hyerinTurban);
+
+    const hyerinLeftArm = new THREE.Group();
+    hyerinLeftArm.position.set(-0.2, 0.26, 0);
+    hyerinLeftArm.userData.dynamic = true;
+    hyerinRoot.add(hyerinLeftArm);
+    const hyerinLeftForearm = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.28, 4, 8), m.skinFair),
+      hyerinData
+    );
+    hyerinLeftForearm.position.set(-0.1, -0.02, 0.18);
+    hyerinLeftForearm.rotation.y = -Math.PI / 4;
+    hyerinLeftForearm.rotation.x = Math.PI / 3;
+    hyerinLeftArm.add(hyerinLeftForearm);
+
+    const hyerinRightArm = new THREE.Group();
+    hyerinRightArm.position.set(0.2, 0.26, 0);
+    hyerinRightArm.userData.dynamic = true;
+    hyerinRoot.add(hyerinRightArm);
+    const hyerinRightForearm = makeSwimmerPickable(
+      new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.28, 4, 8), m.skinFair),
+      hyerinData
+    );
+    hyerinRightForearm.position.set(0.1, -0.02, 0.18);
+    hyerinRightForearm.rotation.y = Math.PI / 4;
+    hyerinRightForearm.rotation.x = Math.PI / 3;
+    hyerinRightArm.add(hyerinRightForearm);
+
+    const hyerin = {
+      id: 'swimmer-hyerin',
+      name: '스파 투숙객 · 정혜린',
+      statusLabel: '온수 자쿠지 스파 즐기는 중 ♨️',
+      root: hyerinRoot,
+      headGroup: hyerinHeadGroup,
+      rightArm: hyerinRightArm,
+      waveUntil: 0,
+      quoteIndex: 0,
+      quotes: [
+        '수영하고 나서 따뜻한 온수 자쿠지 월풀에 들어오니까 피로가 사르르 녹네요~ ♨️',
+        '보글보글 올라오는 마사지 제트 스파 받으면서 루프탑 바람을 쐬니까 정말 힐링됩니다!',
+        '자쿠지 온도가 39도로 아주 따뜻해요. 여행의 피로를 풀기에는 자쿠지가 최고예요.',
+        'The warm whirlpool bubbles feel so soothing after a good swim. You should try it!',
+      ],
+      update: (time) => {
+        hyerinRoot.position.y = 0.32 + Math.sin(time * 2.4) * 0.008;
+        const isWaving = time < hyerin.waveUntil;
+        if (isWaving) {
+          hyerinHeadGroup.rotation.y = -0.4;
+          hyerinRightArm.rotation.x = -0.5 + Math.sin((hyerin.waveUntil - time) * 8) * 0.2;
+        } else {
+          hyerinHeadGroup.rotation.x = -0.1 + Math.sin(time * 0.8) * 0.04;
+          hyerinHeadGroup.rotation.y = Math.sin(time * 0.5) * 0.06;
+          hyerinRightArm.rotation.x = 0;
+        }
+      },
+    };
+    swimmers.push(hyerin);
+
+    return swimmers;
+  }
+
+  interactSwimmer(swimmerId, player) {
+    const swimmer = this.swimmers?.find((s) => s.id === swimmerId);
+    if (!swimmer) return null;
+    swimmer.waveUntil = (this.lastTime || 0) + 3.2;
+    const quotes = swimmer.quotes;
+    const quote = quotes[swimmer.quoteIndex % quotes.length];
+    swimmer.quoteIndex++;
+    return {
+      ok: true,
+      swimmer,
+      message: `💬 [${swimmer.name}] "${quote}"`,
+    };
   }
 
   updateVisibility(floor, game, exterior = false) {
@@ -538,6 +1187,15 @@ export class RooftopPoolView {
 
     if (this.bartender) {
       this.bartender.head.rotation.y = Math.sin(time * 1.1) * 0.18;
+    }
+
+    // Animate rooftop infinity pool and jacuzzi swimmers
+    if (this.swimmers) {
+      const dt = this.lastTime ? Math.min(0.05, Math.max(0.001, time - this.lastTime)) : 0.016;
+      this.lastTime = time;
+      for (const swimmer of this.swimmers) {
+        swimmer.update?.(time, dt);
+      }
     }
   }
 }

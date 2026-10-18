@@ -771,7 +771,7 @@ export class GameMode {
     ) {
       return this.player.floor === 7 && this.player.zone === 'room';
     }
-    if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar', 'poolTelescope'].includes(data.action)) {
+    if (['poolSwim', 'poolJacuzzi', 'poolLight', 'poolSunbed', 'poolBar', 'poolTelescope', 'poolSwimmer'].includes(data.action)) {
       return this.player.floor === 14 && ['lobby', 'pool'].includes(this.player.zone);
     }
     if (data.action === 'escalatorStop') {
@@ -970,6 +970,11 @@ export class GameMode {
           ? '🔭 [스카이라인 전망 망원경] 3배 고배율 줌 렌즈로 시티 파노라마 전경을 관측합니다! (이동하거나 재클릭 시 기본 시야 복귀)'
           : '🔭 망원경에서 물러나 루프탑 스카이풀 전경으로 시야를 복귀합니다.'
       );
+    } else if (action === 'poolSwimmer') {
+      const res = this.view.rooftopPoolView?.interactSwimmer(data?.swimmerId, this.player);
+      if (res?.message) {
+        this.message(res.message);
+      }
     }
     this.messageUntil = performance.now() + 5000;
   }
@@ -1106,6 +1111,8 @@ export class GameMode {
         return '루프탑 스카이 풀 바 · 클릭해 트로피컬 칵테일/음료 주문하기 🍹';
       case 'poolTelescope':
         return `🔭 루프탑 스카이라인 전망 망원경 (${this.telescopeZoom ? '망원경 관측 중 · 클릭 시 복귀' : '클릭해 고배율 파노라마 관측'})`;
+      case 'poolSwimmer':
+        return `${d.swimmerName} (${d.statusLabel || '수영 중'}) · 클릭해 인사/대화하기 🏊✨`;
       case 'cafeOrder':
         return this.holdingCoffee
           ? `☕ 들고 있는 [${this.stay.lastCafeItem || '커피'}] 음미하기 (클릭 시 마시기)`

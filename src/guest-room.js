@@ -52,6 +52,7 @@ export const ROOM_PHONE_SERVICES = [
   '하우스키핑: "구스다운 추가 베개와 호텔 시그니처 배스 어메니티 세트를 곧 준비해 드리겠습니다." 🛏️',
   '컨시어지 데스크: "루프탑 인피니티 풀(10F)은 현재 쾌적하게 운영 중이며 수건이 비치되어 있습니다." 🏊',
   '모닝콜 서비스: "내일 아침 07:30 부드러운 재즈 해피콜 알람이 설정되었습니다." ⏰',
+  'VIP 버틀러 데스크: "301호 나이트 턴다운 서비스(무드 조명·재즈·아로마·그랑 크뤼 샴페인 트레이)를 즉시 세팅해 드렸습니다!" 🥂🌹',
 ];
 
 export const ROOM_DIFFUSER_SCENTS = [
@@ -341,11 +342,32 @@ export class GuestRoom {
   }
 
   callConciergePhone() {
-    const msg = ROOM_PHONE_SERVICES[this.phoneIndex % ROOM_PHONE_SERVICES.length];
+    const idx = this.phoneIndex % ROOM_PHONE_SERVICES.length;
+    const msg = ROOM_PHONE_SERVICES[idx];
     this.phoneIndex++;
+    if (idx === 4) {
+      this.activateVipTurndown();
+    }
     return {
       ok: true,
+      turndown: idx === 4,
       message: msg,
+    };
+  }
+
+  activateVipTurndown() {
+    this.lightIndex = 1; // warm mood light
+    this.audioIndex = 1; // jazz trio
+    this.diffuserIndex = 2; // lavender sleep therapy
+    this.foodItem = '그랑 크뤼 샴페인 & 로즈 페탈 턴다운 트레이 🥂🌹';
+    return {
+      ok: true,
+      lightMode: this.lightMode,
+      audioTrack: this.audioTrack.id,
+      diffuserScent: this.diffuserScent.id,
+      foodItem: this.foodItem,
+      message:
+        '🥂 [VIP 나이트 턴다운 서비스] 은은한 무드 조명, 재즈 트리오 선율, 프로방스 라벤더 아로마와 함께 샴페인 트레이가 세팅되었습니다!',
     };
   }
 

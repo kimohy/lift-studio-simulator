@@ -99,6 +99,12 @@ test('all landing indicators share the live cabin floor display', () => {
     assert.ok(!v.car.getObjectByName('Accessible_horizontal_COP_L'), 'Left side panel should not exist (single right-wall COP)');
     const accButtons = v.pickables.filter((o) => o.userData?.accessible && o.userData?.action === 'car');
     assert.equal(accButtons.length, 15, 'All 15 floors registered on single right horizontal accessible COP');
+
+    const tenKeyCOP = v.car.getObjectByName('TenKey_COP_L');
+    assert.ok(tenKeyCOP, 'Opposite front wall 10-Key COP should exist');
+    assert.ok(tenKeyCOP.position.x < -0.65, 'Mounted on opposite (-x) side of main elevator buttons');
+    const tenKeyBtns = v.pickables.filter((o) => o.userData?.action === 'tenKey');
+    assert.equal(tenKeyBtns.length, 13, '12 keypad buttons (1-9, B, 0, ENT) + CLR button registered');
   } finally {
     globalThis.document = previous;
   }

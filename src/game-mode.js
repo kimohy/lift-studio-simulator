@@ -63,6 +63,12 @@ export class GameMode {
     this.holdingCoffee = false;
     this.telescopeZoom = false;
     this.escalatorSoundTimer = 0;
+    this.walkBobPhase = 0;
+    this.footstepDist = 0;
+    this.isMoving = false;
+    this.camOffset = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
+    this.lastKnownVipTierId = this.stay.vipTier?.id || 'classic';
+    this.toastUntil = 0;
 
     for (const dialogId of ['keycard-dialog', 'concierge-dialog', 'floor-directory-dialog']) {
       const dialog = $(dialogId);
@@ -73,6 +79,12 @@ export class GameMode {
 
     $('floor-directory-button')?.addEventListener('click', () => {
       this.openFloorDirectory();
+    });
+    $('game-minimap-wrap')?.addEventListener('click', () => {
+      this.openFloorDirectory();
+    });
+    $('game-weather')?.addEventListener('click', () => {
+      this.cycleWeatherMode();
     });
     $('floor-directory-close')?.addEventListener('click', () => {
       $('floor-directory-dialog')?.close?.();
@@ -306,6 +318,22 @@ export class GameMode {
         li.className = item.done ? 'done' : '';
         li.textContent = `${item.done ? '✓ ' : '○ '}${item.title}`;
         listEl.append(li);
+      }
+    }
+    const questStatus = this.stay.getQuestStatus?.();
+    if (questStatus) {
+      if ($('concierge-quest-progress')) {
+        $('concierge-quest-progress').textContent = `${this.stay.vipTier.badge} · ${this.stay.points} PTS (${questStatus.doneCount}/${questStatus.totalCount} 퀘스트)`;
+      }
+      const questListEl = $('concierge-quests');
+      if (questListEl) {
+        questListEl.replaceChildren();
+        for (const q of questStatus.items) {
+          const li = document.createElement('li');
+          li.className = q.done ? 'done' : '';
+          li.innerHTML = `<strong>${q.done ? '✓ ' : '🎯 '}${q.title} <em>+${q.rewardPoints}P</em></strong><small>${q.desc}</small>`;
+          questListEl.append(li);
+        }
       }
     }
     const spotsEl = $('concierge-spots');
@@ -674,6 +702,84 @@ export class GameMode {
     }
   }
 
+  captureCameraPose() {
+    const p = this.player;
+    return {
+      x: p.x,
+      y: p.eyeY(this.controller),
+      z: p.z,
+      yaw: p.yaw,
+      pitch: p.pitch,
+    };
+  }
+
+  commitCameraLerp(prev) {
+    if (!prev) return;
+    const p = this.player;
+    const curY = p.eyeY(this.controller);
+    this.camOffset = {
+      x: Math.max(-2.5, Math.min(2.5, prev.x - p.x)),
+      y: Math.max(-1.5, Math.min(1.5, prev.y - curY)),
+      z: Math.max(-2.5, Math.min(2.5, prev.z - p.z)),
+      yaw: 0,
+      pitch: Math.max(-0.4, Math.min(0.4, prev.pitch - p.pitch)),
+    };
+  }
+
+  detectSurfaceMaterial() {
+    const p = this.player;
+    if (p.zone === 'pool' && this.pool?.isWater(p.x, p.z, p.floor)) return 'water';
+    if (p.zone === 'room' || p.zone === 'pool') return 'wood';
+    if (p.zone === 'cabin' || p.zone === 'escalator' || p.zone === 'stairs') return 'metal';
+    if (p.floor < 5 || p.zone === 'ramp') return 'concrete';
+    return 'marble';
+  }
+
+  notifyQuestProgress(newlyCompletedQuests = []) {
+    if (newlyCompletedQuests && newlyCompletedQuests.length > 0) {
+      this.view.sfx?.playQuestComplete?.();
+      const q = newlyCompletedQuests[0];
+      this.showToast({
+        badge: '🏆 CONCIERGE QUEST COMPLETE',
+        title: q.title,
+        subtitle: `+${q.rewardPoints} VIP PTS 획득 · 현재 ${this.stay.vipTier.badge} (${this.stay.points} PTS)`,
+      });
+    }
+    const curTier = this.stay?.vipTier;
+    if (curTier && this.lastKnownVipTierId && curTier.id !== this.lastKnownVipTierId) {
+      this.lastKnownVipTierId = curTier.id;
+      this.view.sfx?.playQuestComplete?.();
+      this.showToast({
+        badge: '👑 VIP MEMBERSHIP TIER UP!',
+        title: `${curTier.badge} 등급 승급을 축하합니다!`,
+        subtitle: `${curTier.perk || '호텔 전 층 VIP 컨시어지 특전이 활성화되었습니다.'}`,
+      });
+    }
+  }
+
+  showToast({ badge = '🏆 GRAND HOTEL VIP', title = '', subtitle = '', duration = 4200 } = {}) {
+    const toastEl = $('game-toast');
+    if (toastEl) {
+      if ($('game-toast-badge')) $('game-toast-badge').textContent = badge;
+      if ($('game-toast-title')) $('game-toast-title').textContent = title;
+      if ($('game-toast-sub')) $('game-toast-sub').textContent = subtitle;
+      toastEl.hidden = false;
+    }
+    this.toastUntil = performance.now() + duration;
+  }
+
+  cycleWeatherMode() {
+    if (!this.view?.cycleWeather) return null;
+    const mode = this.view.cycleWeather(this.controller);
+    this.view.sfx?.playWeatherChime?.();
+    if ($('game-weather')) {
+      $('game-weather').textContent = mode.label;
+    }
+    this.message(`${mode.label} · ${mode.desc}`);
+    this.messageUntil = performance.now() + 4000;
+    return mode;
+  }
+
   update(dt) {
     if (!this.active) return;
     const forward =
@@ -684,11 +790,47 @@ export class GameMode {
       Number(this.hasKey('KeyA') || this.hasKey('ArrowLeft'));
     const sprint = this.hasKey('ShiftLeft') || this.hasKey('ShiftRight');
 
+    const prevX = this.player.x;
+    const prevZ = this.player.z;
+
     if (!this.controller.paused) this.stairs.update(dt, this.player);
     if (!this.controller.paused) this.room.update(dt, this.player);
     this.escalators.carry(this.player, dt, this.controller);
     this.player.move(forward, strafe, dt, this.controller, sprint);
     this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
+
+    const stepMoved = Math.hypot(this.player.x - prevX, this.player.z - prevZ);
+    this.isMoving = (forward !== 0 || strafe !== 0) && stepMoved > 1e-4;
+    if (this.isMoving && !this.controller.paused) {
+      this.walkBobPhase = (this.walkBobPhase || 0) + stepMoved * (sprint ? 4.2 : 3.5);
+      this.footstepDist = (this.footstepDist || 0) + stepMoved;
+      const stepStride = sprint ? 1.05 : 0.78;
+      if (this.footstepDist >= stepStride) {
+        this.footstepDist %= stepStride;
+        this.view.sfx?.playFootstep?.(this.detectSurfaceMaterial(), sprint);
+      }
+    } else if (!this.isMoving) {
+      this.footstepDist = 0;
+    }
+
+    if (this.camOffset) {
+      const decay = Math.exp(-Math.max(0, dt) * 11);
+      this.camOffset.x *= decay;
+      this.camOffset.y *= decay;
+      this.camOffset.z *= decay;
+      this.camOffset.pitch *= decay;
+      if (
+        Math.abs(this.camOffset.x) < 1e-4 &&
+        Math.abs(this.camOffset.y) < 1e-4 &&
+        Math.abs(this.camOffset.z) < 1e-4
+      ) {
+        this.camOffset.x = 0;
+        this.camOffset.y = 0;
+        this.camOffset.z = 0;
+        this.camOffset.pitch = 0;
+      }
+    }
+
     this.applyCamera();
 
     // Auto-reset telescope zoom if walking or stepped away
@@ -734,14 +876,24 @@ export class GameMode {
 
   applyCamera() {
     const p = this.player;
-    this.view.camera.position.set(p.x, p.eyeY(this.controller), p.z);
+    const ox = this.camOffset?.x || 0;
+    const oy = this.camOffset?.y || 0;
+    const oz = this.camOffset?.z || 0;
+    const opitch = this.camOffset?.pitch || 0;
+    const bobY = this.isMoving ? Math.sin((this.walkBobPhase || 0) * 2) * 0.018 : 0;
+    const bobRoll = this.isMoving ? Math.cos(this.walkBobPhase || 0) * 0.0035 : 0;
+
+    this.view.camera.position.set(p.x + ox, p.eyeY(this.controller) + oy + bobY, p.z + oz);
     this.view.camera.rotation.order = 'YXZ';
-    this.view.camera.rotation.set(p.pitch, p.yaw, 0);
+    this.view.camera.rotation.set(p.pitch + opitch, p.yaw, bobRoll);
     this.view.camera.updateMatrixWorld();
   }
 
   accepts(data) {
     if (!this.active) return true;
+    if (data.action === 'floorAmenity') {
+      return this.player.zone !== 'cabin' && data.floorIndex === this.player.floor;
+    }
     if (data.action === 'roomDoor' || data.action === 'roomPrivacy') {
       return this.player.floor === 7 && ['lobby', 'room'].includes(this.player.zone);
     }
@@ -814,9 +966,22 @@ export class GameMode {
     }
   }
 
+  interactFloorAmenity(floorIndex) {
+    if (!this.active) return;
+    const f = floorIndex ?? this.player.floor;
+    const res = this.stay.useFloorAmenity(f);
+    this.notifyQuestProgress(res.newlyCompletedQuests);
+    this.message(res.message);
+    this.messageUntil = performance.now() + 5500;
+    this.updateHUD();
+    return res;
+  }
+
   talkToStaff(data) {
     if (!this.active || this.player.floor !== 5 || !data?.staffId) return;
     const card = this.stay.checkIn(data.staffId);
+    const quests = this.stay.recordSocial?.(`staff:${data.staffId}`);
+    this.notifyQuestProgress(quests);
     if (card) {
       $('keycard-button').hidden = false;
       this.message('체크인되었습니다. 3층 301호 키카드를 받았습니다. Welcome to Grand Hotel.');
@@ -830,6 +995,8 @@ export class GameMode {
   talkToNPC(data) {
     if (!this.active || !data?.npcId) return;
     const reply = this.npcs.interact(data.npcId, this.player, this.controller.time);
+    const quests = this.stay.recordSocial?.(`npc:${data.npcId}`);
+    this.notifyQuestProgress(quests);
     if (reply) {
       this.message(reply);
       this.messageUntil = performance.now() + 5500;
@@ -839,6 +1006,8 @@ export class GameMode {
   talkToRobot() {
     if (!this.active) return;
     this.stay.completeMilestone('roomService');
+    const quests = this.stay.evaluateQuests?.();
+    this.notifyQuestProgress(quests);
     const reply = this.robot.interact(this.controller.time);
     if (reply) {
       this.message(reply);
@@ -851,6 +1020,7 @@ export class GameMode {
     if (action === 'cafeOrder') {
       if (this.holdingCoffee) {
         this.holdingCoffee = false;
+        this.stay.addEnergy?.(8);
         const msg = `☕ [${this.stay.lastCafeItem || '스페셜티 커피'}]를 한 모금 음미합니다. 깊고 풍부한 아로마와 부드러운 여운이 감돕니다.`;
         this.message(msg);
       } else {
@@ -859,11 +1029,15 @@ export class GameMode {
         this.message(res.message);
       }
     } else if (action === 'cafeSit') {
+      const prev = this.captureCameraPose();
       const res = this.stay.sitAtCafe(this.player, data?.seatX, data?.seatZ, data?.seatYaw ?? data?.yaw);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'loungeSit') {
+      const prev = this.captureCameraPose();
       const res = this.stay.sitAtLounge(this.player, data?.seatX, data?.seatZ, data?.seatYaw ?? data?.yaw);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     }
@@ -872,7 +1046,23 @@ export class GameMode {
 
   interactParking(data) {
     if (!this.active || this.player.floor >= 5 || !data) return;
+    if (typeof data.carX === 'number' && typeof data.carZ === 'number') {
+      const prev = this.captureCameraPose();
+      const sideOffset = data.carX < 0 ? 1.55 : -1.55;
+      const targetX = data.carX + sideOffset;
+      const targetZ = data.carZ;
+      if (this.world.canOccupy(this.player.floor, targetX, targetZ, this.player.zone)) {
+        this.player.x = targetX;
+        this.player.z = targetZ;
+        this.player.yaw = Math.atan2(this.player.x - data.carX, this.player.z - data.carZ);
+        this.player.pitch = -0.08;
+        this.commitCameraLerp(prev);
+        this.applyCamera();
+      }
+    }
     const res = this.stay.inspectCar(data);
+    this.notifyQuestProgress(this.stay.evaluateQuests?.());
+    this.view.sfx?.playCarIgnition?.();
     this.view.hotelScene?.flashCarLights(data.carId, this.controller.time);
     this.message(res.message);
     this.messageUntil = performance.now() + 5000;
@@ -882,6 +1072,8 @@ export class GameMode {
     if (!this.active || this.player.floor !== 7) return;
     if (action !== 'roomPrivacy' && this.player.zone !== 'room') return;
     this.stay.completeMilestone('room301');
+    const newlyCompleted = this.stay.recordRoomAction?.(action);
+    this.notifyQuestProgress(newlyCompleted);
     if (action === 'roomTV') {
       this.message(this.room.cycleTV().message);
     } else if (action === 'roomLight') {
@@ -891,15 +1083,21 @@ export class GameMode {
     } else if (action === 'roomShower') {
       this.message(this.room.toggleShower().message);
     } else if (action === 'roomBed') {
+      const prev = this.captureCameraPose();
       const res = this.room.restOnBed(this.player);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'roomArmchair') {
+      const prev = this.captureCameraPose();
       const res = this.room.sitArmchair(this.player);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'roomDeskWork') {
+      const prev = this.captureCameraPose();
       const res = this.room.sitDesk(this.player);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'roomCoffee') {
@@ -919,7 +1117,17 @@ export class GameMode {
     } else if (action === 'roomToilet') {
       this.message(this.room.flushToilet().message);
     } else if (action === 'roomPhone') {
-      this.message(this.room.callConciergePhone().message);
+      const res = this.room.callConciergePhone();
+      if (res.turndown) {
+        this.stay.addPoints?.(60, 'room:vipTurndown');
+        this.stay.addEnergy?.(25);
+        this.showToast({
+          badge: '🥂 VIP TURNDOWN SERVICE',
+          title: '301호 나이트 턴다운 & 그랑 크뤼 샴페인 세팅',
+          subtitle: '무드 조명 · 재즈 트리오 · 라벤더 아로마 · 샴페인 트레이 준비 완료',
+        });
+      }
+      this.message(res.message);
     } else if (action === 'roomDiffuser') {
       this.message(this.room.cycleDiffuser().message);
     } else if (action === 'roomSuitcase') {
@@ -942,18 +1150,26 @@ export class GameMode {
   interactPool(action, data) {
     if (!this.active || this.player.floor !== 14) return;
     this.stay.completeMilestone('rooftopPool');
+    const newlyCompleted = this.stay.recordRooftopAction?.(action);
+    this.notifyQuestProgress(newlyCompleted);
     if (action === 'poolSwim') {
+      const prev = this.captureCameraPose();
       const res = this.pool.toggleSwim(this.player);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'poolJacuzzi') {
+      const prev = this.captureCameraPose();
       const res = this.pool.toggleJacuzzi(this.player);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'poolLight') {
       this.message(this.pool.cyclePoolLight().message);
     } else if (action === 'poolSunbed') {
+      const prev = this.captureCameraPose();
       const res = this.pool.restOnSunbed(this.player, data?.restX, data?.restZ);
+      this.commitCameraLerp(prev);
       this.applyCamera();
       this.message(res.message);
     } else if (action === 'poolBar') {
@@ -972,6 +1188,7 @@ export class GameMode {
       );
     } else if (action === 'poolSwimmer') {
       const res = this.view.rooftopPoolView?.interactSwimmer(data?.swimmerId, this.player);
+      this.stay.recordSocial?.(`swimmer:${data?.swimmerId}`);
       if (res?.message) {
         this.message(res.message);
       }
@@ -1053,6 +1270,8 @@ export class GameMode {
   getActionHint(d) {
     const p = this.player;
     switch (d.action) {
+      case 'floorAmenity':
+        return `✨ [${d.amenityName || '층별 컨시어지 스테이션'}] · 클릭해 이용 및 VIP 포인트 획득`;
       case 'roomDoor':
         return `301호 · ${
           this.room.target ? '문 닫기' : this.stay.canAccess('301') || p.zone === 'room' ? '문 열기' : '키카드 필요'
@@ -1141,6 +1360,22 @@ export class GameMode {
         return `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '올라가기' : '내려가기'} 호출 · 왼쪽 클릭`;
       case 'car':
         return `${d.accessible ? '♿ 우측 가로형 장애인용 조작반 · ' : ''}${FLOORS[d.floorIndex]}층 ${this.controller.car.has(d.floorIndex) ? '선택 취소 (재클릭)' : '목적층 선택 (문 열림 연장)'} · 왼쪽 클릭`;
+      case 'tenKey': {
+        const k = d.key;
+        const desc =
+          k === 'B'
+            ? '지하(B) 접두키 (누른 뒤 1~5 입력 시 B1~B5층 선택)'
+            : k === 'ENT'
+              ? '입력 번호 즉시 확정 (1층 확정)'
+              : k === 'CLR'
+                ? '입력 초기화 / 목적층 호출 취소'
+                : k === '0'
+                  ? '10층 선택 (1→0 또는 단독 클릭)'
+                  : k === '1'
+                    ? '1층 (이어서 0 클릭 시 10층, ↵ 클릭 시 1층 확정)'
+                    : `${k}층 목적지 즉시 선택/취소`;
+        return `🔢 반대편 10키 디지털 조작반 [${k}] · ${desc} · 왼쪽 클릭`;
+      }
       case 'cabinAccessible':
         return `♿ 우측 가로형 장애인 배려 운전 버튼 (${this.controller.accessibleMode ? '켜짐 · 문 열림 7.5초 연장' : '꺼짐'}) · 클릭해 전환`;
       case 'cabinLight':
@@ -1156,7 +1391,7 @@ export class GameMode {
       case 'cabinMirror':
         return '엘리베이터 전면 크리스탈 거울 · 클릭해 옷매무새 확인하기 🪞';
       default:
-        return `${d.accessible ? '♿ 장애인용 가로 조작반 · ' : ''}${{ open: '문 열림 (연장)', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
+        return `${d.accessible ? '♿ 장애인용 가로 조작반 · ' : d.tenKey ? '🔢 반대편 10키 조작반 · ' : ''}${{ open: '문 열림 (연장)', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
     }
   }
 
@@ -1183,6 +1418,26 @@ export class GameMode {
     $('game-lift-state').textContent = `엘리베이터 ${FLOORS[c.floor]}층 · ${
       c.state === 'moving' ? (c.direction > 0 ? '올라가는 중' : '내려가는 중') : c.door > 0 ? '문 열림' : '대기'
     }`;
+
+    if ($('vip-tier-badge')) {
+      $('vip-tier-badge').textContent = `${this.stay.vipTier.badge} · ${this.stay.points} PTS · ⚡${this.stay.energy}%`;
+    }
+    if ($('vip-quest-tracker')) {
+      const qs = this.stay.getQuestStatus?.();
+      if (qs) {
+        $('vip-quest-tracker').textContent =
+          qs.doneCount >= qs.totalCount
+            ? `👑 전 퀘스트 마스터 달성! (${qs.doneCount}/${qs.totalCount})`
+            : `🎯 미션 (${qs.doneCount}/${qs.totalCount}): ${qs.activeQuest?.title || ''}`;
+      }
+    }
+
+    if (this.toastUntil && performance.now() >= this.toastUntil) {
+      this.toastUntil = 0;
+      if ($('game-toast')) $('game-toast').hidden = true;
+    }
+
+    this.renderMinimap();
 
     const guideBtn = $('guide-button');
     if (guideBtn) {
@@ -1228,8 +1483,126 @@ export class GameMode {
     } else if (p.floor === 14) {
       text = '10층입니다. 정면 아치 통로로 걸어가면 루프탑 인피니티 풀 & 스카이 라운지로 이어집니다.';
     } else {
-      text = '왼쪽 에스컬레이터 · 오른쪽 계단 · 뒤쪽 통로는 로비와 주차장입니다. [G/Tab] 호텔 가이드';
+      text = '왼쪽 에스컬레이터 · 오른쪽 계단 · 정면/측면 층별 컨시어지 키오스크를 이용할 수 있습니다. [G/Tab] 가이드';
     }
     $('game-target').textContent = text;
+  }
+
+  renderMinimap() {
+    const p = this.player;
+    const c = this.controller;
+    const f = p.zone === 'cabin' ? c.floor : p.floor;
+    if ($('minimap-caption')) {
+      $('minimap-caption').textContent = `${FLOORS[f]}F · ${floorUsage(f).ko} RADAR`;
+    }
+    const canvas = $('game-minimap');
+    const ctx = canvas?.getContext?.('2d');
+    if (!ctx?.fillRect || !ctx?.arc) return;
+
+    const W = canvas.width || 144;
+    const H = canvas.height || 144;
+    ctx.clearRect?.(0, 0, W, H);
+    ctx.fillStyle = '#0b141a';
+    ctx.fillRect(0, 0, W, H);
+
+    // Coordinate transform: world (x in [-14..12], z in [-2..28]) -> minimap pixels
+    const mapX = (wx) => W / 2 - wx * 4.6;
+    const mapZ = (wz) => 22 + wz * 3.8;
+
+    // 1. Floor zone background
+    ctx.strokeStyle = '#284556';
+    ctx.lineWidth = 1.5;
+    if (f === 5) {
+      // 1F Grand Lobby
+      ctx.fillStyle = '#142630';
+      ctx.fillRect(mapX(11.6), mapZ(1.2), 23.2 * 4.6, 25 * 3.8);
+      ctx.strokeRect(mapX(11.6), mapZ(1.2), 23.2 * 4.6, 25 * 3.8);
+      // Reception & Grand Cafe
+      ctx.fillStyle = '#2e4957';
+      ctx.fillRect(mapX(-2.5), mapZ(20.8), 6.2 * 4.6, 1.2 * 3.8);
+      ctx.fillStyle = '#3b5848';
+      ctx.fillRect(mapX(9.2), mapZ(14.5), 4.0 * 4.6, 3.2 * 3.8);
+    } else if (f === 14) {
+      // 10F Rooftop Pool
+      ctx.fillStyle = '#132836';
+      ctx.fillRect(mapX(10.5), mapZ(1.2), 21 * 4.6, 24 * 3.8);
+      ctx.fillStyle = '#1c5d78';
+      ctx.fillRect(mapX(5.8), mapZ(14.2), 11.6 * 4.6, 8.2 * 3.8);
+    } else if (f < 5) {
+      // B5-B1 Parking
+      ctx.fillStyle = '#161e24';
+      ctx.fillRect(mapX(10.5), mapZ(1.2), 24 * 4.6, 26 * 3.8);
+    } else {
+      // Guest floor corridor
+      ctx.fillStyle = '#162832';
+      ctx.fillRect(mapX(2.45), mapZ(1.2), 4.9 * 4.6, 2.7 * 3.8);
+      if (f === 7) {
+        // Room 301
+        ctx.fillStyle = '#1f3b34';
+        ctx.fillRect(mapX(2.28), mapZ(4.05), 4.56 * 4.6, 9.6 * 3.8);
+        ctx.strokeRect(mapX(2.28), mapZ(4.05), 4.56 * 4.6, 9.6 * 3.8);
+      }
+    }
+
+    // 2. Elevator shaft & cabin
+    ctx.fillStyle = c.floor === f ? '#d4b26f' : '#2a3e4a';
+    ctx.fillRect(mapX(0.95), mapZ(-0.9), 1.9 * 4.6, 1.8 * 3.8);
+
+    // 3. Escalator & Stairwell wings
+    ctx.fillStyle = '#25424c';
+    ctx.fillRect(mapX(-2.5), mapZ(0.2), 3.2 * 4.6, 2.8 * 3.8);
+    ctx.fillRect(mapX(4.5), mapZ(-0.8), 2.1 * 4.6, 3.8 * 3.8);
+
+    // 4. Floor Amenity Station marker
+    const ax = f >= 6 && f <= 13 ? 0 : 2.18;
+    const az = f >= 6 && f <= 13 ? 3.55 : 2.55;
+    ctx.fillStyle = '#f5d076';
+    ctx.beginPath();
+    ctx.arc(mapX(ax), mapZ(az), 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 5. NPCs on this floor
+    for (const npc of this.npcs?.npcs ?? []) {
+      const nf = npc.zone === 'cabin' ? c.floor : npc.floor;
+      if (nf === f) {
+        ctx.fillStyle = '#70d6ff';
+        ctx.beginPath();
+        ctx.arc(mapX(npc.x), mapZ(npc.z), 2.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 6. DELI Service Robot
+    if (this.robot) {
+      const rf = this.robot.zone === 'cabin' ? c.floor : this.robot.floor;
+      if (rf === f) {
+        ctx.fillStyle = '#7ef7e1';
+        ctx.beginPath();
+        ctx.arc(mapX(this.robot.x), mapZ(this.robot.z), 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 7. Player position & FOV cone
+    const px = mapX(p.x);
+    const pz = mapZ(p.z);
+    const dirX = Math.sin(p.yaw);
+    const dirZ = -Math.cos(p.yaw);
+    const screenAngle = Math.atan2(dirZ * 3.8, -dirX * 4.6);
+
+    ctx.fillStyle = 'rgba(118, 232, 199, 0.24)';
+    ctx.beginPath();
+    ctx.moveTo(px, pz);
+    ctx.arc(px, pz, 16, screenAngle - 0.52, screenAngle + 0.52);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#56f0c8';
+    ctx.beginPath();
+    ctx.arc(px, pz, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
   }
 }

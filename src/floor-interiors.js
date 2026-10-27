@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { floorMeta, floorUsage } from './building.js';
 import { FLOORS } from './controller.js';
 import { hotelSignTexture } from './hotel-sign.js';
+import { FLOOR_AMENITY_SPECS } from './hotel-stay.js';
 
 const geometry = new THREE.BoxGeometry(1, 1, 1);
 
@@ -13,6 +14,7 @@ const materials = {
   gold: new THREE.MeshStandardMaterial({ color: 0xc7aa70, metalness: 0.6, roughness: 0.35 }),
   yellow: new THREE.MeshBasicMaterial({ color: 0xe5c457 }),
   black: new THREE.MeshStandardMaterial({ color: 0x28302d, roughness: 0.85 }),
+  kioskGlow: new THREE.MeshBasicMaterial({ color: 0x76e8c7 }),
 };
 
 export function decorateFloor(room, floor, { expanded = false, pickables = null } = {}) {
@@ -70,6 +72,63 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
     0.48,
     Math.PI / 2
   );
+
+  // Build interactive floor-specific concierge / amenity station on every floor
+  const amenitySpec = FLOOR_AMENITY_SPECS[floor];
+  if (amenitySpec) {
+    const amenityData = {
+      action: 'floorAmenity',
+      floorIndex: floor,
+      amenityName: amenitySpec.name,
+      amenityBadge: amenitySpec.badge,
+    };
+
+    if (floor >= 6 && floor <= 13) {
+      // Guest floor central concierge credenza & digital touch bar (between the two guest room doors at x = 0)
+      const base = box(`Floor_amenity_credenza_${FLOORS[floor]}`, [0.92, 0.92, 0.24], [0, 0.46, 3.48], materials.wood);
+      const top = box(`Floor_amenity_top_${FLOORS[floor]}`, [0.98, 0.045, 0.28], [0, 0.94, 3.48], materials.gold);
+      const disp = box(`Floor_amenity_kiosk_${FLOORS[floor]}`, [0.46, 0.34, 0.04], [0, 1.34, 3.56], materials.black);
+      const led = box(`Floor_amenity_led_${FLOORS[floor]}`, [0.84, 0.02, 0.02], [0, 0.98, 3.36], materials.kioskGlow);
+      const screen = sign(
+        `Floor_amenity_screen_${FLOORS[floor]}`,
+        [amenitySpec.name, amenitySpec.badge],
+        [0, 1.34, 3.53],
+        0.66,
+        0.44,
+        Math.PI
+      );
+      for (const part of [base, top, disp, led, screen]) {
+        part.userData = { ...part.userData, ...amenityData };
+        if (pickables) pickables.push(part);
+      }
+    } else {
+      // Wall-mounted smart concierge / EV terminal on left vestibule wall (x = -2.45, z = 1.48)
+      const frame = box(
+        `Floor_amenity_kiosk_${FLOORS[floor]}`,
+        [0.05, 0.52, 0.68],
+        [-2.45, 1.36, 1.48],
+        materials.black
+      );
+      const trim = box(
+        `Floor_amenity_trim_${FLOORS[floor]}`,
+        [0.06, 0.04, 0.72],
+        [-2.445, 1.64, 1.48],
+        materials.gold
+      );
+      const screen = sign(
+        `Floor_amenity_screen_${FLOORS[floor]}`,
+        [amenitySpec.name, amenitySpec.badge],
+        [-2.418, 1.36, 1.48],
+        0.95,
+        0.65,
+        Math.PI / 2
+      );
+      for (const part of [frame, trim, screen]) {
+        part.userData = { ...part.userData, ...amenityData };
+        if (pickables) pickables.push(part);
+      }
+    }
+  }
 
   if (expanded) return;
 

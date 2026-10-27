@@ -200,5 +200,66 @@ export class HotelSoundEffects {
   playBuzzer() {
     return this.tone(440, 0.22, { type: 'sawtooth', gainScale: 0.07 });
   }
+
+  playFootstep(surface = 'marble', sprint = false) {
+    const scale = sprint ? 1.25 : 1.0;
+    if (surface === 'water') {
+      const a = this.tone(340, 0.09, { type: 'sine', gainScale: 0.032 * scale, endFreq: 190 });
+      const b = this.tone(480, 0.07, { type: 'triangle', delay: 0.025, gainScale: 0.024 * scale, endFreq: 260 });
+      return a || b;
+    }
+    if (surface === 'wood') {
+      const a = this.tone(165, 0.045, { type: 'triangle', gainScale: 0.038 * scale, endFreq: 82 });
+      const b = this.tone(290, 0.028, { type: 'sine', delay: 0.008, gainScale: 0.022 * scale, endFreq: 140 });
+      return a || b;
+    }
+    if (surface === 'concrete') {
+      return this.tone(130, 0.05, { type: 'triangle', gainScale: 0.036 * scale, endFreq: 68 });
+    }
+    if (surface === 'metal') {
+      const a = this.tone(240, 0.04, { type: 'triangle', gainScale: 0.032 * scale, endFreq: 110 });
+      const b = this.tone(620, 0.022, { type: 'sine', gainScale: 0.016 * scale, endFreq: 310 });
+      return a || b;
+    }
+    // Default 'marble' / polished luxury stone
+    const a = this.tone(210, 0.038, { type: 'sine', gainScale: 0.034 * scale, endFreq: 95 });
+    const b = this.tone(780, 0.02, { type: 'triangle', delay: 0.005, gainScale: 0.018 * scale, endFreq: 420 });
+    return a || b;
+  }
+
+  playAmenity() {
+    const a = this.tone(659.25, 0.09, { type: 'sine', gainScale: 0.06 });
+    const b = this.tone(987.77, 0.14, { type: 'sine', delay: 0.075, gainScale: 0.068 });
+    const c = this.tone(1318.51, 0.18, { type: 'triangle', delay: 0.15, gainScale: 0.072 });
+    return a || b || c;
+  }
+
+  playQuestComplete() {
+    const notes = [523.25, 659.25, 783.99, 987.77, 1174.66];
+    let ok = false;
+    notes.forEach((freq, idx) => {
+      const played = this.tone(freq, 0.22, {
+        type: 'triangle',
+        delay: idx * 0.075,
+        gainScale: 0.065 + idx * 0.004,
+      });
+      if (played) ok = true;
+    });
+    return ok;
+  }
+
+  playCarIgnition() {
+    const chirp1 = this.tone(1820, 0.055, { type: 'sine', gainScale: 0.065 });
+    const chirp2 = this.tone(2180, 0.065, { type: 'sine', delay: 0.075, gainScale: 0.07 });
+    const starter = this.tone(95, 0.28, { type: 'sawtooth', delay: 0.16, gainScale: 0.045, endFreq: 165 });
+    const purr = this.tone(142, 0.42, { type: 'triangle', delay: 0.36, gainScale: 0.055, endFreq: 88 });
+    return chirp1 || chirp2 || starter || purr;
+  }
+
+  playWeatherChime() {
+    const a = this.tone(587.33, 0.14, { type: 'sine', gainScale: 0.05, endFreq: 783.99 });
+    const b = this.tone(880, 0.18, { type: 'triangle', delay: 0.09, gainScale: 0.055, endFreq: 1174.66 });
+    return a || b;
+  }
 }
 

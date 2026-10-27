@@ -177,6 +177,12 @@ function act(action, floor, direction, data) {
     if (game?.active) game.message(msg);
     return;
   }
+  if (action === 'floorAmenity') {
+    sfx.playAmenity?.();
+    const res = game?.interactFloorAmenity?.(floor ?? data?.floorIndex);
+    if (res?.message) say(res.message);
+    return;
+  }
   if (action === 'otherRoomDoor') {
     sfx.playKeycard(false);
     game?.inspectOtherRoom(data);
@@ -238,6 +244,18 @@ function act(action, floor, direction, data) {
     } else if (action === 'cabinMirror') {
       say('엘리베이터 전면 크리스탈 거울을 점검합니다.');
     }
+    updateUI();
+    return;
+  }
+  if (action === 'tenKey') {
+    sfx.playButton();
+    game?.stepInsideCabinIfInDoorway();
+    const res = controller.pressTenKey(data?.key ?? floor);
+    if (res?.message) {
+      say(res.message);
+      if (game?.active) game.message(res.message);
+    }
+    announcer.observe(controller);
     updateUI();
     return;
   }
@@ -317,6 +335,7 @@ const rowButtons = [];
 const rowElements = [];
 const carButtons = [];
 const accCarButtons = [];
+const tenKeyButtons = [];
 
 for (let i = 14; i >= 0; i--) {
   const meta = floorMeta(i, FLOORS[i]);
@@ -369,6 +388,36 @@ if ($('accessible-car-buttons')) {
     b.addEventListener('click', () => act('car', i, 0, { accessible: true }));
     $('accessible-car-buttons').append(b);
     accCarButtons.push({ b, i });
+  }
+}
+
+if ($('tenkey-buttons')) {
+  const tenKeySpecs = [
+    { key: '1', label: '1', sub: '1F/10F', title: '1층 (이어서 0 입력 시 10층)' },
+    { key: '2', label: '2', sub: '2F', title: '2층 선택/취소' },
+    { key: '3', label: '3', sub: '3F', title: '3층 (301호) 선택/취소' },
+    { key: '4', label: '4', sub: '4F', title: '4층 선택/취소' },
+    { key: '5', label: '5', sub: '5F', title: '5층 선택/취소' },
+    { key: '6', label: '6', sub: '6F', title: '6층 선택/취소' },
+    { key: '7', label: '7', sub: '7F', title: '7층 선택/취소' },
+    { key: '8', label: '8', sub: '8F', title: '8층 선택/취소' },
+    { key: '9', label: '9', sub: '9F', title: '9층 선택/취소' },
+    { key: 'B', label: 'B', sub: '지하', title: '지하 층 접두키 (B 입력 후 1~5)', cls: 'tenkey-prefix' },
+    { key: '0', label: '0', sub: '10F', title: '10층 (1→0 또는 단독 입력)' },
+    { key: 'ENT', label: '↵', sub: '확인', title: '입력 번호 즉시 확정 (1층 확정)', cls: 'tenkey-enter' },
+    { key: 'CLR', label: '✕ 입력 초기화 / 전체 취소 (CLR)', sub: '', title: '입력 중인 번호 초기화 또는 목적층 일괄 취소', cls: 'tenkey-clear' },
+  ];
+  for (const spec of tenKeySpecs) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.tenkey = spec.key;
+    b.title = `🔢 10키 조작반 · ${spec.title}`;
+    if (spec.cls) b.className = spec.cls;
+    b.innerHTML = spec.sub ? `<span>${spec.label}</span><small>${spec.sub}</small>` : `<span>${spec.label}</span>`;
+    b.setAttribute('aria-label', `10키 ${spec.title}`);
+    b.addEventListener('click', () => act('tenKey', 0, 0, { key: spec.key }));
+    $('tenkey-buttons').append(b);
+    tenKeyButtons.push({ b, key: spec.key });
   }
 }
 
@@ -519,6 +568,27 @@ for (const b of viewButtons) {
   };
 }
 
+window.addEventListener('keydown', (e) => {
+  if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.target.closest?.('input,select,textarea,[contenteditable="true"],dialog')) return;
+  const canUseTenKey = !game?.active || game.player?.zone === 'cabin' || game.player?.inDoorway?.();
+  if (!canUseTenKey) return;
+
+  if (/^(Digit|Numpad)[0-9]$/.test(e.code)) {
+    e.preventDefault();
+    act('tenKey', 0, 0, { key: e.code.slice(-1) });
+  } else if (e.code === 'KeyB' || e.code === 'NumpadSubtract' || e.code === 'Minus') {
+    e.preventDefault();
+    act('tenKey', 0, 0, { key: 'B' });
+  } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+    e.preventDefault();
+    act('tenKey', 0, 0, { key: 'ENT' });
+  } else if (e.code === 'Backspace' || e.code === 'Delete') {
+    e.preventDefault();
+    act('tenKey', 0, 0, { key: 'CLR' });
+  }
+});
+
 let queueKey = '';
 let eventKey = '';
 
@@ -585,6 +655,22 @@ function updateUI() {
     const active = c.car.has(i);
     b.classList.toggle('active', active);
     b.setAttribute('aria-pressed', String(active));
+  }
+
+  if ($('tenkey-display')) {
+    $('tenkey-display').textContent = c.tenKeyBuffer
+      ? `${c.tenKeyBuffer}_`
+      : c.tenKeyDisplay && c.tenKeyDisplay !== 'READY'
+        ? c.tenKeyDisplay
+        : `${FLOORS[c.floor]}F READY`;
+  }
+  for (const { b, key } of tenKeyButtons) {
+    const active =
+      (key === 'B' && c.tenKeyBuffer === 'B') ||
+      (key === '1' && (c.tenKeyBuffer === '1' || c.car.has(5))) ||
+      (key === '0' && c.car.has(14)) ||
+      (/^[2-9]$/.test(key) && c.car.has(Number(key) + 4));
+    b.classList.toggle('active', active);
   }
 
   for (const { b, i, dir } of rowButtons) {

@@ -566,6 +566,9 @@ export class HotelScene {
         carId: root.name,
         carName: carModels[idx % carModels.length],
         floorLabel: `${FLOORS[floor]}층`,
+        carX: x,
+        carZ: z,
+        carYaw: rotation,
       };
       root.userData = { ...root.userData, ...carData, headlampMat, flashUntil: 0 };
       root.traverse((o) => {

@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { floorUsage } from './building.js';
 import { FLOORS } from './controller.js';
 import { EscalatorView } from './escalator-view.js';
@@ -28,6 +32,7 @@ export const TIME_OF_DAY_MODES = [
     fillColor: 0xb4dbff,
     fillIntensity: 1.0,
     exposure: 1.05,
+    bloomStrength: 0.2,
   },
   {
     id: 'sunset',
@@ -41,6 +46,7 @@ export const TIME_OF_DAY_MODES = [
     fillColor: 0xd499b9,
     fillIntensity: 0.85,
     exposure: 0.98,
+    bloomStrength: 0.34,
   },
   {
     id: 'night',
@@ -54,6 +60,50 @@ export const TIME_OF_DAY_MODES = [
     fillColor: 0x416788,
     fillIntensity: 0.55,
     exposure: 0.9,
+    bloomStrength: 0.46,
+  },
+];
+
+export const WEATHER_MODES = [
+  {
+    id: 'clear',
+    label: '✨ 맑음',
+    desc: '청명한 스카이라인과 은은한 햇살 파티클이 감도는 쾌청한 날씨입니다.',
+    particleColor: 0xffe9b5,
+    particleSize: 0.14,
+    particleOpacity: 0.45,
+    fallSpeed: 0.25,
+    swayAmp: 0.8,
+  },
+  {
+    id: 'starlight',
+    label: '🌌 별빛·오로라',
+    desc: '루프탑과 통유리 외벽 너머로 반짝이는 별빛과 반딧불이 파티클이 유영합니다.',
+    particleColor: 0x7ef7e1,
+    particleSize: 0.22,
+    particleOpacity: 0.88,
+    fallSpeed: 0.18,
+    swayAmp: 1.5,
+  },
+  {
+    id: 'rain',
+    label: '🌧️ 센티멘털 레인',
+    desc: '촉촉한 빗방울이 루프탑 인피니티 풀과 호텔 광장 위로 감성적으로 내립니다.',
+    particleColor: 0xa8d4ff,
+    particleSize: 0.18,
+    particleOpacity: 0.72,
+    fallSpeed: 6.8,
+    swayAmp: 0.15,
+  },
+  {
+    id: 'blossom',
+    label: '🌸 골든 페탈',
+    desc: '황금빛과 핑크빛 꽃잎이 봄바람을 타고 호텔 테라스와 수영장 위로 흩날립니다.',
+    particleColor: 0xffbfd6,
+    particleSize: 0.24,
+    particleOpacity: 0.85,
+    fallSpeed: 0.95,
+    swayAmp: 2.1,
   },
 ];
 
@@ -66,9 +116,12 @@ export class LiftScene {
     this.followY = 0;
     this.lastFloor = -1;
     this.timeOfDayIndex = 0;
+    this.weatherIndex = 0;
+    this.postProcessingEnabled = true;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(44, 1, 0.08, 250);
+    this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -81,6 +134,8 @@ export class LiftScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.setClearColor(0x111b23, 0);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
@@ -99,7 +154,16 @@ export class LiftScene {
     this.hemiLight = new THREE.HemisphereLight(0xe1efff, 0x3a4144, 1.4);
     this.scene.add(this.hemiLight);
     this.keyLight = new THREE.DirectionalLight(0xffedcc, 2);
-    this.keyLight.position.set(4, 10, 7);
+    this.keyLight.position.set(12, 28, 18);
+    this.keyLight.castShadow = true;
+    this.keyLight.shadow.mapSize.set(1024, 1024);
+    this.keyLight.shadow.bias = -0.0005;
+    this.keyLight.shadow.camera.near = 1;
+    this.keyLight.shadow.camera.far = 90;
+    this.keyLight.shadow.camera.left = -24;
+    this.keyLight.shadow.camera.right = 24;
+    this.keyLight.shadow.camera.top = 24;
+    this.keyLight.shadow.camera.bottom = -24;
     this.scene.add(this.keyLight);
 
     this.fillLight = new THREE.DirectionalLight(0xb4dbff, 1);
@@ -109,6 +173,10 @@ export class LiftScene {
     this.cabinLight = new THREE.PointLight(0xffe8c5, 16, 5, 2);
     this.cabinLight.position.set(0, 2, 0);
     this.scene.add(this.cabinLight);
+
+    this.setupPostProcessing();
+    this.buildViewmodel();
+    this.setupWeatherParticles();
 
     this.ray = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -154,6 +222,152 @@ export class LiftScene {
     this.setView('lobby');
   }
 
+  setupPostProcessing() {
+    try {
+      const w = this.canvas?.clientWidth || 800;
+      const h = this.canvas?.clientHeight || 600;
+      this.composer = new EffectComposer(this.renderer);
+      this.renderPass = new RenderPass(this.scene, this.camera);
+      this.composer.addPass(this.renderPass);
+
+      this.bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.2, 0.45, 0.84);
+      this.composer.addPass(this.bloomPass);
+
+      this.outputPass = new OutputPass();
+      this.composer.addPass(this.outputPass);
+    } catch {
+      this.composer = null;
+      this.bloomPass = null;
+    }
+  }
+
+  buildViewmodel() {
+    if (!this.camera) return;
+    this.viewmodelGroup = new THREE.Group();
+    this.viewmodelGroup.name = 'First_person_viewmodel';
+    this.viewmodelGroup.position.set(0.24, -0.2, -0.44);
+    this.viewmodelGroup.visible = false;
+    this.camera.add(this.viewmodelGroup);
+
+    // 1. Specialty Coffee Cup viewmodel
+    this.vmCoffee = new THREE.Group();
+    this.vmCoffee.name = 'VM_coffee_cup';
+    const cupMat = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.45 });
+    const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x8c6239, roughness: 0.78 });
+    const lidMat = new THREE.MeshStandardMaterial({ color: 0x20282c, roughness: 0.35 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4b272, metalness: 0.75, roughness: 0.25 });
+
+    const cupBody = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.027, 0.105, 18), cupMat);
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.0345, 0.031, 0.044, 18), sleeveMat);
+    sleeve.position.y = -0.004;
+    const goldBand = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.006, 18), goldMat);
+    goldBand.position.y = 0.012;
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.037, 0.014, 18), lidMat);
+    lid.position.y = 0.056;
+    this.vmCoffee.add(cupBody, sleeve, goldBand, lid);
+    this.vmCoffee.rotation.set(0.15, -0.35, 0.08);
+    this.viewmodelGroup.add(this.vmCoffee);
+
+    // 2. VIP Keycard viewmodel
+    this.vmKeycard = new THREE.Group();
+    this.vmKeycard.name = 'VM_vip_keycard';
+    const cardMat = new THREE.MeshStandardMaterial({
+      color: 0x162d28,
+      metalness: 0.45,
+      roughness: 0.25,
+      emissive: 0x0d241e,
+      emissiveIntensity: 0.25,
+    });
+    const cardBody = new THREE.Mesh(new THREE.BoxGeometry(0.086, 0.054, 0.003), cardMat);
+    const cardBorder = new THREE.Mesh(new THREE.BoxGeometry(0.089, 0.057, 0.002), goldMat);
+    const cardChip = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.011, 0.004), goldMat);
+    cardChip.position.set(-0.024, 0.004, 0.001);
+    this.vmKeycard.add(cardBorder, cardBody, cardChip);
+    this.vmKeycard.rotation.set(0.28, -0.42, 0.12);
+    this.viewmodelGroup.add(this.vmKeycard);
+  }
+
+  updateViewmodel(time = 0) {
+    if (!this.viewmodelGroup) return;
+    const game = this.game;
+    if (!game?.active || this.view !== 'game' || game.telescopeZoom) {
+      this.viewmodelGroup.visible = false;
+      return;
+    }
+
+    const showCoffee = Boolean(game.holdingCoffee);
+    const nearRoomDoor =
+      game.player?.floor === 7 &&
+      Math.hypot((game.player?.x ?? 0) - -1.38, (game.player?.z ?? 0) - 3.5) < 2.6;
+    const showKeycard =
+      !showCoffee &&
+      Boolean(game.stay?.keycard) &&
+      (nearRoomDoor || game.currentHit?.userData?.action === 'roomDoor' || game.currentHit?.userData?.action === 'cabinVip');
+
+    if (!showCoffee && !showKeycard) {
+      this.viewmodelGroup.visible = false;
+      return;
+    }
+
+    this.viewmodelGroup.visible = true;
+    this.vmCoffee.visible = showCoffee;
+    this.vmKeycard.visible = showKeycard;
+
+    const bobPhase = game.walkBobPhase || 0;
+    const moveAmp = game.isMoving ? 1 : 0.18;
+    const swayX = Math.cos(bobPhase * 0.5) * 0.008 * moveAmp;
+    const swayY = Math.abs(Math.sin(bobPhase)) * 0.01 * moveAmp + Math.sin(time * 2.2) * 0.0025;
+    this.viewmodelGroup.position.set(0.23 + swayX, -0.195 - swayY, -0.42);
+  }
+
+  setupWeatherParticles() {
+    const count = 260;
+    const positions = new Float32Array(count * 3);
+    const seeds = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 32;
+      positions[i * 3 + 1] = Math.random() * 44 - 2;
+      positions[i * 3 + 2] = Math.random() * 34 - 2;
+      seeds[i] = Math.random() * Math.PI * 2;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mode = WEATHER_MODES[0];
+    this.weatherMaterial = new THREE.PointsMaterial({
+      color: mode.particleColor,
+      size: mode.particleSize,
+      transparent: true,
+      opacity: mode.particleOpacity,
+      depthWrite: false,
+    });
+    this.weatherPoints = new THREE.Points(geo, this.weatherMaterial);
+    this.weatherPoints.name = 'Weather_particles';
+    this.weatherPoints.userData = { seeds, lastTime: 0 };
+    this.scene.add(this.weatherPoints);
+  }
+
+  updateWeatherParticles(time = 0) {
+    if (!this.weatherPoints) return;
+    const mode = this.weather;
+    const dt = Math.min(0.1, Math.max(0.005, time - (this.weatherPoints.userData.lastTime || time) || 0.016));
+    this.weatherPoints.userData.lastTime = time;
+    const attr = this.weatherPoints.geometry.getAttribute('position');
+    const seeds = this.weatherPoints.userData.seeds;
+    for (let i = 0; i < seeds.length; i++) {
+      let x = attr.getX(i);
+      let y = attr.getY(i);
+      let z = attr.getZ(i);
+      y -= mode.fallSpeed * dt;
+      x += Math.sin(time * 1.2 + seeds[i]) * mode.swayAmp * dt;
+      if (y < -2) {
+        y = 42;
+        x = (Math.sin(seeds[i] * 7.3 + time) * 0.5) * 30;
+      }
+      attr.setXYZ(i, x, y, z);
+    }
+    attr.needsUpdate = true;
+  }
+
   isVisible(o) {
     while (o) {
       if (!o.visible) return false;
@@ -184,8 +398,13 @@ export class LiftScene {
   resize() {
     const r = this.canvas.parentElement.getBoundingClientRect();
     if (!r.width || !r.height) return;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25, Math.sqrt(2100000 / (r.width * r.height))));
+    const pr = Math.min(devicePixelRatio, 1.25, Math.sqrt(2100000 / (r.width * r.height)));
+    this.renderer.setPixelRatio(pr);
     this.renderer.setSize(r.width, r.height, false);
+    if (this.composer) {
+      this.composer.setPixelRatio?.(pr);
+      this.composer.setSize(r.width, r.height);
+    }
     this.camera.aspect = r.width / r.height;
     this.updateCameraFOV();
   }
@@ -575,6 +794,9 @@ export class LiftScene {
     // 4. Right Side Wall Horizontal Accessible COP (장애인용 가로형 조작반, 휠체어 눈높이 y ≈ 0.92m)
     this.buildAccessibleHorizontalCOP();
 
+    // 4-B. Opposite Front Wall 10-Key Keypad COP (엘리베이터 버튼 반대편 10키 디지털 조작반, x = -0.69)
+    this.buildTenKeyCOP();
+
     // 5. Multi-beam Infrared Safety Curtain Sensor Strips on Door Jambs
     this.safetySensorMat = new THREE.MeshStandardMaterial({
       color: 0x33ee66,
@@ -732,6 +954,139 @@ export class LiftScene {
     this.car.add(panelGroup);
   }
 
+  buildTenKeyCOP() {
+    if (!this.car) return;
+    // Mounted on the front return wall opposite the main COP button column (x = -0.69 vs +0.69, facing -z).
+    this.tenKeyButtons = [];
+    const panelGroup = new THREE.Group();
+    panelGroup.name = 'TenKey_COP_L';
+    panelGroup.position.set(-0.69, 1.16, 0.766);
+    panelGroup.rotation.y = Math.PI;
+
+    const plate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.255, 0.54, 0.014),
+      new THREE.MeshStandardMaterial({ color: 0x1d2830, roughness: 0.25, metalness: 0.85 })
+    );
+    plate.name = 'TenKey_COP_faceplate_L';
+    panelGroup.add(plate);
+
+    const trim = new THREE.Mesh(
+      new THREE.BoxGeometry(0.263, 0.548, 0.008),
+      new THREE.MeshStandardMaterial({ color: 0xc8a968, roughness: 0.3, metalness: 0.75 })
+    );
+    trim.position.z = -0.002;
+    panelGroup.add(trim);
+
+    // Digital status screen at top of 10-key panel
+    this.tenKeyCanvas = document.createElement('canvas');
+    this.tenKeyCanvas.width = 256;
+    this.tenKeyCanvas.height = 112;
+    this.tenKeyCtx = this.tenKeyCanvas.getContext('2d');
+    const canDraw = Boolean(this.tenKeyCtx?.fillRect);
+    this.tenKeyTex = new THREE.CanvasTexture(this.tenKeyCanvas);
+    this.tenKeyTex.colorSpace = THREE.SRGBColorSpace;
+    const screenMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.215, 0.094),
+      new THREE.MeshBasicMaterial({ map: canDraw ? this.tenKeyTex : null, color: canDraw ? 0xffffff : 0x102822 })
+    );
+    screenMesh.name = 'TenKey_COP_screen_L';
+    screenMesh.position.set(0, 0.185, 0.009);
+    panelGroup.add(screenMesh);
+
+    // 4×3 keypad grid: [1, 2, 3], [4, 5, 6], [7, 8, 9], [B, 0, ENT]
+    const keyRows = [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      ['B', '0', 'ENT'],
+    ];
+    const KW = 96;
+    const KH = 84;
+    const atlasCanvas = document.createElement('canvas');
+    atlasCanvas.width = KW * 3;
+    atlasCanvas.height = KH * 4;
+    const kctx = atlasCanvas.getContext('2d');
+    if (canDraw && kctx?.fillRect) {
+      keyRows.forEach((row, r) =>
+        row.forEach((key, col) => {
+          const ox = col * KW;
+          const oy = r * KH;
+          kctx.fillStyle = key === 'B' ? '#243442' : key === 'ENT' ? '#1c3b33' : '#18222a';
+          kctx.fillRect(ox, oy, KW, KH);
+          kctx.strokeStyle = key === 'ENT' ? '#56d8c4' : key === 'B' ? '#e5c478' : '#536878';
+          kctx.lineWidth = 4;
+          kctx.strokeRect(ox + 3, oy + 3, KW - 6, KH - 6);
+          kctx.fillStyle = key === 'ENT' ? '#7ef7e1' : key === 'B' ? '#f5d488' : '#f2f7fa';
+          kctx.font = key === 'ENT' ? 'bold 28px sans-serif' : 'bold 36px sans-serif';
+          kctx.textAlign = 'center';
+          kctx.fillText(key === 'ENT' ? '↵ 확인' : key, ox + KW / 2, oy + 48);
+          kctx.fillStyle = '#8fa6b5';
+          kctx.font = '13px sans-serif';
+          const sub =
+            key === 'B' ? '지하 B1~5' : key === '0' ? '10F (1→0)' : key === 'ENT' ? 'ENTER' : `${key}층`;
+          kctx.fillText(sub, ox + KW / 2, oy + 70);
+        })
+      );
+    }
+    const keyAtlasTex = new THREE.CanvasTexture(atlasCanvas);
+    keyAtlasTex.colorSpace = THREE.SRGBColorSpace;
+    const keyCapMat = new THREE.MeshBasicMaterial({ map: keyAtlasTex });
+    const keyGeo = new THREE.BoxGeometry(0.064, 0.052, 0.02);
+
+    keyRows.forEach((row, r) =>
+      row.forEach((key, col) => {
+        const btn = new THREE.Mesh(
+          keyGeo,
+          new THREE.MeshStandardMaterial({ color: 0x8e9aa3, roughness: 0.3, metalness: 0.58 })
+        );
+        btn.name = `TenKey_Button_${key}_L`;
+        btn.position.set((col - 1) * 0.074, 0.092 - r * 0.068, 0.009);
+        btn.userData = { action: 'tenKey', key, tenKey: true, ownMaterial: true, dynamic: true };
+        panelGroup.add(btn);
+        this.pickables.push(btn);
+        this.tenKeyButtons.push(btn);
+
+        if (canDraw) {
+          const capGeo = new THREE.PlaneGeometry(0.058, 0.046);
+          const uv = capGeo.attributes.uv;
+          for (let i = 0; i < uv.count; i++) {
+            uv.setXY(i, (col + uv.getX(i)) / 3, 1 - (r + 1 - uv.getY(i)) / 4);
+          }
+          const cap = new THREE.Mesh(capGeo, keyCapMat);
+          cap.position.set(0, 0, 0.011);
+          cap.userData = { action: 'tenKey', key, tenKey: true, dynamic: true };
+          btn.add(cap);
+        }
+      })
+    );
+
+    // Bottom utility row: CLR (취소), OPEN (문열림), CLOSE (문닫힘)
+    const utilSpecs = [
+      { name: 'CLR', action: 'tenKey', key: 'CLR', x: -0.074, color: 0x5c2c2c },
+      { name: 'OPEN', action: 'open', key: 'OPEN', x: 0, color: 0x26483f },
+      { name: 'CLOSE', action: 'close', key: 'CLOSE', x: 0.074, color: 0x293844 },
+    ];
+    for (const spec of utilSpecs) {
+      const ubtn = new THREE.Mesh(
+        new THREE.BoxGeometry(0.064, 0.042, 0.018),
+        new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.32, metalness: 0.5 })
+      );
+      ubtn.name = `TenKey_Aux_${spec.name}_L`;
+      ubtn.position.set(spec.x, -0.198, 0.009);
+      ubtn.userData = {
+        action: spec.action,
+        key: spec.key,
+        tenKey: true,
+        ownMaterial: true,
+        dynamic: true,
+      };
+      panelGroup.add(ubtn);
+      this.pickables.push(ubtn);
+    }
+
+    this.car.add(panelGroup);
+  }
+
   setView(view, c) {
     this.view = view;
     const y = c ? c.position - 17.5 : 0;
@@ -791,6 +1146,9 @@ export class LiftScene {
     if (this.renderer) {
       this.renderer.toneMappingExposure = mode.exposure;
     }
+    if (this.bloomPass) {
+      this.bloomPass.strength = mode.bloomStrength ?? 0.24;
+    }
     this.guestRoomView?.setTimeOfDay?.(mode.id);
     if (this.ready) this.applyVisibility(c);
     return mode;
@@ -798,6 +1156,31 @@ export class LiftScene {
 
   cycleTimeOfDay(c = null) {
     return this.setTimeOfDay((this.timeOfDayIndex ?? 0) + 1, c);
+  }
+
+  get weather() {
+    return WEATHER_MODES[this.weatherIndex ?? 0] || WEATHER_MODES[0];
+  }
+
+  setWeather(idOrIndex, c = null) {
+    const idx =
+      typeof idOrIndex === 'number'
+        ? ((idOrIndex % WEATHER_MODES.length) + WEATHER_MODES.length) % WEATHER_MODES.length
+        : WEATHER_MODES.findIndex((m) => m.id === idOrIndex);
+    if (idx < 0) return this.weather;
+    this.weatherIndex = idx;
+    const mode = this.weather;
+    if (this.weatherMaterial) {
+      this.weatherMaterial.color.setHex(mode.particleColor);
+      this.weatherMaterial.size = mode.particleSize;
+      this.weatherMaterial.opacity = mode.particleOpacity;
+    }
+    if (this.ready) this.applyVisibility(c);
+    return mode;
+  }
+
+  cycleWeather(c = null) {
+    return this.setWeather((this.weatherIndex ?? 0) + 1, c);
   }
 
   applyVisibility(c) {
@@ -812,7 +1195,13 @@ export class LiftScene {
     this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior');
     this.automaticDoors?.applyVisibility(floor, this.game?.player?.floor);
     this.scene.background =
-      v === 'exterior' || (v === 'game' && (floor === 5 || floor === 14)) ? new THREE.Color(tod.sky) : null;
+      v === 'exterior' || (v === 'game' && (floor === 5 || floor === 7 || floor === 14))
+        ? new THREE.Color(tod.sky)
+        : null;
+    if (this.weatherPoints) {
+      this.weatherPoints.visible =
+        v === 'exterior' || v === 'shaft' || (v === 'game' && (floor === 5 || floor === 7 || floor === 14));
+    }
     this.scene.fog = v === 'exterior' ? new THREE.Fog(tod.sky, 90, 190) : null;
     if (this.gameRoom) {
       this.gameRoom.visible = v === 'game';
@@ -954,7 +1343,7 @@ export class LiftScene {
       this.followY = y;
     }
 
-    const displayKey = `${c.floor}/${c.state}/${c.direction}/${c.alarm}/${c.vipMode}/${c.accessibleMode}/${c.target}/${c.cabinLightIndex}/${c.cabinFanIndex}/${c.cabinMusicIndex}/${Math.round(c.velocity * 10)}`;
+    const displayKey = `${c.floor}/${c.state}/${c.direction}/${c.alarm}/${c.vipMode}/${c.accessibleMode}/${c.target}/${c.cabinLightIndex}/${c.cabinFanIndex}/${c.cabinMusicIndex}/${c.tenKeyBuffer}/${c.tenKeyDisplay}/${Math.round(c.velocity * 10)}`;
     if (displayKey !== this.displayKey) {
       this.displayKey = displayKey;
       const ctx = this.lcdctx;
@@ -1003,6 +1392,47 @@ export class LiftScene {
         ic.fillText(`🎵 ${c.cabinMusicTrack?.label || ''}`, 20, 158);
         this.copInfoTex.needsUpdate = true;
       }
+
+      if (this.tenKeyCtx?.fillRect) {
+        const tk = this.tenKeyCtx;
+        tk.fillStyle = '#08151b';
+        tk.fillRect(0, 0, 256, 112);
+        tk.strokeStyle = '#c8a968';
+        tk.lineWidth = 3;
+        tk.strokeRect(3, 3, 250, 106);
+        tk.fillStyle = '#f0d28c';
+        tk.font = 'bold 15px sans-serif';
+        tk.textAlign = 'left';
+        tk.fillText('10-KEY CONTROL PAD', 14, 24);
+        tk.fillStyle = c.tenKeyBuffer ? '#ffdf7e' : '#7ef7e1';
+        tk.font = 'bold 34px monospace';
+        tk.textAlign = 'center';
+        const readout = c.tenKeyBuffer
+          ? `입력: ${c.tenKeyBuffer}_`
+          : c.tenKeyDisplay && c.tenKeyDisplay !== 'READY'
+            ? c.tenKeyDisplay
+            : `${FLOORS[c.floor]}F READY`;
+        tk.fillText(readout, 128, 66);
+        tk.fillStyle = '#92aebc';
+        tk.font = '13px sans-serif';
+        tk.fillText('B+1~5 지하 · 1~9층 · 1+0=10층', 128, 94);
+        this.tenKeyTex.needsUpdate = true;
+      }
+    }
+
+    for (const btn of this.tenKeyButtons ?? []) {
+      const k = btn.userData.key;
+      const lit =
+        (k === 'B' && c.tenKeyBuffer === 'B') ||
+        (k === '1' && (c.tenKeyBuffer === '1' || c.car.has(5))) ||
+        (k === '0' && c.car.has(14)) ||
+        (/^[2-9]$/.test(k) && c.car.has(Number(k) + 4));
+      if (btn.userData.lastLit !== lit && btn.material?.emissive) {
+        btn.userData.lastLit = lit;
+        btn.material.color.setHex(lit ? 0xe6b36b : 0x8e9aa3);
+        btn.material.emissive.setHex(lit ? 0xffb04d : 0x000000);
+        btn.material.emissiveIntensity = lit ? 0.45 : 0;
+      }
     }
 
     for (const o of this.pickables) {
@@ -1028,10 +1458,17 @@ export class LiftScene {
       o.material.emissive.setHex(selected ? (action === 'hall' ? 0x76cfbf : 0xffb04d) : 0x000000);
       o.material.emissiveIntensity = selected ? 0.45 : 0;
     }
+
+    this.updateViewmodel(c.time);
+    this.updateWeatherParticles(c.time);
   }
 
   render() {
     if (this.controls.enabled) this.controls.update();
-    this.renderer.render(this.scene, this.camera);
+    if (this.postProcessingEnabled && this.composer) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 }

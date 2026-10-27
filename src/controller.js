@@ -57,6 +57,10 @@ export class LiftController {
     this.cabinMusicIndex = 0;
     this.intercomIndex = 0;
     this.intercomActiveUntil = 0;
+    this.tenKeyBuffer = '';
+    this.tenKeyTimer = 0;
+    this.tenKeyDisplay = 'READY';
+    this.tenKeyLastOneCommitAt = -99;
     this.car = new Set();
     this.up = new Set();
     this.down = new Set();
@@ -162,6 +166,179 @@ export class LiftController {
       if (this.cancelCar(n)) cleared++;
     }
     return cleared;
+  }
+
+  commitTenKeyFloor(floorIndex) {
+    if (!valid(floorIndex)) {
+      this.tenKeyBuffer = '';
+      this.tenKeyTimer = 0;
+      this.tenKeyDisplay = 'ERR';
+      return {
+        ok: false,
+        action: 'invalid',
+        display: 'ERR',
+        message: '🔢 [10키 조작반] 유효하지 않은 층 번호입니다.',
+      };
+    }
+    this.tenKeyBuffer = '';
+    this.tenKeyTimer = 0;
+    const res = this.toggleCar(floorIndex, { allowCancel: true });
+    const label = FLOORS[floorIndex];
+    if (floorIndex === 5 && res.action === 'added') {
+      this.tenKeyLastOneCommitAt = this.time;
+    }
+    this.tenKeyDisplay =
+      res.action === 'cancelled'
+        ? `${label}F 취소`
+        : res.action === 'locked'
+          ? `${label}F LOCK`
+          : `${label}F OK`;
+    const eta = this.etaToFloor(floorIndex);
+    const etaStr = eta ? ` (약 ${eta}초)` : '';
+    const message =
+      res.action === 'cancelled'
+        ? `🔢 [10키 조작반] ${label}층 목적지 선택을 취소했습니다.`
+        : res.action === 'locked'
+          ? `🔢 [10키 조작반] ${label}층은 이미 감속 구간에 진입해 취소할 수 없습니다.`
+          : `🔢 [10키 조작반] ${label}층 목적지가 등록되었습니다.${etaStr}`;
+    return {
+      ok: res.ok,
+      action: res.action,
+      floor: floorIndex,
+      floorLabel: label,
+      display: this.tenKeyDisplay,
+      message,
+    };
+  }
+
+  pressTenKey(rawKey) {
+    const key = String(rawKey ?? '').trim().toUpperCase();
+    if (key === 'CLR' || key === 'C' || key === 'CLEAR') {
+      if (this.tenKeyBuffer) {
+        this.tenKeyBuffer = '';
+        this.tenKeyTimer = 0;
+        this.tenKeyDisplay = 'READY';
+        return {
+          ok: true,
+          action: 'cleared_buffer',
+          display: 'READY',
+          message: '🔢 [10키 조작반] 입력 중인 번호를 초기화했습니다.',
+        };
+      }
+      const cleared = this.clearCarCalls();
+      this.tenKeyDisplay = cleared > 0 ? 'ALL CLR' : 'READY';
+      return {
+        ok: true,
+        action: 'cleared_calls',
+        cleared,
+        display: this.tenKeyDisplay,
+        message:
+          cleared > 0
+            ? `🔢 [10키 조작반] 등록된 목적층 호출 ${cleared}건을 모두 취소했습니다.`
+            : '🔢 [10키 조작반] 취소할 목적층 호출이 없습니다.',
+      };
+    }
+
+    if (key === 'B' || key === '*' || key === '-') {
+      if (this.tenKeyBuffer === '1') {
+        this.commitTenKeyFloor(5);
+      }
+      this.tenKeyBuffer = 'B';
+      this.tenKeyTimer = 4.0;
+      this.tenKeyDisplay = 'B-';
+      return {
+        ok: true,
+        action: 'buffer',
+        buffer: 'B',
+        display: 'B-',
+        message: '🔢 [10키 조작반] 지하(B) 선택 · 이어서 1~5 키를 눌러 지하 층(B1~B5)을 선택하세요.',
+      };
+    }
+
+    if (key === 'ENT' || key === '#' || key === 'OK' || key === 'ENTER') {
+      if (this.tenKeyBuffer === '1') {
+        return this.commitTenKeyFloor(5);
+      }
+      if (this.tenKeyBuffer === 'B') {
+        this.tenKeyBuffer = '';
+        this.tenKeyTimer = 0;
+        this.tenKeyDisplay = 'ERR';
+        return {
+          ok: false,
+          action: 'invalid',
+          display: 'ERR',
+          message: '🔢 [10키 조작반] 지하 층 번호(B1~B5)를 함께 입력해 주세요.',
+        };
+      }
+      return {
+        ok: true,
+        action: 'noop',
+        display: this.tenKeyDisplay,
+        message: '🔢 [10키 조작반] 층 번호(1~9, 1→0=10층, B→1~5=지하층)를 입력하세요.',
+      };
+    }
+
+    if (/^[0-9]$/.test(key)) {
+      const digit = Number(key);
+      if (this.tenKeyBuffer === 'B') {
+        if (digit >= 1 && digit <= 5) {
+          return this.commitTenKeyFloor(5 - digit);
+        }
+        this.tenKeyBuffer = '';
+        this.tenKeyTimer = 0;
+        this.tenKeyDisplay = 'ERR';
+        return {
+          ok: false,
+          action: 'invalid',
+          display: 'ERR',
+          message: `🔢 [10키 조작반] 지하 B${digit}층은 존재하지 않습니다. (B1~B5만 가능)`,
+        };
+      }
+
+      if (this.tenKeyBuffer === '1') {
+        if (digit === 0) {
+          return this.commitTenKeyFloor(14); // 10F
+        }
+        if (digit === 1) {
+          return this.commitTenKeyFloor(5); // 1F confirmed immediately
+        }
+        // Commit buffered 1F and then commit the new floor (2F..9F)
+        this.commitTenKeyFloor(5);
+        return this.commitTenKeyFloor(digit + 4);
+      }
+
+      if (digit === 1) {
+        this.tenKeyBuffer = '1';
+        this.tenKeyTimer = 1.05;
+        this.tenKeyDisplay = '1_';
+        return {
+          ok: true,
+          action: 'buffer',
+          buffer: '1',
+          display: '1_',
+          message: '🔢 [10키 조작반] 1 입력 · 0을 이어 누르면 10층, ↵(ENT) 또는 잠시 대기 시 1층이 등록됩니다.',
+        };
+      }
+
+      if (digit === 0) {
+        // If 1F was just auto-committed within 1.8s, upgrade it to 10F seamlessly
+        if (this.time - this.tenKeyLastOneCommitAt <= 1.8 && this.car.has(5)) {
+          this.cancelCar(5);
+          this.tenKeyLastOneCommitAt = -99;
+        }
+        return this.commitTenKeyFloor(14);
+      }
+
+      // Digits 2..9 are unambiguous (2F..9F -> floorIndex 6..13)
+      return this.commitTenKeyFloor(digit + 4);
+    }
+
+    return {
+      ok: false,
+      action: 'unknown',
+      display: this.tenKeyDisplay,
+      message: '🔢 [10키 조작반] 알 수 없는 키 입력입니다.',
+    };
   }
 
   toggleAccessibleMode(force) {
@@ -402,6 +579,17 @@ export class LiftController {
 
   step(dt) {
     this.time += dt;
+    if (this.tenKeyTimer > 0) {
+      this.tenKeyTimer = Math.max(0, this.tenKeyTimer - dt);
+      if (this.tenKeyTimer === 0 && this.tenKeyBuffer) {
+        if (this.tenKeyBuffer === '1') {
+          this.commitTenKeyFloor(5);
+        } else {
+          this.tenKeyBuffer = '';
+          this.tenKeyDisplay = 'READY';
+        }
+      }
+    }
     if (this.state === 'opening') {
       this.door = Math.min(1, this.door + dt / this.doorOpenSeconds);
       if (this.door >= 1) {

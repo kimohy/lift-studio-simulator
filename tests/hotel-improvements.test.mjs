@@ -502,6 +502,11 @@ test('10F excludes rooms 1001/1002 and Room 301 TV has unobstructed line-of-sigh
       '10F should not have any guest room doors (1001/1002 removed)'
     );
     assert.equal(floor10Group.getObjectByName('Floor_side_sign_10'), undefined);
+    assert.equal(
+      floor10Group.getObjectByName('Lobby_reception_desk'),
+      undefined,
+      '10F pool entrance must not spawn a reception desk barrier'
+    );
 
     // 2. Escalator back wall stays <= -2.50 (never protruding into Room 301 west wall at -2.31)
     const scene = new THREE.Scene();

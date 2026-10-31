@@ -60,7 +60,7 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
   sign(
     `Floor_purpose_sign_${FLOORS[floor]}`,
     [meta.signKo, meta.signEn],
-    [0, expanded ? 2.98 : floor === 14 ? 2.84 : 2.67, 3.59],
+    [0, expanded || floor === 14 ? 2.96 : 2.67, 3.59],
     1.8,
     0.52
   );
@@ -125,7 +125,8 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
   if (expanded) return;
 
   // Guest room doors only on 2F–9F (floors 6..13). 10F (floor 14) is the Rooftop Infinity Pool & Sky Bar.
-  if (usage.kind === 'guest' && floor !== 14) {
+  if (usage.kind === 'guest') {
+    if (floor === 14) return;
     const doorPositions = [-1.38, 1.38];
     for (const [i, x] of doorPositions.entries()) {
       const number = (floor - 4) * 100 + i + 1;

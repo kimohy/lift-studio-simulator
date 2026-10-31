@@ -595,19 +595,16 @@ export class LiftScene {
         const header = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.0, 0.12), wallMaterials.guest);
         header.position.set(-1.38, 2.7, 3.68);
         lobby.add(header);
-      } else if (floor === 14 && this.game?.pool) {
+      } else if (floor === 14) {
         const back = lobby.getObjectByName('Vestibule_back_wall');
         lobby.remove(back);
-        for (const [x, width] of [
-          [-1.77, 1.66],
-          [1.77, 1.66],
-        ]) {
-          const m = new THREE.Mesh(new THREE.BoxGeometry(width, 3.2, 0.12), wallMaterials.guest);
+        for (const x of [-2.42, 2.42]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(0.28, 3.2, 0.12), wallMaterials.guest);
           m.position.set(x, 1.6, 3.68);
           lobby.add(m);
         }
-        const header = new THREE.Mesh(new THREE.BoxGeometry(1.88, 0.85, 0.12), wallMaterials.guest);
-        header.position.set(0, 2.775, 3.68);
+        const header = new THREE.Mesh(new THREE.BoxGeometry(5.08, 0.48, 0.12), wallMaterials.guest);
+        header.position.set(0, 2.96, 3.68);
         lobby.add(header);
       }
       if (expanded) {

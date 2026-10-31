@@ -42,7 +42,7 @@ export class RooftopPool {
   }
 
   inGateway(x, z) {
-    return within(x, -0.92, 0.92) && within(z, 3.42, 4.25);
+    return within(x, -2.18, 2.18) && within(z, 3.42, 4.25);
   }
 
   inCorridor(x, z) {
@@ -84,7 +84,7 @@ export class RooftopPool {
   }
 
   canExit(x, z, player) {
-    return within(x, -0.92, 0.92) && within(z, 1.4, 3.42) && player.z <= 3.7;
+    return within(x, -2.18, 2.18) && within(z, 1.4, 3.42) && player.z <= 3.7;
   }
 
   toggleSwim(player) {

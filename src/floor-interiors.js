@@ -8,7 +8,7 @@ const geometry = new THREE.BoxGeometry(1, 1, 1);
 
 const materials = {
   parking: new THREE.MeshStandardMaterial({ color: 0x747d7c, roughness: 0.95 }),
-  lobby: new THREE.MeshStandardMaterial({ color: 0xdfd9c9, roughness: 0.3 }),
+  lobby: new THREE.MeshStandardMaterial({ color: 0xc2bbb0, roughness: 0.48 }),
   guest: new THREE.MeshStandardMaterial({ color: 0x344a51, roughness: 1 }),
   wood: new THREE.MeshStandardMaterial({ color: 0x745341, roughness: 0.6 }),
   gold: new THREE.MeshStandardMaterial({ color: 0xc7aa70, metalness: 0.6, roughness: 0.35 }),
@@ -60,17 +60,9 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
   sign(
     `Floor_purpose_sign_${FLOORS[floor]}`,
     [meta.signKo, meta.signEn],
-    [0, floor === 14 ? 2.86 : 2.67, 3.607],
+    [0, expanded ? 2.98 : floor === 14 ? 2.84 : 2.67, 3.59],
     1.8,
-    0.6
-  );
-  sign(
-    `Floor_side_sign_${FLOORS[floor]}`,
-    [meta.sideKo, meta.sideEn],
-    [-2.468, 2.72, 2.3],
-    1.0,
-    0.48,
-    Math.PI / 2
+    0.52
   );
 
   // Build interactive floor-specific concierge / amenity station on every floor
@@ -87,7 +79,7 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
       // Guest floor central concierge credenza & digital touch bar (between the two guest room doors at x = 0)
       const base = box(`Floor_amenity_credenza_${FLOORS[floor]}`, [0.92, 0.92, 0.24], [0, 0.46, 3.48], materials.wood);
       const top = box(`Floor_amenity_top_${FLOORS[floor]}`, [0.98, 0.045, 0.28], [0, 0.94, 3.48], materials.gold);
-      const disp = box(`Floor_amenity_kiosk_${FLOORS[floor]}`, [0.46, 0.34, 0.04], [0, 1.34, 3.56], materials.black);
+      const disp = box(`Floor_amenity_kiosk_${FLOORS[floor]}`, [0.48, 0.34, 0.04], [0, 1.34, 3.56], materials.black);
       const led = box(`Floor_amenity_led_${FLOORS[floor]}`, [0.84, 0.02, 0.02], [0, 0.98, 3.36], materials.kioskGlow);
       const screen = sign(
         `Floor_amenity_screen_${FLOORS[floor]}`,
@@ -102,25 +94,25 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
         if (pickables) pickables.push(part);
       }
     } else {
-      // Wall-mounted smart concierge / EV terminal on left vestibule wall (x = -2.45, z = 1.48)
+      // Wall-mounted smart concierge / EV terminal on left vestibule wall (x = -2.45, z = 1.42)
       const frame = box(
         `Floor_amenity_kiosk_${FLOORS[floor]}`,
-        [0.05, 0.52, 0.68],
-        [-2.45, 1.36, 1.48],
+        [0.05, 0.48, 0.58],
+        [-2.45, 1.38, 1.42],
         materials.black
       );
       const trim = box(
         `Floor_amenity_trim_${FLOORS[floor]}`,
-        [0.06, 0.04, 0.72],
-        [-2.445, 1.64, 1.48],
+        [0.06, 0.035, 0.62],
+        [-2.445, 1.64, 1.42],
         materials.gold
       );
       const screen = sign(
         `Floor_amenity_screen_${FLOORS[floor]}`,
         [amenitySpec.name, amenitySpec.badge],
-        [-2.418, 1.36, 1.48],
-        0.95,
-        0.65,
+        [-2.418, 1.38, 1.42],
+        0.8,
+        0.64,
         Math.PI / 2
       );
       for (const part of [frame, trim, screen]) {
@@ -132,8 +124,9 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
 
   if (expanded) return;
 
-  if (usage.kind === 'guest') {
-    const doorPositions = floor === 14 ? [-1.68, 1.68] : [-1.38, 1.38];
+  // Guest room doors only on 2F–9F (floors 6..13). 10F (floor 14) is the Rooftop Infinity Pool & Sky Bar.
+  if (usage.kind === 'guest' && floor !== 14) {
+    const doorPositions = [-1.38, 1.38];
     for (const [i, x] of doorPositions.entries()) {
       const number = (floor - 4) * 100 + i + 1;
       if (number === 301) continue;

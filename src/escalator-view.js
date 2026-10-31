@@ -79,8 +79,8 @@ export class EscalatorView {
       box(g, 'Entry_bridge', [0.52, 0.14, 0.7], [-2.54, -0.07, 2.35], stone);
       box(g, 'Exit_platform', [0.8, 0.14, 6.6], [-10.4, -0.07, 4.65], stone);
       box(g, 'Return_corridor', [6.8, 0.14, 2.65], [-7.4, -0.07, 6.625], stone);
-      box(g, 'Escalator_back_wall', [8.6, 3.56, 0.2], [-6.54, 1.75, 8.0], stone);
-      box(g, 'Escalator_front_wall', [8.6, 3.56, 0.16], [-6.54, 1.75, 1.32], stone);
+      box(g, 'Escalator_back_wall', [8.4, 3.56, 0.2], [-6.7, 1.75, 8.0], stone);
+      box(g, 'Escalator_front_wall', [8.4, 3.56, 0.16], [-6.7, 1.75, 1.32], stone);
       box(g, 'Escalator_outer_wall', [0.16, 3.56, 6.88], [-10.88, 1.75, 4.66], stone);
 
       for (const [z, d] of [
@@ -94,8 +94,8 @@ export class EscalatorView {
       if (f === 0) box(g, 'Escalator_shaft_bottom_cap', [8.4, 0.2, 6.9], [-6.7, -0.2, 4.65], stone);
       if (f === 14) box(g, 'Escalator_shaft_top_cap', [8.4, 0.2, 6.9], [-6.7, 3.4, 4.65], stone);
 
-      sign(g, [`${FLOORS[f]}층 · 에스컬레이터`, 'ESCALATORS  ·  ↑ UP / ↓ DOWN'], [-2.46, 2.65, 2.35], Math.PI / 2);
-      sign(g, [`${FLOORS[f]}층 · 복도 →`, 'ELEVATOR & HOTEL →'], [-10.78, 1.85, 6.35], Math.PI / 2);
+      sign(g, [`${FLOORS[f]}F · 에스컬레이터`, 'ESCALATOR'], [-2.46, 2.65, 2.35], Math.PI / 2);
+      sign(g, ['엘리베이터 · 복도 →', 'ELEVATOR & LOBBY'], [-10.78, 1.85, 6.35], Math.PI / 2);
 
       // Direction information belongs on the fixed landing walls, clear of the moving flights.
       for (const [x, rot, east] of [
@@ -104,18 +104,18 @@ export class EscalatorView {
       ]) {
         const up = escalatorLayout(f);
         const upLane =
-          up.start === (east ? -4 : -10) ? (up.upZ < 3 ? '앞쪽 입구' : '뒤쪽 입구') : '반대편 입구';
+          up.start === (east ? -4 : -10) ? (up.upZ < 3 ? '앞쪽' : '뒤쪽') : '맞은편';
         const lower = f > 0 ? escalatorLayout(f - 1) : null;
         const downLane = lower
           ? lower.start === (east ? -4 : -10)
             ? lower.downZ < 3
-              ? '앞쪽 입구'
-              : '뒤쪽 입구'
-            : '반대편 입구'
+              ? '앞쪽'
+              : '뒤쪽'
+            : '맞은편'
           : null;
         const routes = [
-          f < 14 ? `↑ ${FLOORS[f + 1]} · ${upLane}` : '최상층 · TOP FLOOR',
-          f > 0 ? `↓ ${FLOORS[f - 1]} · ${downLane}` : '최하층 · LOWEST FLOOR',
+          f < 14 ? `↑ ${FLOORS[f + 1]}F (${upLane})` : '최상층 · 10F',
+          f > 0 ? `↓ ${FLOORS[f - 1]}F (${downLane})` : '최하층 · B5',
         ];
         sign(g, routes, [x, 1.85, 3.4], rot);
       }

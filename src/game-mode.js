@@ -634,7 +634,7 @@ export class GameMode {
     this.applyCamera();
     this.view.canvas.focus({ preventScroll: true });
     this.view.resize();
-    this.message('호텔에 오신 것을 환영합니다. WASD/방향키 또는 터치 패드로 이동하고 직원·문·엘리베이터 버튼을 클릭하세요.');
+    this.message('그랜드 호텔에 오신 것을 환영합니다. WASD 이동 · 클릭/E 상호작용');
     this.updateHUD();
   }
 
@@ -868,7 +868,7 @@ export class GameMode {
     if (this.player.zone === 'pool') this.stay.completeMilestone('rooftopPool');
 
     this.hoverTime += dt;
-    if (this.hoverTime > 0.1) {
+    if (this.hoverTime > 0.12) {
       this.hoverTime = 0;
       this.updateHUD();
     }
@@ -1271,127 +1271,127 @@ export class GameMode {
     const p = this.player;
     switch (d.action) {
       case 'floorAmenity':
-        return `✨ [${d.amenityName || '층별 컨시어지 스테이션'}] · 클릭해 이용 및 VIP 포인트 획득`;
+        return `✨ ${d.amenityName || '층별 컨시어지'} · 이용하기`;
       case 'roomDoor':
         return `301호 · ${
-          this.room.target ? '문 닫기' : this.stay.canAccess('301') || p.zone === 'room' ? '문 열기' : '키카드 필요'
-        } · 클릭`;
+          this.room.target ? '문 닫기' : this.stay.canAccess('301') || p.zone === 'room' ? '문 열기' : '키카드 필요 (1F 체크인)'
+        }`;
       case 'roomTV':
-        return `스마트 TV (현재: ${this.room.tvMode.toUpperCase()}) · 클릭해 채널/전원 전환`;
+        return `스마트 TV (${this.room.tvMode.toUpperCase()}) · 채널/전원 전환`;
       case 'roomLight':
-        return '객실 조명 스위치 · 클릭해 조명 분위기 전환';
+        return '객실 조명 · 분위기 전환';
       case 'roomCurtain':
-        return `전동 커튼 · 클릭해 ${this.room.curtainTarget ? '닫기' : '열기'}`;
+        return `전동 커튼 · ${this.room.curtainTarget ? '닫기' : '열기'}`;
       case 'roomShower':
-        return `욕실 수전/레인 샤워기 · 클릭해 ${this.room.showerOn ? '잠그기' : '물 틀기'}`;
+        return `레인 샤워기 · ${this.room.showerOn ? '잠그기' : '물 틀기'}`;
       case 'roomBed':
-        return '킹사이즈 침대 · 클릭해 편안히 휴식하기';
+        return '킹사이즈 침대 · 휴식하기';
       case 'roomArmchair':
-        return '창가 라운지 암체어 · 클릭해 앉아서 시티뷰 감상하기 🪑';
+        return '라운지 암체어 · 시티뷰 감상 🪑';
       case 'roomDeskWork':
-        return `워크 데스크 & 노트북 (${this.room.workLaptopOn ? '켜짐' : '대기'}) · 클릭해 착석 및 워크스테이션 사용 💻`;
+        return `워크 데스크 (${this.room.workLaptopOn ? '켜짐' : '대기'}) · 노트북 사용 💻`;
       case 'roomCoffee':
-        return '에스프레소 캡슐 커피 머신 · 클릭해 스페셜티 커피 추출하기 ☕';
+        return '에스프레소 머신 · 커피 추출 ☕';
       case 'roomMinibar':
-        return `미니바 냉장고 · 클릭해 ${this.room.minibarTarget ? '문 닫기' : '음료/와인 꺼내기 🥂'}`;
+        return `미니바 냉장고 · ${this.room.minibarTarget ? '문 닫기' : '음료 꺼내기 🥂'}`;
       case 'roomSafe':
-        return `디지털 객실 금고 · 클릭해 ${this.room.safeTarget ? '잠그기 🔒' : '열기 🔐'}`;
+        return `디지털 금고 · ${this.room.safeTarget ? '잠그기 🔒' : '열기 🔐'}`;
       case 'roomWardrobe':
-        return `오픈 옷장 · 클릭해 ${this.room.wearingRobe ? '외출복으로 갈아입기 👔' : '호텔 배스로브(가운) 착용하기 🥼'}`;
+        return `옷장 · ${this.room.wearingRobe ? '외출복 환복 👔' : '배스로브 착용 🥼'}`;
       case 'roomThermostat':
-        return `스마트 온도조절기 (${this.room.acMode.temp}°C · ${this.room.acMode.mode}) · 클릭해 온도/모드 변경 🌡️`;
+        return `온도조절기 (${this.room.acMode.temp}°C · ${this.room.acMode.mode}) 🌡️`;
       case 'roomAudio':
-        return `블루투스 스피커 (${this.room.audioTrack.label}) · 클릭해 음악 전환/정지 🎵`;
+        return `블루투스 스피커 (${this.room.audioTrack.label}) 🎵`;
       case 'roomMirror':
-        return `욕실 스마트 터치 거울 · 클릭해 김서림 방지 할로 LED 조명 ${this.room.mirrorLit ? '끄기' : '켜기'} 🪞`;
+        return `욕실 터치 거울 · 조명 ${this.room.mirrorLit ? '끄기' : '켜기'} 🪞`;
       case 'roomToilet':
-        return '스마트 비데 양변기 · 클릭해 자동 물내림 & UV 살균 클리닝 🚽';
+        return '스마트 비데 · 물내림 & UV 살균 🚽';
       case 'roomPhone':
-        return '호텔 직통 내선 전화기 · 클릭해 프런트/하우스키핑/컨시어지 통화 ☎️';
+        return '컨시어지 직통 전화 · 서비스 요청 ☎️';
       case 'roomDiffuser':
-        return `아로마 스톤 디퓨저 (${this.room.diffuserScent.label}) · 클릭해 향기 미스트 전환 🌿`;
+        return `아로마 디퓨저 (${this.room.diffuserScent.label}) 🌿`;
       case 'roomSuitcase':
-        return `여행용 하드 캐리어 · 클릭해 ${this.room.suitcaseTarget ? '닫기' : '열어 짐 정리하기'} 🧳`;
+        return `여행용 캐리어 · ${this.room.suitcaseTarget ? '닫기' : '열기'} 🧳`;
       case 'roomPrivacy':
-        return `객실 프라이버시 사인 (${this.room.privacyMode.label}) · 클릭해 방해금지(DND)/객실정비 전환 🔔`;
+        return `객실 사인 (${this.room.privacyMode.label}) 전환 🔔`;
       case 'roomServiceOrder':
-        return '스마트 컨시어지 태블릿 · 클릭해 룸서비스 로봇 배달 주문 🤖';
+        return '컨시어지 태블릿 · 룸서비스 로봇 주문 🤖';
       case 'roomFood':
-        return `룸서비스 트레이 (${this.room.foodItem}) · 클릭해 식사 즐기기 ☕🥐`;
+        return `룸서비스 (${this.room.foodItem}) · 식사하기 ☕🥐`;
       case 'poolSwim':
-        return `루프탑 인피니티 풀 · 클릭해 ${this.pool.inPool(p.x, p.z) ? '데크로 나오기' : '수영장 입수하기 🏊'}`;
+        return `인피니티 풀 · ${this.pool.inPool(p.x, p.z) ? '데크로 나오기' : '입수하기 🏊'}`;
       case 'poolJacuzzi':
-        return `루프탑 온수 자쿠지 스파 · 클릭해 ${this.pool.inJacuzzi(p.x, p.z) ? '월풀 버블 전환' : '온수 스파 입수 ♨️'}`;
+        return `온수 자쿠지 · ${this.pool.inJacuzzi(p.x, p.z) ? '버블 전환' : '입수하기 ♨️'}`;
       case 'poolLight':
-        return `인피니티 풀 컨트롤 패널 (${this.pool.lightMode.label}) · 클릭해 수중 조명/분수 전환 ✨`;
+        return `풀 컨트롤 (${this.pool.lightMode.label}) · 조명/분수 전환 ✨`;
       case 'poolSunbed':
-        return '풀사이드 선베드 / 카바나 · 클릭해 누워서 시티뷰 휴식하기 🏖️';
+        return '선베드 / 카바나 · 휴식하기 🏖️';
       case 'poolBar':
-        return '루프탑 스카이 풀 바 · 클릭해 트로피컬 칵테일/음료 주문하기 🍹';
+        return '스카이 풀 바 · 칵테일/음료 주문 🍹';
       case 'poolTelescope':
-        return `🔭 루프탑 스카이라인 전망 망원경 (${this.telescopeZoom ? '망원경 관측 중 · 클릭 시 복귀' : '클릭해 고배율 파노라마 관측'})`;
+        return `🔭 전망 망원경 · ${this.telescopeZoom ? '기본 시야 복귀' : '파노라마 줌 관측'}`;
       case 'poolSwimmer':
-        return `${d.swimmerName} (${d.statusLabel || '수영 중'}) · 클릭해 인사/대화하기 🏊✨`;
+        return `${d.swimmerName} (${d.statusLabel || '수영 중'}) · 대화하기 🏊`;
       case 'cafeOrder':
         return this.holdingCoffee
-          ? `☕ 들고 있는 [${this.stay.lastCafeItem || '커피'}] 음미하기 (클릭 시 마시기)`
-          : `${d.cafeLabel || 'Grand Café 바 카운터'} · 클릭해 스페셜티 커피 & 베이커리 주문하기 ☕🥐`;
+          ? `☕ [${this.stay.lastCafeItem || '커피'}] 마시기`
+          : `${d.cafeLabel || 'Grand Café'} · 커피 & 베이커리 주문 ☕`;
       case 'escalatorStop':
-        return `🚨 에스컬레이터 비상정지 스위치 (${this.escalators.stopped ? '정지됨 · 클릭해 재가동' : '운행 중 · 클릭해 비상 정지'}) · 클릭`;
+        return `🚨 비상정지 스위치 · ${this.escalators.stopped ? '재가동' : '정지'}`;
       case 'cafeSit':
-        return `${d.cafeLabel || 'Grand Café 테이블'} · 클릭해 착석 후 커피 타임 즐기기 ☕`;
+        return `${d.cafeLabel || '카페 테이블'} · 착석하기 ☕`;
       case 'loungeSit':
-        return `${d.loungeLabel || '로비 라운지 소파'} · 클릭해 착석해 휴식하기 🛋️`;
+        return `${d.loungeLabel || '라운지 소파'} · 휴식하기 🛋️`;
       case 'parkingCar':
-        return `${d.carModel || '주차 차량'} (${d.bayLabel || '주차 구역'}) · 클릭해 스마트키 웰컴 라이트 & 상태 확인 🚗`;
+        return `${d.carModel || '주차 차량'} (${d.bayLabel || '주차장'}) · 스마트키 확인 🚗`;
       case 'otherRoomDoor':
-        return `${d.room}호 · ${this.stay.keycard ? '배정된 객실 아님 (301호 배정)' : '체크인 필요'} · 클릭`;
+        return `${d.room}호 · ${this.stay.keycard ? '배정 객실: 3층 301호' : '1F 체크인 필요'}`;
       case 'staff':
-        return `${d.staffName} · ${d.staffId.startsWith('reception-') ? '클릭해 체크인' : '클릭해 이야기하기'}`;
+        return `${d.staffName} · ${d.staffId.startsWith('reception-') ? '체크인' : '대화하기'}`;
       case 'npc':
-        return `${d.npcName} (${this.npcs.statusLabel(this.npcs.getNPC(d.npcId) || {})}) · 클릭해 대화하기`;
+        return `${d.npcName} (${this.npcs.statusLabel(this.npcs.getNPC(d.npcId) || {})}) · 대화하기`;
       case 'robot':
-        return `${d.robotName} (${this.robot.statusLabel()}) · 클릭해 상호작용/룸서비스 요청`;
+        return `${d.robotName} (${this.robot.statusLabel()}) · 상호작용`;
       case 'stairDoor':
-        return `${FLOORS[d.floorIndex]}층 계단실 문 ${this.stairs.doors[d.floorIndex].target ? '닫기' : '열기'} · 왼쪽 클릭`;
+        return `${FLOORS[d.floorIndex]}층 계단 문 · ${this.stairs.doors[d.floorIndex].target ? '닫기' : '열기'}`;
       case 'automaticDoor':
-        return '호텔 센서형 자동 슬라이딩 유리문 · 접근 시 자동 개폐 🚪✨';
+        return '자동 슬라이딩 도어 · 접근 시 자동 개폐 🚪';
       case 'hall':
-        return `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '올라가기' : '내려가기'} 호출 · 왼쪽 클릭`;
+        return `${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '▲ 상행' : '▼ 하행'} 호출`;
       case 'car':
-        return `${d.accessible ? '♿ 우측 가로형 장애인용 조작반 · ' : ''}${FLOORS[d.floorIndex]}층 ${this.controller.car.has(d.floorIndex) ? '선택 취소 (재클릭)' : '목적층 선택 (문 열림 연장)'} · 왼쪽 클릭`;
+        return `${d.accessible ? '♿ ' : ''}${FLOORS[d.floorIndex]}층 ${this.controller.car.has(d.floorIndex) ? '선택 취소' : '선택'}`;
       case 'tenKey': {
         const k = d.key;
         const desc =
           k === 'B'
-            ? '지하(B) 접두키 (누른 뒤 1~5 입력 시 B1~B5층 선택)'
+            ? '지하(B1~B5) 접두키'
             : k === 'ENT'
-              ? '입력 번호 즉시 확정 (1층 확정)'
+              ? '입력 확정'
               : k === 'CLR'
-                ? '입력 초기화 / 목적층 호출 취소'
+                ? '초기화 / 호출 취소'
                 : k === '0'
-                  ? '10층 선택 (1→0 또는 단독 클릭)'
+                  ? '10층 선택'
                   : k === '1'
-                    ? '1층 (이어서 0 클릭 시 10층, ↵ 클릭 시 1층 확정)'
-                    : `${k}층 목적지 즉시 선택/취소`;
-        return `🔢 반대편 10키 디지털 조작반 [${k}] · ${desc} · 왼쪽 클릭`;
+                    ? '1층 (1→0: 10층)'
+                    : `${k}층 선택/취소`;
+        return `🔢 10키 [${k}] · ${desc}`;
       }
       case 'cabinAccessible':
-        return `♿ 우측 가로형 장애인 배려 운전 버튼 (${this.controller.accessibleMode ? '켜짐 · 문 열림 7.5초 연장' : '꺼짐'}) · 클릭해 전환`;
+        return `♿ 장애인 배려 모드 (${this.controller.accessibleMode ? '켜짐' : '꺼짐'})`;
       case 'cabinLight':
-        return `카 내부 무드 조명 (${this.controller.cabinLightMode.label}) · 클릭해 조명 분위기 변경 💡`;
+        return `💡 무드 조명 (${this.controller.cabinLightMode.label})`;
       case 'cabinFan':
-        return `카 공기청정 환기 시스템 (${this.controller.cabinFanMode.label}) · 클릭해 풍량 변경 🌀`;
+        return `🌀 청정 환기 (${this.controller.cabinFanMode.label})`;
       case 'cabinMusic':
-        return `카 라운지 오디오 (${this.controller.cabinMusicTrack.label}) · 클릭해 배경음악 변경/음소거 🎵`;
+        return `🎵 라운지 오디오 (${this.controller.cabinMusicTrack.label})`;
       case 'cabinIntercom':
-        return `${d.accessible ? '♿ 장애인용 가로 조작반 ' : ''}비상/컨시어지 인터폰 · 클릭해 관제실 통화 연결 🎙️`;
+        return '🎙️ 컨시어지 인터폰 통화';
       case 'cabinVip':
-        return `VIP 직통 운행 스위치 (${this.controller.vipMode ? '켜짐 ★' : '꺼짐 ☆'}) · 클릭해 논스톱 직행 전환`;
+        return `★ VIP 직통 운행 (${this.controller.vipMode ? '켜짐' : '꺼짐'})`;
       case 'cabinMirror':
-        return '엘리베이터 전면 크리스탈 거울 · 클릭해 옷매무새 확인하기 🪞';
+        return '🪞 엘리베이터 거울 확인';
       default:
-        return `${d.accessible ? '♿ 장애인용 가로 조작반 · ' : d.tenKey ? '🔢 반대편 10키 조작반 · ' : ''}${{ open: '문 열림 (연장)', close: '문 닫힘', alarm: '비상 호출' }[d.action]} · 왼쪽 클릭`;
+        return `${d.accessible ? '♿ ' : d.tenKey ? '🔢 ' : ''}${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action]}`;
     }
   }
 
@@ -1432,12 +1432,16 @@ export class GameMode {
       }
     }
 
-    if (this.toastUntil && performance.now() >= this.toastUntil) {
+    const now = performance.now();
+    if (this.toastUntil && now >= this.toastUntil) {
       this.toastUntil = 0;
       if ($('game-toast')) $('game-toast').hidden = true;
     }
 
-    this.renderMinimap();
+    if (now - (this.lastMinimapAt || 0) > 220) {
+      this.lastMinimapAt = now;
+      this.renderMinimap();
+    }
 
     const guideBtn = $('guide-button');
     if (guideBtn) {
@@ -1460,30 +1464,27 @@ export class GameMode {
     let text;
     if (hit) {
       text = this.getActionHint(hit.userData);
-    } else if (p.zone === 'ramp') {
-      text = '차량용 경사로입니다. WASD로 주차장 층 사이를 이동할 수 있습니다.';
-    } else if (p.zone === 'room') {
-      text =
-        '301호 객실입니다. TV·조명·커튼·침대·암체어·노트북·커피머신·미니바·금고·캐리어·전화기·디퓨저·욕실 거울·비데 등을 클릭해 보세요.';
-    } else if (p.zone === 'pool') {
-      text = this.pool.inPool(p.x, p.z)
-        ? '🏊 루프탑 인피니티 풀에서 수영 중입니다! WASD로 헤엄치거나 사다리/수면을 클릭해 데크로 나올 수 있습니다.'
-        : '10층 루프탑 수영장입니다. 인피니티 풀 입수·온수 자쿠지·선베드·스카이 풀 바·수중 조명 패널을 클릭해 즐겨 보세요.';
-    } else if (p.zone === 'escalator') {
-      text = '발판에 올라서면 자동 이동합니다. 출구에서 WASD로 복도로 이동하세요.';
-    } else if (p.zone === 'stairs') {
-      text = 'WASD로 계단을 오르내리세요. 층별 표지를 따라 복도 문을 열 수 있습니다.';
     } else if (p.inDoorway()) {
-      text = '출입문 감지선 위치입니다. 문이 닫히고 출발하려면 엘리베이터 안쪽이나 승강장으로 한 걸음 이동하세요.';
+      text = '출입문 감지선 · 안쪽이나 승강장으로 한 걸음 이동하세요';
     } else if (p.zone === 'cabin') {
       text =
         c.state === 'moving'
-          ? `엘리베이터가 ${FLOORS[c.target ?? c.floor]}층으로 이동 중입니다. 도착 후 문이 열리면 걸어서 내리세요.`
-          : '엘리베이터 안입니다. 층 버튼(재클릭 취소) · ♿우측 가로 조작반 · 💡조명 · 🌀환기 · 🎵음악 · 🎙️인터폰을 이용할 수 있습니다.';
-    } else if (p.floor === 14) {
-      text = '10층입니다. 정면 아치 통로로 걸어가면 루프탑 인피니티 풀 & 스카이 라운지로 이어집니다.';
+          ? `${FLOORS[c.target ?? c.floor]}층으로 이동 중`
+          : '층 버튼 · 10키 패드 · 편의 버튼을 클릭하세요';
+    } else if (p.zone === 'room') {
+      text = '301호 스위트 · 객실 내 가구와 스마트 기기를 클릭해 이용하세요';
+    } else if (p.zone === 'pool') {
+      text = this.pool.inPool(p.x, p.z)
+        ? '🏊 수영 중 · 사다리나 수면을 클릭하면 데크로 나옵니다'
+        : '10F 루프탑 풀 & 스카이 바 · 시설을 클릭해 이용하세요';
+    } else if (p.zone === 'escalator') {
+      text = '에스컬레이터 자동 이동 중';
+    } else if (p.zone === 'stairs') {
+      text = '계단실 · WASD로 층간 이동';
+    } else if (p.zone === 'ramp') {
+      text = '차량 경사로 · WASD로 주차 층간 이동';
     } else {
-      text = '왼쪽 에스컬레이터 · 오른쪽 계단 · 정면/측면 층별 컨시어지 키오스크를 이용할 수 있습니다. [G/Tab] 가이드';
+      text = '대상을 바라보고 클릭 또는 [E] 키로 상호작용';
     }
     $('game-target').textContent = text;
   }

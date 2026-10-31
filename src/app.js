@@ -647,22 +647,31 @@ function updateUI() {
 
   for (const { b, i } of carButtons) {
     const active = c.car.has(i);
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-pressed', String(active));
+    if (b._lastActive !== active) {
+      b._lastActive = active;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
   }
 
   for (const { b, i } of accCarButtons) {
     const active = c.car.has(i);
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-pressed', String(active));
+    if (b._lastActive !== active) {
+      b._lastActive = active;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
   }
 
   if ($('tenkey-display')) {
-    $('tenkey-display').textContent = c.tenKeyBuffer
-      ? `${c.tenKeyBuffer}_`
-      : c.tenKeyDisplay && c.tenKeyDisplay !== 'READY'
-        ? c.tenKeyDisplay
-        : `${FLOORS[c.floor]}F READY`;
+    setText(
+      'tenkey-display',
+      c.tenKeyBuffer
+        ? `${c.tenKeyBuffer}_`
+        : c.tenKeyDisplay && c.tenKeyDisplay !== 'READY'
+          ? c.tenKeyDisplay
+          : `${FLOORS[c.floor]}F READY`
+    );
   }
   for (const { b, key } of tenKeyButtons) {
     const active =
@@ -670,22 +679,35 @@ function updateUI() {
       (key === '1' && (c.tenKeyBuffer === '1' || c.car.has(5))) ||
       (key === '0' && c.car.has(14)) ||
       (/^[2-9]$/.test(key) && c.car.has(Number(key) + 4));
-    b.classList.toggle('active', active);
+    if (b._lastActive !== active) {
+      b._lastActive = active;
+      b.classList.toggle('active', active);
+    }
   }
 
   for (const { b, i, dir } of rowButtons) {
     const active = (dir === 1 ? c.up : c.down).has(i);
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-pressed', String(active));
+    if (b._lastActive !== active) {
+      b._lastActive = active;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
   }
 
   const continuousFloor = c.position / PITCH;
   const subFloorOffset = continuousFloor - c.floor;
   for (const { row, floor, marker } of rowElements) {
     const isCurrent = floor === c.floor;
-    row.classList.toggle('current', isCurrent);
+    if (row._lastCurrent !== isCurrent) {
+      row._lastCurrent = isCurrent;
+      row.classList.toggle('current', isCurrent);
+    }
     if (isCurrent && marker) {
-      marker.style.transform = `translateY(${(-subFloorOffset * 100).toFixed(1)}%)`;
+      const tf = `translateY(${(-subFloorOffset * 100).toFixed(1)}%)`;
+      if (marker._lastTf !== tf) {
+        marker._lastTf = tf;
+        marker.style.transform = tf;
+      }
     }
   }
 
@@ -825,7 +847,7 @@ function frame(now) {
   uiElapsed += dt;
   view?.update(controller);
   view?.render();
-  if (uiElapsed > 0.08) {
+  if (uiElapsed > (game?.active ? 0.22 : 0.08)) {
     updateUI();
     uiElapsed = 0;
   }

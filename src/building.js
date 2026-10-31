@@ -30,9 +30,9 @@ export function floorMeta(index, floorName = '') {
       ...usage,
       desc,
       badge: '루프탑 풀',
-      title: '10층 · 루프탑 인피니티 풀 & 객실',
-      signKo: '10 · 루프탑 수영장 · 객실',
-      signEn: 'ROOFTOP POOL & SUITES',
+      title: '10층 · 루프탑 인피니티 풀 & 스카이 바',
+      signKo: '10F · 루프탑 수영장',
+      signEn: 'ROOFTOP POOL & SKY BAR',
       sideKo: '루프탑 수영장',
       sideEn: 'ROOFTOP POOL',
     };

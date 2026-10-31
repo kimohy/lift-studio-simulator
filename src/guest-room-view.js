@@ -92,12 +92,12 @@ export class GuestRoomView {
     }
 
     for (const [x, w] of [
-      [-2.17, 0.46],
-      [0.875, 3.45],
+      [-2.16, 0.5],
+      [0.82, 3.34],
     ]) {
-      box(g, 'Room_entry_wall', [w, 3.3, 0.15], [x, 1.65, 4.02], m.wall);
+      box(g, 'Room_entry_wall', [w, 3.3, 0.36], [x, 1.65, 3.915], m.wall);
     }
-    box(g, 'Room_entry_header', [1.06, 1.0, 0.15], [-1.38, 2.8, 4.02], m.wall);
+    box(g, 'Room_entry_header', [1.06, 1.0, 0.36], [-1.38, 2.8, 3.915], m.wall);
 
     for (const x of [-2.02, 2.02]) {
       box(g, 'Window_side_pier', [0.76, 3.3, 0.16], [x, 1.65, 13.8], m.wall);
@@ -230,9 +230,17 @@ export class GuestRoomView {
     this.corridorPrivacyLed.userData = { ...privacyData };
     pickables.push(this.corridorPrivacyLed);
 
-    // Luxury Open Wardrobe, Bathrobe, Minibar & Digital Safe Credenza on West Wall (x = -2.02, z = 5.4..7.2)
-    box(g, 'Wardrobe_credenza_unit', [0.56, 2.15, 0.86], [-2.02, 1.075, 5.45], m.wood, true);
-    box(g, 'Wardrobe_interior_recess', [0.48, 1.25, 0.78], [-1.96, 1.44, 5.45], m.dark);
+    // Luxury Open Wardrobe, Bathrobe, Minibar & Digital Safe Credenza on West Wall (x = -2.02, z = 5.02..7.125)
+    // Open-front cabinet frame so the interior bathrobe and safe are not buried inside a solid cube
+    room.addObstacle(-2.3, -1.74, 5.02, 5.88);
+    box(g, 'Wardrobe_credenza_unit', [0.08, 2.15, 0.86], [-2.26, 1.075, 5.45], m.wood);
+    for (const wz of [5.04, 5.86]) {
+      box(g, 'Wardrobe_side_panel', [0.56, 2.15, 0.04], [-2.02, 1.075, wz], m.wood);
+    }
+    box(g, 'Wardrobe_base_plinth', [0.56, 0.46, 0.86], [-2.02, 0.23, 5.45], m.wood);
+    box(g, 'Wardrobe_mid_shelf', [0.54, 0.04, 0.82], [-2.01, 0.8, 5.45], m.wood);
+    box(g, 'Wardrobe_top_crown', [0.56, 0.08, 0.86], [-2.02, 2.11, 5.45], m.wood);
+    box(g, 'Wardrobe_interior_recess', [0.04, 1.24, 0.78], [-2.2, 1.44, 5.45], m.dark);
     box(g, 'Wardrobe_hanging_rod', [0.025, 0.025, 0.74], [-1.95, 1.98, 5.45], m.gold);
 
     // Interactive Plush Hotel Bathrobe & Slippers inside Wardrobe
@@ -245,24 +253,12 @@ export class GuestRoomView {
     makePickable(box(this.bathrobeGroup, 'Bathrobe_hanger', [0.03, 0.08, 0.34], [0, 0.44, 0], m.gold), wardrobeData);
     makePickable(box(this.bathrobeGroup, 'Bathrobe_torso', [0.16, 0.78, 0.38], [0, 0.02, 0], m.linen), wardrobeData);
     makePickable(box(this.bathrobeGroup, 'Bathrobe_belt', [0.17, 0.06, 0.4], [0, 0.05, 0], m.gold), wardrobeData);
-    makePickable(
-      sign(
-        g,
-        'Wardrobe_label',
-        ['BATHROBE & SLIPPERS', '클릭해 호텔 가운 착용 🥼'],
-        [-1.73, 2.06, 5.45],
-        0.38,
-        0.13,
-        Math.PI / 2
-      ),
-      wardrobeData
-    );
 
     // Interactive Digital Safe in lower wardrobe compartment
     const safeData = { action: 'roomSafe', floorIndex: 7, dynamic: true };
-    makePickable(box(g, 'Digital_safe_box', [0.44, 0.28, 0.46], [-1.92, 0.62, 5.45], m.black), safeData);
+    makePickable(box(g, 'Digital_safe_box', [0.42, 0.28, 0.46], [-1.95, 0.62, 5.45], m.black), safeData);
     this.safeDoorPivot = new THREE.Group();
-    this.safeDoorPivot.position.set(-1.7, 0.62, 5.23);
+    this.safeDoorPivot.position.set(-1.73, 0.62, 5.23);
     this.safeDoorPivot.userData.dynamic = true;
     g.add(this.safeDoorPivot);
     makePickable(
@@ -270,30 +266,37 @@ export class GuestRoomView {
       safeData
     );
     makePickable(
-      box(this.safeDoorPivot, 'Safe_keypad', [0.035, 0.09, 0.12], [0.01, 0.02, 0.32], m.gold),
+      box(this.safeDoorPivot, 'Safe_keypad', [0.035, 0.09, 0.12], [0.015, 0.02, 0.32], m.gold),
       safeData
     );
 
     // Minibar Counter, Mini Fridge & Espresso Capsule Machine (x = -2.02, z = 6.55)
-    box(g, 'Minibar_counter_cabinet', [0.56, 0.88, 1.15], [-2.02, 0.44, 6.55], m.wood, true);
+    // Open-front cabinet housing around the glass-door minibar cavity
+    room.addObstacle(-2.3, -1.74, 5.975, 7.125);
+    box(g, 'Minibar_counter_cabinet', [0.1, 0.88, 1.15], [-2.25, 0.44, 6.55], m.wood);
+    for (const mz of [6.12, 6.98]) {
+      box(g, 'Minibar_side_pillar', [0.56, 0.88, 0.29], [-2.02, 0.44, mz], m.wood);
+    }
+    box(g, 'Minibar_base_plinth', [0.56, 0.1, 1.15], [-2.02, 0.05, 6.55], m.wood);
+    box(g, 'Minibar_top_apron', [0.56, 0.14, 1.15], [-2.02, 0.81, 6.55], m.wood);
     box(g, 'Minibar_stone_top', [0.6, 0.05, 1.2], [-2.0, 0.9, 6.55], m.stone);
 
     const minibarData = { action: 'roomMinibar', floorIndex: 7, dynamic: true };
-    makePickable(box(g, 'Minibar_fridge_cavity', [0.46, 0.64, 0.56], [-1.92, 0.42, 6.55], m.black), minibarData);
-    makePickable(box(g, 'Minibar_interior_light', [0.4, 0.54, 0.48], [-1.94, 0.42, 6.55], m.fridgeLight), minibarData);
+    makePickable(box(g, 'Minibar_fridge_cavity', [0.06, 0.64, 0.56], [-2.17, 0.42, 6.55], m.black), minibarData);
+    makePickable(box(g, 'Minibar_interior_light', [0.02, 0.54, 0.48], [-2.12, 0.42, 6.55], m.fridgeLight), minibarData);
     for (const [bz, matCol] of [
       [6.42, m.emerald],
       [6.55, m.red],
       [6.68, m.gold],
     ]) {
-      makePickable(cylinder('Minibar_bottle', 0.038, 0.22, [-1.88, 0.34, bz], matCol), minibarData);
+      makePickable(cylinder('Minibar_bottle', 0.038, 0.22, [-1.92, 0.34, bz], matCol), minibarData);
     }
     this.minibarDoorPivot = new THREE.Group();
-    this.minibarDoorPivot.position.set(-1.71, 0.42, 6.26);
+    this.minibarDoorPivot.position.set(-1.73, 0.42, 6.26);
     this.minibarDoorPivot.userData.dynamic = true;
     g.add(this.minibarDoorPivot);
     makePickable(
-      box(this.minibarDoorPivot, 'Minibar_glass_door', [0.03, 0.66, 0.56], [0, 0, 0.28], m.glass),
+      box(this.minibarDoorPivot, 'Minibar_glass_door', [0.03, 0.64, 0.56], [0, 0, 0.28], m.glass),
       minibarData
     );
     makePickable(
@@ -308,18 +311,6 @@ export class GuestRoomView {
     makePickable(cylinder('Espresso_cup_saucer', 0.065, 0.015, [-1.83, 0.935, 6.35], m.linen), coffeeData);
     makePickable(cylinder('Espresso_porcelain_cup', 0.042, 0.065, [-1.83, 0.97, 6.35], m.linen), coffeeData);
     makePickable(box(g, 'Capsule_display_box', [0.18, 0.04, 0.22], [-1.92, 0.94, 6.78], m.gold), coffeeData);
-    makePickable(
-      sign(
-        g,
-        'Coffee_bar_sign',
-        ['ESPRESSO & MINIBAR', '커피 머신 · 미니바 ☕🥂'],
-        [-2.27, 1.48, 6.55],
-        0.52,
-        0.16,
-        Math.PI / 2
-      ),
-      coffeeData
-    );
     this.coffeeSteam = cylinder('Espresso_steam_wisp', 0.03, 0.14, [-1.83, 1.06, 6.35], m.steam);
     this.coffeeSteam.userData.dynamic = true;
     this.coffeeSteam.visible = false;
@@ -428,39 +419,51 @@ export class GuestRoomView {
     this.diffuserMistMesh.userData = { ...diffuserData };
     this.diffuserMistMesh.visible = false;
 
-    // Interactive Smart Wall TV
+    // Interactive Smart Wall TV — mounted on a wall bracket well clear of the west wall surface (x = -2.31)
     const tvData = { action: 'roomTV', floorIndex: 7 };
-    makePickable(box(g, 'Wall_TV', [0.045, 0.85, 1.35], [-2.28, 1.65, 8.6], m.black), tvData);
+    box(g, 'TV_wall_mount', [0.09, 0.36, 0.65], [-2.26, 1.65, 8.6], m.dark);
+    box(g, 'TV_gold_bezel', [0.03, 0.9, 1.46], [-2.21, 1.65, 8.6], m.gold);
+    makePickable(box(g, 'Wall_TV', [0.045, 0.86, 1.42], [-2.19, 1.65, 8.6], m.black), tvData);
+    const tvMatOpts = {
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    };
     this.tvMaterials = {
-      welcome: new THREE.MeshBasicMaterial({ map: hotelSignTexture(['GRAND HOTEL', 'Welcome · Room 301']) }),
+      welcome: new THREE.MeshBasicMaterial({
+        map: hotelSignTexture(['GRAND HOTEL', 'WELCOME · SUITE 301']),
+        ...tvMatOpts,
+      }),
       cinema: new THREE.MeshBasicMaterial({
         map: hotelSignTexture(['HOTEL CINEMA', '★ Grand Budapest Night']),
         color: 0xffe4b8,
+        ...tvMatOpts,
       }),
       lounge: new THREE.MeshBasicMaterial({
-        map: hotelSignTexture(['JAZZ LOUNGE ♬', 'Chill Night Ambience']),
+        map: hotelSignTexture(['JAZZ LOUNGE ♬', 'Smooth Night Ambience']),
         color: 0xb6f0e2,
+        ...tvMatOpts,
       }),
-      off: new THREE.MeshBasicMaterial({ color: 0x0c1113 }),
+      off: new THREE.MeshBasicMaterial({ color: 0x0c1113, ...tvMatOpts }),
     };
-    this.tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(1.28, 0.73), this.tvMaterials.welcome);
+    this.tvScreen = new THREE.Mesh(new THREE.PlaneGeometry(1.34, 0.76), this.tvMaterials.welcome);
     this.tvScreen.name = 'TV_welcome';
     this.tvScreen.userData.dynamic = true;
-    this.tvScreen.position.set(-2.247, 1.65, 8.6);
+    this.tvScreen.position.set(-2.162, 1.65, 8.6);
     this.tvScreen.rotation.y = Math.PI / 2;
     g.add(this.tvScreen);
     makePickable(this.tvScreen, { ...tvData, dynamic: true });
 
-    // Bathroom with an open doorway, vanity, mirror, shower and toilet.
+    // Bathroom with an open doorway, vanity, mirror, shower and toilet (full ceiling height 3.24m).
     box(g, 'Bathroom_tile_floor', [1.85, 0.012, 3.05], [1.37, 0.012, 5.6], m.stone);
     for (const [z, len] of [
       [4.57, 1.05],
       [6.64, 1.16],
     ]) {
-      box(g, 'Bathroom_partition', [0.14, 2.9, len], [0.42, 1.45, z], m.wall, true);
+      box(g, 'Bathroom_partition', [0.14, 3.24, len], [0.42, 1.62, z], m.wall, true);
     }
-    box(g, 'Bathroom_door_header', [0.14, 0.6, 1.05], [0.42, 2.6, 5.58], m.wall);
-    box(g, 'Bathroom_rear_partition', [1.9, 2.9, 0.12], [1.35, 1.45, 7.25], m.wall, true);
+    box(g, 'Bathroom_door_header', [0.14, 0.94, 1.05], [0.42, 2.77, 5.58], m.wall);
+    box(g, 'Bathroom_rear_partition', [1.96, 3.24, 0.12], [1.33, 1.62, 7.25], m.wall, true);
     box(g, 'Vanity_cabinet', [0.64, 0.78, 0.68], [1.94, 0.39, 6.72], m.wood, true);
     box(g, 'Vanity_counter', [0.69, 0.06, 0.72], [1.94, 0.83, 6.72], m.stone);
 

@@ -1487,29 +1487,34 @@ body.paused #viewport {
 
 #game-target {
   position: absolute;
-  bottom: 76px;
+  bottom: 72px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 8px 13px;
-  border: 1px solid #736b5d;
-  border-radius: 6px;
-  background: #292d27e0;
-  color: #e8e4d8;
-  font-size: 12px;
+  padding: 8px 16px;
+  border: 1px solid rgba(180, 198, 190, 0.35);
+  border-radius: 8px;
+  background: rgba(14, 24, 30, 0.86);
+  backdrop-filter: blur(6px);
+  color: #e4efe9;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
   text-align: center;
-  max-width: 90%;
+  max-width: min(88%, 560px);
   width: max-content;
-  line-height: 1.6;
+  line-height: 1.45;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   transition: background-color 0.15s, border-color 0.15s, transform 0.12s;
 }
 
 #game-target.actionable {
   pointer-events: auto;
   cursor: pointer;
-  border-color: var(--accent);
-  background: #1b382feb;
-  color: #eafff4;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  border-color: #6ee7c2;
+  background: rgba(16, 42, 36, 0.94);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(110, 231, 194, 0.25);
 }
 
 #game-target.actionable:active {

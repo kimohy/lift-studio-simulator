@@ -27,18 +27,18 @@ export class HotelScene {
       new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
     this.m = {
-      marble: mat(0xded8c9, 0.28),
-      wall: mat(0xc6bdab, 0.8),
+      marble: mat(0xc2bbb0, 0.48),
+      wall: mat(0xb2a999, 0.86),
       wood: mat(0x60422f, 0.55),
-      gold: mat(0xbfa16a, 0.3, 0.75),
-      metal: mat(0x869496, 0.25, 0.8),
+      gold: mat(0xbfa16a, 0.34, 0.72),
+      metal: mat(0x869496, 0.28, 0.78),
       concrete: mat(0x8b918e, 0.93),
       asphalt: mat(0x3c4544, 0.94),
       black: mat(0x202a2c, 0.9),
       fabric: mat(0x436467, 0.96),
       leaf: mat(0x3f6542, 0.95),
       red: mat(0xad3d30, 0.65),
-      white: mat(0xefeee3, 0.65),
+      white: mat(0xd8d5c8, 0.72),
       glass: new THREE.MeshPhysicalMaterial({
         color: 0x8eafb5,
         metalness: 0.18,
@@ -49,9 +49,9 @@ export class HotelScene {
         side: THREE.DoubleSide,
       }),
       warm: new THREE.MeshStandardMaterial({
-        color: 0xffe6b6,
-        emissive: 0xffc47b,
-        emissiveIntensity: 0.65,
+        color: 0xf2d4a0,
+        emissive: 0xd69e58,
+        emissiveIntensity: 0.32,
       }),
       yellow: new THREE.MeshBasicMaterial({ color: 0xdfc25c }),
     };
@@ -148,7 +148,7 @@ export class HotelScene {
       return seed / 4294967296;
     };
     for (const [key, base] of [
-      ['marble', 215],
+      ['marble', 178],
       ['concrete', 145],
       ['asphalt', 61],
     ]) {
@@ -184,20 +184,23 @@ export class HotelScene {
   }
 
   connector(g, f) {
+    const wallMat = f === 5 ? this.m.wall : this.m.concrete;
     this.box(g, 'Connecting_corridor_floor', [5.08, 0.14, 4.9], [0, -0.07, 5.85], f === 5 ? this.m.marble : this.m.concrete);
     for (const x of [-2.54, 2.54]) {
-      this.box(g, 'Connecting_corridor_wall', [0.12, 3.3, 4.4], [x, 1.65, 5.9], f === 5 ? this.m.wall : this.m.concrete);
+      this.box(g, 'Connecting_corridor_wall', [0.12, 3.3, 4.4], [x, 1.65, 5.9], wallMat);
     }
     this.box(g, 'Connecting_corridor_ceiling', [5.2, 0.12, 4.9], [0, 3.28, 5.85], this.m.wall);
+    this.box(g, 'Corridor_entry_lintel', [5.08, 0.48, 0.16], [0, 3.02, 3.68], wallMat);
+    this.box(g, 'Corridor_exit_lintel', [5.2, 0.52, 0.18], [0, 3.0, 8.0], wallMat);
     for (const z of [4.5, 6.9]) {
       this.box(g, 'Corridor_ceiling_light', [1.4, 0.025, 0.2], [0, 3.2, z], this.m.warm);
     }
     this.sign(
       g,
       'Wayfinding_to_main_space',
-      [f === 5 ? '리셉션 ←  로비  → 카페' : `${FLOORS[f]} · 주차장`, 'ELEVATOR & STAIRS  ↕'],
-      [0, 2.63, 7.95],
-      [2.35, 0.55]
+      [f === 5 ? '← 리셉션 · 로비 · 카페 →' : `${FLOORS[f]} · 지하 주차장`, f === 5 ? 'RECEPTION · LOBBY · CAFÉ' : 'PARKING GARAGE'],
+      [0, 2.98, 7.89],
+      [2.2, 0.48]
     );
   }
 
@@ -234,8 +237,8 @@ export class HotelScene {
     for (const x of [-11.8, -8, -4, -1.3, 1.3, 4, 8, 11.8]) {
       this.box(g, 'Window_mullion', [0.06, 3.35, 0.12], [x, 1.675, 26], m.metal);
     }
-    this.box(g, 'Glass_entry_header', [2.6, 0.3, 0.08], [0, 3.15, 26], m.metal);
-    this.sign(g, 'Hotel_brand', ['GRAND HOTEL', '로비 · LOBBY'], [0, 2.68, 25.9], [3.4, 0.68]);
+    this.box(g, 'Glass_entry_header', [2.9, 0.38, 0.16], [0, 3.19, 26], m.metal);
+    this.sign(g, 'Hotel_brand', ['GRAND HOTEL', '로비 · LOBBY'], [0, 3.18, 25.9], [2.8, 0.48]);
 
     for (const x of [-9, 9]) {
       for (const z of [9, 24]) {
@@ -941,16 +944,19 @@ export class HotelScene {
   }
 
   update(time, player) {
-    for (const s of this.staff) {
-      s.head.rotation.z = Math.sin(time * 0.8 + s.phase) * 0.025;
-      s.arms[0].rotation.z = -0.08 + Math.sin(time + s.phase) * 0.025;
-      const age = time - (s.waveStart ?? -100);
-      const remaining = s.waveUntil - time;
-      const wave = remaining > 0 ? Math.max(0, Math.min(1, age / 0.45, remaining / 0.6)) : 0;
-      s.arms[1].rotation.z = 0.08 + wave * 0.87;
-      s.elbows[1].rotation.z = wave * (1.8 + Math.sin(age * 6) * 0.1);
-      s.elbows[1].rotation.x = 0.2 * wave;
-      s.head.rotation.x = -0.07 * wave;
+    if (!this.root.visible) return;
+    if (this.floors[5]?.visible) {
+      for (const s of this.staff) {
+        s.head.rotation.z = Math.sin(time * 0.8 + s.phase) * 0.025;
+        s.arms[0].rotation.z = -0.08 + Math.sin(time + s.phase) * 0.025;
+        const age = time - (s.waveStart ?? -100);
+        const remaining = s.waveUntil - time;
+        const wave = remaining > 0 ? Math.max(0, Math.min(1, age / 0.45, remaining / 0.6)) : 0;
+        s.arms[1].rotation.z = 0.08 + wave * 0.87;
+        s.elbows[1].rotation.z = wave * (1.8 + Math.sin(age * 6) * 0.1);
+        s.elbows[1].rotation.x = 0.2 * wave;
+        s.head.rotation.x = -0.07 * wave;
+      }
     }
     for (const c of this.cars) {
       const mat = c.userData?.headlampMat;
@@ -964,10 +970,15 @@ export class HotelScene {
     }
   }
 
-  updateVisibility(floor, game, exterior) {
+  updateVisibility(floor, game, exterior, player = null) {
     this.root.visible = game || exterior;
+    const inMainLobby = game && floor === 5 && player?.zone === 'lobby' && (player?.x ?? 0) < 10.5 && (player?.z ?? 12) < 25;
     for (const g of this.floors) {
-      g.visible = exterior ? g.userData.floorIndex >= 4 : Math.abs(g.userData.floorIndex - floor) <= 1;
+      g.visible = exterior
+        ? g.userData.floorIndex >= 4
+        : inMainLobby
+          ? g.userData.floorIndex === 5
+          : Math.abs(g.userData.floorIndex - floor) <= 1;
     }
     this.exterior.visible = exterior || (game && floor === 5);
   }

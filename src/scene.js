@@ -23,30 +23,30 @@ export const TIME_OF_DAY_MODES = [
   {
     id: 'day',
     label: '☀️ 주간',
-    sky: 0xb7cbd6,
-    hemiSky: 0xe1efff,
-    hemiGround: 0x3a4144,
-    hemiIntensity: 1.4,
-    keyColor: 0xffedcc,
-    keyIntensity: 2.0,
-    fillColor: 0xb4dbff,
-    fillIntensity: 1.0,
-    exposure: 1.05,
-    bloomStrength: 0.2,
+    sky: 0x9ab0be,
+    hemiSky: 0xd2e0eb,
+    hemiGround: 0x2a3136,
+    hemiIntensity: 0.78,
+    keyColor: 0xffe6c2,
+    keyIntensity: 1.05,
+    fillColor: 0x9ec0de,
+    fillIntensity: 0.45,
+    exposure: 0.82,
+    bloomStrength: 0.08,
   },
   {
     id: 'sunset',
     label: '🌅 노을',
-    sky: 0xd48c6f,
-    hemiSky: 0xffcda2,
-    hemiGround: 0x3b2b2d,
-    hemiIntensity: 1.15,
+    sky: 0xc27e63,
+    hemiSky: 0xf0be95,
+    hemiGround: 0x322527,
+    hemiIntensity: 0.72,
     keyColor: 0xff934f,
-    keyIntensity: 1.7,
-    fillColor: 0xd499b9,
-    fillIntensity: 0.85,
-    exposure: 0.98,
-    bloomStrength: 0.34,
+    keyIntensity: 0.95,
+    fillColor: 0xc48da9,
+    fillIntensity: 0.42,
+    exposure: 0.8,
+    bloomStrength: 0.12,
   },
   {
     id: 'night',
@@ -54,13 +54,13 @@ export const TIME_OF_DAY_MODES = [
     sky: 0x0d1824,
     hemiSky: 0x4f729c,
     hemiGround: 0x161f29,
-    hemiIntensity: 0.72,
+    hemiIntensity: 0.52,
     keyColor: 0x82b0ff,
-    keyIntensity: 0.65,
+    keyIntensity: 0.48,
     fillColor: 0x416788,
-    fillIntensity: 0.55,
-    exposure: 0.9,
-    bloomStrength: 0.46,
+    fillIntensity: 0.35,
+    exposure: 0.78,
+    bloomStrength: 0.16,
   },
 ];
 
@@ -117,10 +117,10 @@ export class LiftScene {
     this.lastFloor = -1;
     this.timeOfDayIndex = 0;
     this.weatherIndex = 0;
-    this.postProcessingEnabled = true;
+    this.postProcessingEnabled = false;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(44, 1, 0.08, 250);
+    this.camera = new THREE.PerspectiveCamera(44, 1, 0.1, 220);
     this.scene.add(this.camera);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -128,14 +128,12 @@ export class LiftScene {
       antialias: true,
       alpha: true,
       powerPreference: 'high-performance',
-      logarithmicDepthBuffer: true,
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.15));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 0.82;
     this.renderer.setClearColor(0x111b23, 0);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = false;
 
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
@@ -149,28 +147,20 @@ export class LiftScene {
     this.scene.environment = pmrem.fromScene(env, 0.04).texture;
     env.dispose();
     pmrem.dispose();
-    this.scene.environmentIntensity = 1.2;
+    this.scene.environmentIntensity = 0.55;
 
-    this.hemiLight = new THREE.HemisphereLight(0xe1efff, 0x3a4144, 1.4);
+    this.hemiLight = new THREE.HemisphereLight(0xd2e0eb, 0x2a3136, 0.78);
     this.scene.add(this.hemiLight);
-    this.keyLight = new THREE.DirectionalLight(0xffedcc, 2);
+    this.keyLight = new THREE.DirectionalLight(0xffe6c2, 1.05);
     this.keyLight.position.set(12, 28, 18);
-    this.keyLight.castShadow = true;
-    this.keyLight.shadow.mapSize.set(1024, 1024);
-    this.keyLight.shadow.bias = -0.0005;
-    this.keyLight.shadow.camera.near = 1;
-    this.keyLight.shadow.camera.far = 90;
-    this.keyLight.shadow.camera.left = -24;
-    this.keyLight.shadow.camera.right = 24;
-    this.keyLight.shadow.camera.top = 24;
-    this.keyLight.shadow.camera.bottom = -24;
+    this.keyLight.castShadow = false;
     this.scene.add(this.keyLight);
 
-    this.fillLight = new THREE.DirectionalLight(0xb4dbff, 1);
+    this.fillLight = new THREE.DirectionalLight(0x9ec0de, 0.45);
     this.fillLight.position.set(-5, 3, -5);
     this.scene.add(this.fillLight);
 
-    this.cabinLight = new THREE.PointLight(0xffe8c5, 16, 5, 2);
+    this.cabinLight = new THREE.PointLight(0xffe8c5, 9, 5, 2);
     this.cabinLight.position.set(0, 2, 0);
     this.scene.add(this.cabinLight);
 
@@ -347,25 +337,11 @@ export class LiftScene {
   }
 
   updateWeatherParticles(time = 0) {
-    if (!this.weatherPoints) return;
+    if (!this.weatherPoints || !this.weatherPoints.visible) return;
     const mode = this.weather;
-    const dt = Math.min(0.1, Math.max(0.005, time - (this.weatherPoints.userData.lastTime || time) || 0.016));
-    this.weatherPoints.userData.lastTime = time;
-    const attr = this.weatherPoints.geometry.getAttribute('position');
-    const seeds = this.weatherPoints.userData.seeds;
-    for (let i = 0; i < seeds.length; i++) {
-      let x = attr.getX(i);
-      let y = attr.getY(i);
-      let z = attr.getZ(i);
-      y -= mode.fallSpeed * dt;
-      x += Math.sin(time * 1.2 + seeds[i]) * mode.swayAmp * dt;
-      if (y < -2) {
-        y = 42;
-        x = (Math.sin(seeds[i] * 7.3 + time) * 0.5) * 30;
-      }
-      attr.setXYZ(i, x, y, z);
-    }
-    attr.needsUpdate = true;
+    const fallOffset = (time * mode.fallSpeed) % 18;
+    this.weatherPoints.position.y = -fallOffset;
+    this.weatherPoints.position.x = Math.sin(time * 0.85) * (mode.swayAmp * 0.35);
   }
 
   isVisible(o) {
@@ -398,10 +374,10 @@ export class LiftScene {
   resize() {
     const r = this.canvas.parentElement.getBoundingClientRect();
     if (!r.width || !r.height) return;
-    const pr = Math.min(devicePixelRatio, 1.25, Math.sqrt(2100000 / (r.width * r.height)));
+    const pr = Math.min(devicePixelRatio, 1.15, Math.sqrt(1550000 / (r.width * r.height)));
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(r.width, r.height, false);
-    if (this.composer) {
+    if (this.composer && this.postProcessingEnabled) {
       this.composer.setPixelRatio?.(pr);
       this.composer.setSize(r.width, r.height);
     }
@@ -449,9 +425,9 @@ export class LiftScene {
         const materials = Array.isArray(o.material) ? o.material : [o.material];
         for (const m of materials) {
           if (m.isMeshStandardMaterial) {
-            m.envMapIntensity = 1.1;
-            if (m.name.includes('Rear mirror')) m.roughness = 0.12;
-            if (m.emissiveIntensity > 1) m.emissiveIntensity = 1.1;
+            m.envMapIntensity = 0.65;
+            if (m.name.includes('Rear mirror')) m.roughness = 0.14;
+            if (m.emissiveIntensity > 0.8) m.emissiveIntensity = 0.75;
           }
         }
       }
@@ -465,6 +441,9 @@ export class LiftScene {
     this.weightBase = this.weight.position.clone();
     this.makeDisplay();
     this.makeGameRoom();
+    this.buttonPickables = this.pickables.filter(
+      (o) => o.isMesh && o.material?.color && o.material?.emissive && ['car', 'hall', 'alarm'].includes(o.userData.action)
+    );
 
     for (const s of this.hotelScene?.staff ?? []) s.root.userData.dynamic = true;
     for (const d of this.stairwellView?.doors ?? []) d.userData.dynamic = true;
@@ -503,7 +482,6 @@ export class LiftScene {
       this.escalatorView?.root,
       this.automaticDoors?.root,
       this.hotelScene?.root,
-      this.hotelScene?.exterior,
     ]) {
       root?.traverseVisible((o) => {
         if (o.isMesh) meshes.push(o);
@@ -515,11 +493,11 @@ export class LiftScene {
   getInteraction(ndc, maxDistance = Infinity) {
     if (!this.ready) return null;
     const candidates = this.pickables.filter(
-      (o) => this.isVisible(o) && (!this.game?.active || this.game.accepts(o.userData))
+      (o) => o.visible && this.isVisible(o) && (!this.game?.active || this.game.accepts(o.userData))
     );
     if (!candidates.length) return null;
 
-    this.scene.updateMatrixWorld();
+    if (!this.renderer) this.scene.updateMatrixWorld();
     this.camera.updateMatrixWorld();
     this.ray.setFromCamera(ndc, this.camera);
     this.ray.far = maxDistance;
@@ -534,14 +512,18 @@ export class LiftScene {
     if (!this.cachedStaticOcclusionMeshes) {
       this.rebuildOcclusionCache();
     }
-    const meshes = [...this.cachedStaticOcclusionMeshes];
+    const meshes = this.cachedStaticOcclusionMeshes;
+    const dynamicMeshes = [];
     for (const root of [this.npcView?.root, this.robotView?.root]) {
       root?.traverseVisible((o) => {
-        if (o.isMesh) meshes.push(o);
+        if (o.isMesh) dynamicMeshes.push(o);
       });
     }
 
-    const surfaces = this.ray.intersectObjects(meshes, false);
+    const surfaces = this.ray.intersectObjects(
+      dynamicMeshes.length ? meshes.concat(dynamicMeshes) : meshes,
+      false
+    );
     const first = surfaces.find((h) => this.isVisible(h.object));
     if (!first) return null;
 
@@ -1192,7 +1174,7 @@ export class LiftScene {
     this.rooftopPoolView?.updateVisibility(floor, v === 'game', v === 'exterior' || v === 'shaft');
     this.escalatorView?.updateVisibility(floor, v === 'game');
     this.stairwellView?.updateVisibility(floor, v === 'game');
-    this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior');
+    this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior', this.game?.player);
     this.automaticDoors?.applyVisibility(floor, this.game?.player?.floor);
     this.scene.background =
       v === 'exterior' || (v === 'game' && (floor === 5 || floor === 7 || floor === 14))
@@ -1200,7 +1182,9 @@ export class LiftScene {
         : null;
     if (this.weatherPoints) {
       this.weatherPoints.visible =
-        v === 'exterior' || v === 'shaft' || (v === 'game' && (floor === 5 || floor === 7 || floor === 14));
+        v === 'exterior' ||
+        v === 'shaft' ||
+        (v === 'game' && (floor === 14 || (this.weather.id !== 'clear' && (floor === 5 || floor === 7))));
     }
     this.scene.fog = v === 'exterior' ? new THREE.Fog(tod.sky, 90, 190) : null;
     if (this.gameRoom) {
@@ -1235,7 +1219,16 @@ export class LiftScene {
   update(c) {
     if (!this.ready) return;
     const visibleFloor = this.game?.active ? this.game.player.floor : c.floor;
-    if (visibleFloor !== this.lastFloor) this.applyVisibility(c);
+    const inMainLobby =
+      this.view === 'game' &&
+      visibleFloor === 5 &&
+      this.game?.player?.zone === 'lobby' &&
+      (this.game?.player?.x ?? 0) < 10.5 &&
+      (this.game?.player?.z ?? 12) < 25;
+    if (visibleFloor !== this.lastFloor || inMainLobby !== this.lastInMainLobby) {
+      this.lastInMainLobby = inMainLobby;
+      this.applyVisibility(c);
+    }
 
     this.guestRoomView?.update();
     this.rooftopPoolView?.update(c.time);
@@ -1435,7 +1428,7 @@ export class LiftScene {
       }
     }
 
-    for (const o of this.pickables) {
+    for (const o of this.buttonPickables ?? this.pickables) {
       const action = o.userData.action;
       if (!o.isMesh || !o.material?.color || !o.material?.emissive || !['car', 'hall', 'alarm'].includes(action)) {
         continue;

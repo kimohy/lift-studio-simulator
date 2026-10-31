@@ -469,3 +469,129 @@ test('LiftController pressTenKey controls all 15 floors (B5..10F), 1/10F disambi
   for (let i = 0; i < 60; i++) c.step(0.02); // 1.2s elapsed
   assert.equal(c.car.has(5), true);
 });
+
+test('10F excludes rooms 1001/1002 and Room 301 TV has unobstructed line-of-sight free of wall clipping', async () => {
+  const THREE = await import('three');
+  const { decorateFloor } = await import('../src/floor-interiors.js');
+  const { GuestRoom } = await import('../src/guest-room.js');
+  const { GuestRoomView } = await import('../src/guest-room-view.js');
+  const { EscalatorView } = await import('../src/escalator-view.js');
+
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      width: 256,
+      height: 256,
+      getContext: () => ({
+        fillRect() {},
+        strokeRect() {},
+        fillText() {},
+        createLinearGradient: () => ({ addColorStop() {} }),
+      }),
+    }),
+  };
+
+  try {
+    // 1. 10F (floor 14) must not create 1001 or 1002 doors
+    const floor10Group = new THREE.Group();
+    const floor10Pickables = [];
+    decorateFloor(floor10Group, 14, { expanded: false, pickables: floor10Pickables });
+    assert.equal(
+      floor10Pickables.some((p) => p.userData.action === 'otherRoomDoor'),
+      false,
+      '10F should not have any guest room doors (1001/1002 removed)'
+    );
+    assert.equal(floor10Group.getObjectByName('Floor_side_sign_10'), undefined);
+
+    // 2. Escalator back wall stays <= -2.50 (never protruding into Room 301 west wall at -2.31)
+    const scene = new THREE.Scene();
+    const escView = new EscalatorView(scene);
+    const room = new GuestRoom(new HotelStay());
+    const roomPickables = [];
+    const roomView = new GuestRoomView(scene, room, roomPickables);
+    scene.updateMatrixWorld(true);
+
+    const escFloor7 = escView.root.children.find((g) => g.userData.floorIndex === 7);
+    const escBackWall = escFloor7.getObjectByName('Escalator_back_wall');
+    const escBox = new THREE.Box3().setFromObject(escBackWall);
+    assert.ok(escBox.max.x <= -2.49, `Escalator_back_wall max.x (${escBox.max.x}) must not protrude past -2.50 into Room 301`);
+
+    // 3. Room 301 TV and screen sit cleanly inside the room (> -2.25) and raycast from bed/center hits TV directly
+    const tvScreen = roomView.root.getObjectByName('TV_welcome');
+    assert.ok(tvScreen, 'TV_welcome screen should exist in Room 301');
+    assert.ok(tvScreen.position.x > -2.2, 'TV_welcome should be mounted in front of the west wall');
+
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(0, 7 + 1.65, 8.6),
+      new THREE.Vector3(-1, 0, 0),
+      0,
+      5
+    );
+    const hits = raycaster.intersectObjects([ escFloor7, roomView.root ], true);
+    assert.ok(hits.length > 0, 'Raycast toward west wall at z=8.6 should hit TV');
+    assert.ok(
+      hits[0].object.name === 'TV_welcome' || hits[0].object.name === 'Wall_TV',
+      `First hit should be TV_welcome or Wall_TV, got ${hits[0].object.name}`
+    );
+
+    // 4. Redundant interior wall signs are removed
+    assert.equal(roomView.root.getObjectByName('Wardrobe_label'), undefined);
+    assert.equal(roomView.root.getObjectByName('Coffee_bar_sign'), undefined);
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+
+test('lobby lighting anti-glare calibration and frame-rate optimizations (culling & zero-upload particles)', async () => {
+  const THREE = await import('three');
+  const { HotelScene } = await import('../src/hotel-scene.js');
+  const { HotelWorld } = await import('../src/hotel-world.js');
+
+  const day = TIME_OF_DAY_MODES.find((m) => m.id === 'day');
+  assert.ok(day.exposure <= 0.85, 'Daytime exposure should be calibrated to prevent lobby glare');
+  assert.ok(day.keyIntensity <= 1.1 && day.hemiIntensity <= 0.85, 'Daytime key/hemi lights should be balanced');
+
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      width: 256,
+      height: 256,
+      getContext: () => ({
+        fillRect() {},
+        strokeRect() {},
+        fillText() {},
+        beginPath() {},
+        moveTo() {},
+        bezierCurveTo() {},
+        stroke() {},
+      }),
+    }),
+  };
+  try {
+    const hs = new HotelScene(new THREE.Scene(), new HotelWorld(), []);
+    assert.ok(hs.m.marble.roughness >= 0.45, 'Lobby marble should have satin roughness (>=0.45) to avoid specular glare');
+    assert.ok(hs.m.warm.emissiveIntensity <= 0.35, 'Recessed ceiling downlights should have soft emissive intensity');
+
+    // When player is inside 1F main lobby, B1 underground parking (floor 4) is culled
+    hs.updateVisibility(5, true, false, { zone: 'lobby', x: 0, z: 12 });
+    assert.equal(hs.floors[5].visible, true, '1F lobby should be visible');
+    assert.equal(hs.floors[4].visible, false, 'B1 parking garage should be culled while player is inside 1F main lobby');
+
+    // When player approaches the ramp on 1F, B1 parking becomes visible for seamless ramp descent
+    hs.updateVisibility(5, true, false, { zone: 'lobby', x: 14, z: 30 });
+    assert.equal(hs.floors[4].visible, true, 'B1 parking garage becomes visible when approaching vehicle ramp');
+
+    // Weather particles animate via group transform without per-frame vertex buffer upload
+    const proto = Object.create(LiftScene.prototype);
+    proto.scene = new THREE.Scene();
+    proto.weatherIndex = 2; // rain
+    proto.setupWeatherParticles.call(proto);
+    const posAttr = proto.weatherPoints.geometry.getAttribute('position');
+    const initialVersion = posAttr.version;
+    proto.updateWeatherParticles(2.5);
+    assert.equal(posAttr.version, initialVersion, 'updateWeatherParticles should not re-upload vertex buffer every frame');
+    assert.ok(proto.weatherPoints.position.y < 0, 'weatherPoints should animate via group Y offset');
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});

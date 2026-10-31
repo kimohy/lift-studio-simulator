@@ -2,10 +2,10 @@ export const FLOORS = ['B5', 'B4', 'B3', 'B2', 'B1', '1', '2', '3', '4', '5', '6
 export const PITCH = 3.5;
 
 export const CABIN_LIGHT_MODES = [
-  { id: 'warm', label: '웜 샴페인 골드', color: 0xffe8c5, led: 0xffe2b3, intensity: 16 },
-  { id: 'daylight', label: '크리스탈 데이라이트', color: 0xeaf6ff, led: 0xd8f0ff, intensity: 20 },
-  { id: 'lounge', label: '스카이 라운지 앰비언트', color: 0xc2b8ff, led: 0x9888ff, intensity: 12 },
-  { id: 'night', label: '나이트 무드 디밍', color: 0xffb36b, led: 0xd98a4c, intensity: 8 },
+  { id: 'warm', label: '웜 샴페인 골드', color: 0xffe8c5, led: 0xffe2b3, intensity: 9 },
+  { id: 'daylight', label: '크리스탈 데이라이트', color: 0xeaf6ff, led: 0xd8f0ff, intensity: 11 },
+  { id: 'lounge', label: '스카이 라운지 앰비언트', color: 0xc2b8ff, led: 0x9888ff, intensity: 7.5 },
+  { id: 'night', label: '나이트 무드 디밍', color: 0xffb36b, led: 0xd98a4c, intensity: 5 },
 ];
 
 export const CABIN_FAN_MODES = [

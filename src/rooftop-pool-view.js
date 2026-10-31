@@ -178,21 +178,12 @@ export class RooftopPoolView {
     }
     sign(
       g,
-      'Rooftop_entry_sign',
-      ['10F · 루프탑 인피니티 풀', 'ROOFTOP INFINITY POOL & SKY BAR ↑'],
-      [0, 2.68, 3.58],
-      1.75,
-      0.44,
-      0
-    );
-    sign(
-      g,
       'Rooftop_exit_sign',
-      ['엘리베이터 · 계단 · 에스컬레이터', 'ELEVATORS & STAIRS ↓'],
-      [0, 2.68, 7.95],
-      2.1,
-      0.48,
-      Math.PI
+      ['엘리베이터 · 계단', 'ELEVATORS & STAIRS ↓'],
+      [0, 3.01, 8.11],
+      1.85,
+      0.36,
+      0
     );
 
     // 2. Main Open-Air Rooftop Deck (x: -11.5..11.3, z: 8.0..25.5)
@@ -203,13 +194,14 @@ export class RooftopPoolView {
       box(g, 'Teak_deck_seam', [19.2, 0.005, 0.015], [0, 0.032, z], m.teakDark);
     }
 
-    // Back wall separating rooftop deck from escalator/stairwell shafts at z = 8.0
+    // Back wall separating rooftop deck from escalator/stairwell shafts at z = 8.0 (aligned to 2.8m sliding glass door)
     for (const [x, w] of [
-      [-6.95, 9.1],
-      [6.75, 9.1],
+      [-6.48, 10.04],
+      [6.38, 9.84],
     ]) {
       box(g, 'Rooftop_rear_wall', [w, 3.2, 0.18], [x, 1.6, 8.0], m.stone, true);
     }
+    box(g, 'Rooftop_door_header', [3.12, 0.4, 0.18], [0, 3.0, 8.0], m.stone);
     // Architectural Pergola Canopy over the Bar & Lounge zone (z: 8.0..13.2)
     for (const x of [-9.5, -4.5, 4.5, 9.5]) {
       box(g, 'Pergola_column', [0.22, 3.1, 0.22], [x, 1.55, 12.8], m.teakDark, true);
@@ -310,7 +302,7 @@ export class RooftopPoolView {
       sign(
         g,
         'Pool_light_screen',
-        ['POOL LED & FOUNTAIN', '수중 조명 · 분수 전환 ✨'],
+        ['POOL CONTROL', '수중 조명 · 분수'],
         [-6.45, 0.92, 13.94],
         0.38,
         0.22,
@@ -335,16 +327,6 @@ export class RooftopPoolView {
     );
     this.jacuzziWater.userData.dynamic = true;
     makePickable(this.jacuzziWater, jacuzziData);
-
-    sign(
-      g,
-      'Jacuzzi_spa_sign',
-      ['WHIRLPOOL SPA ♨️', '온수 자쿠지 · 클릭해 입수/버블'],
-      [8.5, 1.15, 19.35],
-      1.1,
-      0.34,
-      Math.PI
-    );
 
     this.jacuzziBubbles = [];
     for (let i = 0; i < 14; i++) {
@@ -410,7 +392,7 @@ export class RooftopPoolView {
       sign(
         g,
         'Pool_bar_sign',
-        ['SKY POOL BAR 🍹', '클릭해 트로피컬 음료 주문'],
+        ['SKY POOL BAR', 'COCKTAILS & LOUNGE'],
         [-8.4, 2.15, 9.52],
         1.65,
         0.42,

@@ -78,8 +78,9 @@
       <div class="views" role="group" aria-label="카메라 시점">
         <button data-view="lobby" class="selected" aria-pressed="true">승강장</button>
         <button data-view="cabin" aria-pressed="false">탑승</button>
+        <button data-view="mall" aria-pressed="false">쇼핑몰 중정</button>
         <button data-view="shaft" aria-pressed="false">전체 구조</button>
-        <button data-view="exterior" aria-pressed="false">호텔 외관</button>
+        <button data-view="exterior" aria-pressed="false">호텔 · 몰 외관</button>
         <button data-view="controller" aria-pressed="false">제어반</button>
       </div>
 
@@ -190,9 +191,14 @@
         <div class="section-heading">
           <div>
             <span class="eyebrow">CAR OPERATING PANEL</span>
-            <h2>내부 조작반</h2>
+            <h2 id="cop-panel-title">내부 조작반</h2>
           </div>
           <span class="capacity">13인승<br>1,000 kg</span>
+        </div>
+
+        <div class="lift-selector" role="group" aria-label="조작 엘리베이터 선택">
+          <button id="select-hotel-lift" type="button" class="active" aria-pressed="true">🏨 호텔 (B5–10F)</button>
+          <button id="select-mall-lift" type="button" aria-pressed="false">🛍️ 쇼핑몰 (B5–6F)</button>
         </div>
 
         <div class="digital-display">

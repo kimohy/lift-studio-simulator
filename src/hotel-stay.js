@@ -242,6 +242,116 @@ export const TOUR_CHECKLIST = [
   { id: 'rooftopPool', title: '10층 루프탑 인피니티 풀 & 스카이 바 체험' },
 ];
 
+export const MALL_FAST_TRAVEL_SPOTS = [
+  {
+    id: 'mall-atrium',
+    label: '몰 1F · 그랜드 아트리움 & 워터폴 가든',
+    subtitle: '전망 엘리베이터·12m 워터폴 폭포·에스컬레이터 연결 브리지',
+    floor: 5,
+    zone: 'lobby',
+    x: -28.0,
+    z: 9.6,
+    yaw: Math.PI,
+    pitch: -0.04,
+  },
+  {
+    id: 'mall-library',
+    label: '몰 1F~4F · 별마당 아트리움 서가',
+    subtitle: '14m 대형 아트리움 책장·북 라운지 & 문화 공간',
+    floor: 5,
+    zone: 'lobby',
+    x: -43.2,
+    z: 20.0,
+    yaw: Math.PI / 2,
+    pitch: -0.05,
+  },
+  {
+    id: 'mall-skybridge',
+    label: '몰 3F · 플로팅 스카이브리지',
+    subtitle: '6개 층 오픈 보이드 횡단 유리 브리지',
+    floor: 7,
+    zone: 'lobby',
+    x: -31.0,
+    z: 20.0,
+    yaw: 0,
+    pitch: -0.06,
+  },
+  {
+    id: 'mall-forest',
+    label: '몰 6F · 사운즈 포레스트 & 스카이라이트',
+    subtitle: '실내 수목원 정원·보태니컬 파빌리온·주홍 트러스 천창',
+    floor: 10,
+    zone: 'lobby',
+    x: -28.0,
+    z: 13.5,
+    yaw: Math.PI,
+    pitch: -0.05,
+  },
+];
+
+const MALL_INTERACTION_SPECS = {
+  mallWaterfall: {
+    points: 60,
+    energy: 15,
+    item: '워터폴 가든 미스트 & 힐링 패스 💧',
+    message: '💧 [12m 워터폴 가든] 3층에서 1층 리플렉팅 풀로 쏟아지는 폭포와 계단식 테라스 라운지에서 청량한 휴식을 즐깁니다.',
+  },
+  mallLibrary: {
+    points: 65,
+    energy: 12,
+    item: '별마당 아트리움 컬처 북 패스 📚',
+    message: '📚 [14m 별마당 아트리움 서가] 1층부터 4층까지 이어지는 웅장한 원목 서가에서 큐레이션 도서와 아트리움 뷰를 만끽합니다.',
+  },
+  mallCafe: {
+    points: 45,
+    energy: 15,
+    item: '더 현대 시그니처 콜드브루 아인슈페너 ☕',
+    message: '☕ [그랜드 아트리움 로스터리] 수제 스페셜티 원두의 깊은 아로마가 담긴 시그니처 라떼가 제공되었습니다.',
+  },
+  mallShop: {
+    points: 50,
+    energy: 8,
+    item: 'THE GRAND ATRIUM VIP 룩북 🛍️',
+    message: '🛍️ [럭셔리 부티크 & 팝업] 글로벌 디자이너 컬렉션과 시즌 한정 팝업 스튜디오의 VIP 프라이빗 프리뷰를 관람했습니다.',
+  },
+  mallSkybridge: {
+    points: 55,
+    energy: 10,
+    item: '스카이브리지 포토 패스 🌉',
+    message: '🌉 [플로팅 아트리움 스카이브리지] 개방형 보이드 위 유리 브리지에서 1F 워터폴과 6F 천창을 한눈에 조망합니다.',
+  },
+  mallFood: {
+    points: 55,
+    energy: 22,
+    item: '5F 고메 스트리트 테이스팅 코스 🍽️',
+    message: '🍽️ [5F 고메 스트리트] 미쉐린 셀렉션 다이닝과 오픈 키친 셰프의 스페셜 코스를 맛보았습니다. 에너지 +22!',
+  },
+  mallForest: {
+    points: 80,
+    energy: 25,
+    item: '6F 사운즈 포레스트 아로마 패스 🌿',
+    message: '🌿 [6F 사운즈 포레스트] 거대한 주홍 철골 스카이라이트 아래 펼쳐진 실내 숲과 보태니컬 정원에서 완벽한 도심 속 힐링을 경험합니다.',
+  },
+  mallMediaWall: {
+    points: 45,
+    energy: 8,
+    item: '아나모픽 3D 미디어 파사드 쇼 🎞️',
+    message: '🎞️ [아나모픽 3D LED 파사드] 초대형 파라메트릭 웨이브 파사드와 DMX LED 아트리움 조명 쇼가 동기화되어 재생됩니다.',
+  },
+  mallParking: {
+    points: 40,
+    energy: 10,
+    item: '초급속 EV 슈퍼차저 & 발레 패스 ⚡',
+    message: '⚡ [몰 지하주차장 EV 존] 350kW 초급속 충전기와 호텔 B1~B5 직결 지하 통로 안내가 활성화되었습니다.',
+  },
+  mallConcierge: {
+    points: 50,
+    energy: 10,
+    item: '그랜드 아트리움 몰 VIP 바우처 ✨',
+    message: '💁 [몰 컨시어지] "호텔 에스컬레이터 측면 브리지·지하주차장·몰 전용 전망 엘리베이터로 전 구역을 자유롭게 이동하실 수 있습니다!"',
+  },
+};
+
 export class HotelStay {
   constructor() {
     this.keycard = null;
@@ -491,6 +601,24 @@ export class HotelStay {
     return {
       ok: true,
       message: `🚗 [${floorLabel} · ${label}] 스마트키가 반응하며 헤드라이트와 웰컴 라이트가 점등됩니다. 발레파킹 점검 완료 상태입니다.`,
+    };
+  }
+
+  interactMall(action, data = {}) {
+    const spec = MALL_INTERACTION_SPECS[action];
+    if (!spec) {
+      return { ok: false, message: '🛍️ 그랜드 아트리움 몰 시설을 확인했습니다.' };
+    }
+    const floorKey = data.floorIndex ?? '';
+    if (spec.item) this.lastAmenityItem = spec.item;
+    this.addPoints(spec.points, `mall:${action}:${floorKey}`);
+    this.addEnergy(spec.energy);
+    const newlyCompletedQuests = this.evaluateQuests();
+    return {
+      ok: true,
+      item: spec.item,
+      newlyCompletedQuests,
+      message: data.label ? `${spec.message} (${data.label})` : spec.message,
     };
   }
 }

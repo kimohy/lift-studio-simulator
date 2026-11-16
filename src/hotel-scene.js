@@ -589,9 +589,21 @@ export class HotelScene {
     const m = this.m;
     this.box(g, 'Garage_floor', [24.8, 0.18, 28], [-1.6, -0.09, 22], m.concrete);
     this.box(g, 'Garage_ceiling', [24.8, 0.16, 28], [-1.6, 3.34, 22], m.concrete);
-    for (const x of [-14, 10.8]) {
-      this.box(g, 'Garage_outer_wall', [0.18, 3.4, 28], [x, 1.7, 22], m.concrete);
+    // West garage wall (x = -14) opens via two vehicle/pedestrian portals into the Mall underground parking
+    for (const [z, depth] of [
+      [11.25, 6.5],
+      [18.25, 1.9],
+      [30.7, 10.6],
+    ]) {
+      this.box(g, 'Garage_outer_wall', [0.18, 3.4, depth], [-14, 1.7, z], m.concrete);
     }
+    for (const [z, depth] of [
+      [15.9, 2.8],
+      [22.3, 6.2],
+    ]) {
+      this.box(g, 'Garage_mall_portal_lintel', [0.22, 0.75, depth], [-14, 3.025, z], m.concrete);
+    }
+    this.box(g, 'Garage_outer_wall', [0.18, 3.4, 28], [10.8, 1.7, 22], m.concrete);
     for (const [x, width] of [
       [-8.27, 11.46],
       [6.67, 8.26],
@@ -687,6 +699,14 @@ export class HotelScene {
       [0, 2.7, 8.13],
       [2.7, 0.58],
       0
+    );
+    this.sign(
+      g,
+      'Parking_to_mall',
+      ['← 그랜드 몰 지하주차장', 'MALL PARKING & EV ZONE'],
+      [-13.86, 2.95, 22.3],
+      [3.6, 0.6],
+      Math.PI / 2
     );
     this.box(g, 'Ramp_annex_outer_wall', [0.18, 3.5, 24], [23.9, 1.75, 22], m.concrete);
     for (const z of [2.1, 41.9]) {
@@ -869,14 +889,14 @@ export class HotelScene {
     for (const x of [11.7, 16.9]) {
       this.box(g, 'Parking_portal_pier', [0.25, 2.7, 0.4], [x, 1.35, 34], m.concrete);
     }
-    this.box(g, 'City_street', [70, 0.12, 10], [4, -0.06, 53], m.asphalt);
+    this.box(g, 'City_street', [95, 0.12, 10], [-8.5, -0.06, 53], m.asphalt);
     for (const [x, width] of [
-      [-9.6, 42.8],
+      [-22.1, 67.8],
       [27.9, 22.2],
     ]) {
       this.box(g, 'Street_sidewalk', [width, 0.18, 2], [x, 0.03, 47.9], m.concrete);
     }
-    for (let x = -28; x < 39; x += 5) {
+    for (let x = -53; x < 39; x += 5) {
       this.box(g, 'Street_lane_dash', [2.6, 0.012, 0.08], [x, 0.012, 53], m.white);
     }
     for (const [x, z] of [

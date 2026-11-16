@@ -61,3 +61,32 @@ export function floorMeta(index, floorName = '') {
   };
 }
 
+export const MALL_MAX_FLOOR = 10;
+
+const MALL_FLOORS = Object.freeze([
+  { floor: 'B5', ko: '몰 지하주차장 B5', en: 'MALL PARKING B5 · EV ZONE', zone: 'parking' },
+  { floor: 'B4', ko: '몰 지하주차장 B4', en: 'MALL PARKING B4 · HOTEL LINK', zone: 'parking' },
+  { floor: 'B3', ko: '몰 지하주차장 B3', en: 'MALL PARKING B3', zone: 'parking' },
+  { floor: 'B2', ko: '몰 지하주차장 B2', en: 'MALL PARKING B2 · SUPERCHARGER', zone: 'parking' },
+  { floor: 'B1', ko: '몰 지하주차장 B1', en: 'MALL PARKING B1 · VALET & PICKUP', zone: 'parking' },
+  { floor: '1F', ko: '1F 그랜드 아트리움 · 워터폴 가든', en: 'GRAND ATRIUM · WATERFALL GARDEN', zone: 'atrium' },
+  { floor: '2F', ko: '2F 럭셔리 부티크 · 별마당 서가', en: 'LUXURY BOUTIQUE · LIBRARY', zone: 'retail' },
+  { floor: '3F', ko: '3F 스카이브리지 · 라이프스타일', en: 'FLOATING SKYBRIDGE · LIFESTYLE', zone: 'retail' },
+  { floor: '4F', ko: '4F 컬처 서가 · 시네마 라운지', en: 'CULTURE LIBRARY · LOUNGE', zone: 'retail' },
+  { floor: '5F', ko: '5F 고메 스트리트 · 스카이워크', en: 'GOURMET DINING · SKYBRIDGE', zone: 'dining' },
+  { floor: '6F', ko: '6F 사운즈 포레스트 · 하늘정원', en: 'SOUNDS FOREST · ROOFTOP PARK', zone: 'forest' },
+]);
+
+export function mallFloorMeta(index, floorName = '') {
+  const clamped = Math.max(0, Math.min(MALL_MAX_FLOOR, index | 0));
+  const entry = MALL_FLOORS[clamped];
+  return {
+    floor: floorName || entry.floor,
+    ko: entry.ko,
+    en: entry.en,
+    zone: entry.zone,
+    isParking: clamped < 5,
+    isAtrium: clamped >= 5,
+  };
+}
+

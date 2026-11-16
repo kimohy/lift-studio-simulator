@@ -28,17 +28,25 @@ export const CABIN_INTERCOM_RESPONSES = [
   '기술지원팀: "로프 장력·비상 브레이크·도어 광전센서 실시간 원격 모니터링 결과 이상 없습니다. 편안한 탑승 되세요." 🛡️',
 ];
 
-const valid = (n) => Number.isInteger(n) && n >= 0 && n < FLOORS.length;
-
 export class LiftController {
-  constructor() {
+  constructor({ minFloor = 0, maxFloor = FLOORS.length - 1, id = 'hotel', label = '호텔 엘리베이터', startFloor = 5 } = {}) {
+    this.minFloor = minFloor;
+    this.maxFloor = maxFloor;
+    this.id = id;
+    this.label = label;
+    this.startFloor = Math.max(minFloor, Math.min(maxFloor, startFloor));
     this.reset();
   }
 
+  isValidFloor(n) {
+    return Number.isInteger(n) && n >= this.minFloor && n <= this.maxFloor;
+  }
+
   reset() {
-    this.position = 5 * PITCH;
+    const start = this.startFloor ?? 5;
+    this.position = start * PITCH;
     this.velocity = 0;
-    this.floor = 5;
+    this.floor = start;
     this.direction = 0;
     this.target = null;
     this.motion = null;
@@ -72,7 +80,7 @@ export class LiftController {
     this.doorCloseSeconds = 1.7;
     this.maxSpeed = 1.75;
     this.accel = 0.8;
-    this.log('시스템 준비 · 1층 대기');
+    this.log(this.id === 'hotel' ? '시스템 준비 · 1층 대기' : `${this.label} 준비 · ${FLOORS[start]}층 대기`);
   }
 
   get effectiveDwellSeconds() {
@@ -113,12 +121,12 @@ export class LiftController {
   }
 
   callCar(n) {
-    if (!valid(n)) return false;
+    if (!this.isValidFloor(n)) return false;
     return this.add(this.car, n, '내부');
   }
 
   cancelCar(n) {
-    if (!valid(n) || !this.car.has(n)) return false;
+    if (!this.isValidFloor(n) || !this.car.has(n)) return false;
     if (this.state === 'moving' && this.target === n) {
       const braking = (this.velocity * this.velocity) / (2 * this.accel) + 0.08;
       if (Math.abs(n * PITCH - this.position) <= braking) {
@@ -143,7 +151,7 @@ export class LiftController {
   }
 
   toggleCar(n, { allowCancel = false } = {}) {
-    if (!valid(n)) return { ok: false, action: 'invalid', floor: n };
+    if (!this.isValidFloor(n)) return { ok: false, action: 'invalid', floor: n };
     if (allowCancel && this.car.has(n)) {
       const cancelled = this.cancelCar(n);
       return {
@@ -169,7 +177,7 @@ export class LiftController {
   }
 
   commitTenKeyFloor(floorIndex) {
-    if (!valid(floorIndex)) {
+    if (!this.isValidFloor(floorIndex)) {
       this.tenKeyBuffer = '';
       this.tenKeyTimer = 0;
       this.tenKeyDisplay = 'ERR';
@@ -308,6 +316,9 @@ export class LiftController {
       }
 
       if (digit === 1) {
+        if (this.maxFloor < 14) {
+          return this.commitTenKeyFloor(5);
+        }
         this.tenKeyBuffer = '1';
         this.tenKeyTimer = 1.05;
         this.tenKeyDisplay = '1_';
@@ -418,7 +429,7 @@ export class LiftController {
   }
 
   etaToFloor(floorIndex = this.target) {
-    if (!valid(floorIndex)) return null;
+    if (!this.isValidFloor(floorIndex)) return null;
     const goal = floorIndex * PITCH;
     if (Math.abs(goal - this.position) < 0.02) return 0;
     const dir = Math.sign(goal - this.position);
@@ -444,7 +455,7 @@ export class LiftController {
   }
 
   callHall(n, dir) {
-    if (!valid(n) || ![1, -1].includes(dir) || (n === 0 && dir === -1) || (n === 14 && dir === 1)) {
+    if (!this.isValidFloor(n) || ![1, -1].includes(dir) || (n === this.minFloor && dir === -1) || (n === this.maxFloor && dir === 1)) {
       return false;
     }
     return this.add(dir === 1 ? this.up : this.down, n, dir === 1 ? '상행 호출' : '하행 호출');
@@ -671,7 +682,7 @@ export class LiftController {
       }
       this.position = m.start + travelled * this.direction;
       this.velocity = speed * this.direction;
-      this.floor = Math.max(0, Math.min(14, Math.round(this.position / PITCH)));
+      this.floor = Math.max(this.minFloor, Math.min(this.maxFloor, Math.round(this.position / PITCH)));
       if (m.t >= m.total) {
         this.position = this.target * PITCH;
         this.velocity = 0;
@@ -747,10 +758,10 @@ export class LiftController {
   }
 }
 
-export function computeCabinLoad({ gameActive = false, player = null, npcs = null, robot = null } = {}) {
-  const playerInCabin = Boolean(gameActive && player?.zone === 'cabin');
-  const npcRiders = npcs?.npcs ? npcs.npcs.filter((n) => n.zone === 'cabin').length : 0;
-  const robotInCabin = Boolean(robot?.zone === 'cabin');
+export function computeCabinLoad({ gameActive = false, player = null, npcs = null, robot = null, cabinZone = 'cabin' } = {}) {
+  const playerInCabin = Boolean(gameActive && player?.zone === cabinZone);
+  const npcRiders = cabinZone === 'cabin' && npcs?.npcs ? npcs.npcs.filter((n) => n.zone === 'cabin').length : 0;
+  const robotInCabin = Boolean(cabinZone === 'cabin' && robot?.zone === 'cabin');
   const passengers = (playerInCabin ? 1 : 0) + npcRiders;
   const weightKg = (playerInCabin ? 70 : 0) + npcRiders * 68 + (robotInCabin ? 45 : 0);
   const percent = Math.min(100, Math.round((weightKg / 1000) * 100));

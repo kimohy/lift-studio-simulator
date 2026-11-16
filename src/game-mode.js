@@ -1,14 +1,27 @@
-import { floorMeta, floorUsage } from './building.js';
-import { FLOORS } from './controller.js';
+import { floorMeta, floorUsage, MALL_MAX_FLOOR, mallFloorMeta } from './building.js';
+import { FLOORS, LiftController } from './controller.js';
 import { Escalators } from './escalator.js';
 import { GuestRoom } from './guest-room.js';
 import { HotelNPCSystem } from './hotel-npcs.js';
-import { FAST_TRAVEL_SPOTS, HotelStay } from './hotel-stay.js';
-import { HotelWorld } from './hotel-world.js';
+import { FAST_TRAVEL_SPOTS, MALL_FAST_TRAVEL_SPOTS, HotelStay } from './hotel-stay.js';
+import { HotelWorld, MALL_LIFT_X, MALL_LIFT_Z } from './hotel-world.js';
 import { WalkingPlayer } from './player.js';
 import { RooftopPool } from './rooftop-pool.js';
 import { ServiceRobot } from './service-robot.js';
 import { Stairwell } from './stairs.js';
+
+const MALL_ACTIONS = new Set([
+  'mallWaterfall',
+  'mallLibrary',
+  'mallCafe',
+  'mallShop',
+  'mallSkybridge',
+  'mallFood',
+  'mallForest',
+  'mallMediaWall',
+  'mallParking',
+  'mallConcierge',
+]);
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,9 +39,18 @@ const MOVE_KEYS = new Set([
 ]);
 
 export class GameMode {
-  constructor(view, controller) {
+  constructor(view, controller, mallController = null) {
     this.view = view;
     this.controller = controller;
+    this.mallController =
+      mallController ||
+      new LiftController({
+        minFloor: 0,
+        maxFloor: MALL_MAX_FLOOR,
+        id: 'mall',
+        label: '몰 전망 엘리베이터',
+        startFloor: 5,
+      });
     view.game = this;
 
     this.stay = new HotelStay();
@@ -46,7 +68,14 @@ export class GameMode {
         }
       },
     });
-    this.player = new WalkingPlayer(this.stairs, this.world, this.escalators, this.room, this.pool);
+    this.player = new WalkingPlayer(
+      this.stairs,
+      this.world,
+      this.escalators,
+      this.room,
+      this.pool,
+      this.mallController
+    );
 
     this.startInLobby();
     this.active = false;
@@ -338,7 +367,7 @@ export class GameMode {
     }
     const spotsEl = $('concierge-spots');
     if (spotsEl && !spotsEl.children.length) {
-      for (const spot of FAST_TRAVEL_SPOTS) {
+      for (const spot of [...FAST_TRAVEL_SPOTS, ...MALL_FAST_TRAVEL_SPOTS]) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'fast-travel-btn';
@@ -354,13 +383,15 @@ export class GameMode {
   }
 
   fastTravelTo(spotId) {
-    const spot = FAST_TRAVEL_SPOTS.find((s) => s.id === spotId);
+    const spot = [...FAST_TRAVEL_SPOTS, ...MALL_FAST_TRAVEL_SPOTS].find((s) => s.id === spotId);
     if (!spot) return { ok: false, message: '이동할 위치를 찾을 수 없습니다.' };
     if (!this.active && this.view?.ready) {
       this.enter();
     }
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
 
     if (spot.id === 'room-301') {
       if (!this.stay.keycard) {
@@ -414,11 +445,17 @@ export class GameMode {
     const currentLiftFloor = this.controller.floor;
     const isMoving = this.controller.state === 'moving';
     const liftDir = this.controller.direction > 0 ? '▲ 상행' : this.controller.direction < 0 ? '▼ 하행' : '대기';
+    const mallLiftFloor = this.mallController.floor;
+    const mallMoving = this.mallController.state === 'moving';
+    const mallDir =
+      this.mallController.direction > 0 ? '▲ 상행' : this.mallController.direction < 0 ? '▼ 하행' : '대기';
     const playerFloor = this.player.floor;
 
     for (let f = 14; f >= 0; f--) {
       const meta = floorMeta(f, FLOORS[f]);
       const usage = floorUsage(f);
+      const hasMall = f <= MALL_MAX_FLOOR;
+      const mallInfo = hasMall ? mallFloorMeta(f, FLOORS[f]) : null;
       const row = document.createElement('div');
       row.className = 'directory-row' + (f < 5 ? ' basement' : '') + (f === playerFloor ? ' player-here' : '');
 
@@ -427,7 +464,14 @@ export class GameMode {
         badges.push('<span class="dir-badge player">👤 현재 내 위치</span>');
       }
       if (f === currentLiftFloor) {
-        badges.push(`<span class="dir-badge lift">🛗 승강기 (${isMoving ? liftDir : this.controller.door > 0 ? '문 열림' : '대기'})</span>`);
+        badges.push(
+          `<span class="dir-badge lift">🏨 호텔 승강기 (${isMoving ? liftDir : this.controller.door > 0 ? '문 열림' : '대기'})</span>`
+        );
+      }
+      if (hasMall && f === mallLiftFloor) {
+        badges.push(
+          `<span class="dir-badge mall-lift">🛍️ 몰 승강기 (${mallMoving ? mallDir : this.mallController.door > 0 ? '문 열림' : '대기'})</span>`
+        );
       }
 
       row.innerHTML = `
@@ -437,11 +481,12 @@ export class GameMode {
             <strong>${usage.ko}</strong>
             <span class="dir-en">${usage.en}</span>
           </div>
-          <div class="dir-floor-desc">${meta.desc}</div>
+          <div class="dir-floor-desc">${meta.desc}${mallInfo ? ` · <strong>[그랜드 몰]</strong> ${mallInfo.ko}` : ''}</div>
           ${badges.length ? `<div class="dir-badges">${badges.join(' ')}</div>` : ''}
         </div>
         <div class="dir-actions">
-          <button type="button" class="dir-teleport-btn" data-floor="${f}">이동</button>
+          <button type="button" class="dir-teleport-btn" data-floor="${f}">호텔 이동</button>
+          ${hasMall ? `<button type="button" class="dir-teleport-mall-btn" data-mall-floor="${f}">몰 이동</button>` : ''}
         </div>
       `;
 
@@ -449,9 +494,46 @@ export class GameMode {
         $('floor-directory-dialog')?.close?.();
         this.fastTravelToFloor(f);
       });
+      row.querySelector('.dir-teleport-mall-btn')?.addEventListener('click', () => {
+        $('floor-directory-dialog')?.close?.();
+        this.fastTravelToMallFloor(f);
+      });
 
       listEl.append(row);
     }
+  }
+
+  fastTravelToMallFloor(floorIndex) {
+    const f = Math.max(0, Math.min(MALL_MAX_FLOOR, floorIndex | 0));
+    if (!this.active && this.view?.ready) {
+      this.enter();
+    }
+    this.player.leaveDoorway();
+    this.controller.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
+    if (f !== 5) this.stay.completeMilestone('verticalTransit');
+
+    Object.assign(this.player, {
+      floor: f,
+      zone: 'lobby',
+      x: MALL_LIFT_X,
+      z: 9.6,
+      yaw: Math.PI,
+      pitch: -0.05,
+      worldY: (f - 5) * 3.5,
+      stairY: (f - 5) * 3.5,
+      escalatorY: (f - 5) * 3.5,
+    });
+
+    this.view?.applyVisibility?.(this.controller);
+    this.applyCamera();
+    const mInfo = mallFloorMeta(f, FLOORS[f]);
+    const msg = `🛍️ [${mInfo.ko}](으)로 빠르게 이동했습니다.`;
+    this.message(msg);
+    this.messageUntil = performance.now() + 4500;
+    this.updateHUD();
+    return { ok: true, floor: f, message: msg };
   }
 
   fastTravelToFloor(floorIndex) {
@@ -460,6 +542,7 @@ export class GameMode {
     }
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
 
     let targetX = 0;
     let targetZ = 8.5;
@@ -642,6 +725,7 @@ export class GameMode {
     if (!this.active) return;
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
     this.active = false;
     this.clearInput();
     this.leaveFullscreen();
@@ -673,6 +757,7 @@ export class GameMode {
     this.player.reset();
     this.startInLobby();
     this.stairs.reset();
+    this.mallController?.reset();
     this.npcs.reset(this.controller);
     this.robot.reset(this.controller);
     this.clearInput();
@@ -697,8 +782,9 @@ export class GameMode {
 
   beforeStep() {
     if (this.active) {
-      this.player.sync(this.controller);
+      this.player.sync(this.controller, this.mallController);
       this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
+      this.mallController?.setObstruction(this.player.blocksMallDoor(this.mallController), 'player');
     }
   }
 
@@ -796,8 +882,9 @@ export class GameMode {
     if (!this.controller.paused) this.stairs.update(dt, this.player);
     if (!this.controller.paused) this.room.update(dt, this.player);
     this.escalators.carry(this.player, dt, this.controller);
-    this.player.move(forward, strafe, dt, this.controller, sprint);
+    this.player.move(forward, strafe, dt, this.controller, sprint, this.mallController);
     this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
+    this.mallController?.setObstruction(this.player.blocksMallDoor(this.mallController), 'player');
 
     const stepMoved = Math.hypot(this.player.x - prevX, this.player.z - prevZ);
     this.isMoving = (forward !== 0 || strafe !== 0) && stepMoved > 1e-4;
@@ -892,7 +979,24 @@ export class GameMode {
   accepts(data) {
     if (!this.active) return true;
     if (data.action === 'floorAmenity') {
-      return this.player.zone !== 'cabin' && data.floorIndex === this.player.floor;
+      return !['cabin', 'mallCabin'].includes(this.player.zone) && data.floorIndex === this.player.floor;
+    }
+    if (MALL_ACTIONS.has(data.action)) {
+      return (
+        !['cabin', 'mallCabin'].includes(this.player.zone) &&
+        (!Number.isInteger(data.floorIndex) || data.floorIndex === this.player.floor)
+      );
+    }
+    if (data.action === 'mallHall') {
+      return this.player.zone === 'lobby' && data.floorIndex === this.player.floor;
+    }
+    if (['mallCar', 'mallOpen', 'mallClose', 'mallAlarm'].includes(data.action)) {
+      return (
+        this.player.zone === 'mallCabin' ||
+        (this.player.inMallDoorway() &&
+          this.mallController.aligned() &&
+          this.mallController.floor === this.player.floor)
+      );
     }
     if (data.action === 'roomDoor' || data.action === 'roomPrivacy') {
       return this.player.floor === 7 && ['lobby', 'room'].includes(this.player.zone);
@@ -947,8 +1051,8 @@ export class GameMode {
         (this.robot.zone === 'cabin' && this.player.zone === 'cabin')
       );
     }
-    if (data.action === 'stairDoor') return this.player.zone !== 'cabin' && data.floorIndex === this.player.floor;
-    if (data.action === 'automaticDoor') return this.player.zone !== 'cabin' && data.floorIndex === this.player.floor;
+    if (data.action === 'stairDoor') return !['cabin', 'mallCabin'].includes(this.player.zone) && data.floorIndex === this.player.floor;
+    if (data.action === 'automaticDoor') return !['cabin', 'mallCabin'].includes(this.player.zone) && data.floorIndex === this.player.floor;
     if (data.action === 'hall') return this.player.zone === 'lobby' && data.floorIndex === this.player.floor;
     return (
       this.player.zone === 'cabin' ||
@@ -964,6 +1068,30 @@ export class GameMode {
       this.controller.setObstruction(false, 'player');
       this.applyCamera();
     }
+  }
+
+  stepInsideMallCabinIfInDoorway() {
+    if (!this.active || !this.player.inMallDoorway() || !this.mallController) return;
+    if (
+      this.mallController.aligned() &&
+      this.mallController.floor === this.player.floor &&
+      this.mallController.door > 0.5
+    ) {
+      this.player.z = MALL_LIFT_Z + 0.55;
+      this.player.zone = 'mallCabin';
+      this.mallController.setObstruction(false, 'player');
+      this.applyCamera();
+    }
+  }
+
+  interactMall(action, data = {}) {
+    if (!this.active) return;
+    const res = this.stay.interactMall(action, data);
+    this.notifyQuestProgress?.(res.newlyCompletedQuests);
+    this.message(res.message);
+    this.messageUntil = performance.now() + 5500;
+    this.updateHUD();
+    return res;
   }
 
   interactFloorAmenity(floorIndex) {
@@ -1390,33 +1518,60 @@ export class GameMode {
         return `★ VIP 직통 운행 (${this.controller.vipMode ? '켜짐' : '꺼짐'})`;
       case 'cabinMirror':
         return '🪞 엘리베이터 거울 확인';
+      case 'mallHall':
+        return `🛍️ 몰 승강기 · ${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '▲ 상행' : '▼ 하행'} 호출`;
+      case 'mallCar':
+        return `🛍️ 몰 ${FLOORS[d.floorIndex]}층 ${this.mallController?.car?.has(d.floorIndex) ? '선택 취소' : '선택'}`;
+      case 'mallOpen':
+        return '🛍️ 몰 엘리베이터 문 열림';
+      case 'mallClose':
+        return '🛍️ 몰 엘리베이터 문 닫힘';
+      case 'mallAlarm':
+        return '🛍️ 몰 엘리베이터 비상 호출';
+      case 'mallWaterfall':
+      case 'mallLibrary':
+      case 'mallCafe':
+      case 'mallShop':
+      case 'mallSkybridge':
+      case 'mallFood':
+      case 'mallForest':
+      case 'mallMediaWall':
+      case 'mallParking':
+      case 'mallConcierge':
+        return `✨ ${d.label || '그랜드 아트리움 몰'} · 체험하기`;
       default:
-        return `${d.accessible ? '♿ ' : d.tenKey ? '🔢 ' : ''}${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action]}`;
+        return `${d.accessible ? '♿ ' : d.tenKey ? '🔢 ' : ''}${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action] || '상호작용'}`;
     }
   }
 
   updateHUD() {
     const p = this.player;
     const c = this.controller;
+    const mc = this.mallController;
+    const inMall = p.zone === 'mallCabin' || p.x <= -14 || (p.x <= -10.8 && p.z >= 5.2 && p.z <= 7.6);
     $('player-location').textContent =
       p.zone === 'cabin'
-        ? `엘리베이터 안 · ${FLOORS[c.floor]}층${c.state === 'moving' ? ' 이동 중' : ''}`
-        : p.zone === 'room'
-          ? `3층 · 301호 객실${this.room.wearingRobe ? ' (호텔 가운 🥼)' : ''}${this.room.privacyMode.id === 'dnd' ? ' · 🔕 DND' : this.room.privacyMode.id === 'makeup' ? ' · 🧹 정비요청' : ''}`
-          : p.zone === 'pool'
-            ? this.pool.inPool(p.x, p.z)
-              ? '10층 · 루프탑 인피니티 풀 (수영 중 🏊)'
-              : this.pool.inJacuzzi(p.x, p.z)
-                ? '10층 · 루프탑 온수 자쿠지 스파 ♨️'
-                : '10층 · 루프탑 인피니티 풀 & 스카이 바'
-            : p.zone === 'escalator'
-              ? `${FLOORS[p.floor]}층 · 에스컬레이터`
-              : p.zone === 'stairs'
-                ? this.stairLocation()
-                : `${FLOORS[p.floor]}층 · ${this.world.location(p)}`;
+        ? `호텔 엘리베이터 안 · ${FLOORS[c.floor]}층${c.state === 'moving' ? ' 이동 중' : ''}`
+        : p.zone === 'mallCabin'
+          ? `몰 전망 엘리베이터 안 · ${FLOORS[mc.floor]}층${mc.state === 'moving' ? ' 이동 중' : ''}`
+          : p.zone === 'room'
+            ? `3층 · 301호 객실${this.room.wearingRobe ? ' (호텔 가운 🥼)' : ''}${this.room.privacyMode.id === 'dnd' ? ' · 🔕 DND' : this.room.privacyMode.id === 'makeup' ? ' · 🧹 정비요청' : ''}`
+            : p.zone === 'pool'
+              ? this.pool.inPool(p.x, p.z)
+                ? '10층 · 루프탑 인피니티 풀 (수영 중 🏊)'
+                : this.pool.inJacuzzi(p.x, p.z)
+                  ? '10층 · 루프탑 온수 자쿠지 스파 ♨️'
+                  : '10층 · 루프탑 인피니티 풀 & 스카이 바'
+              : p.zone === 'escalator'
+                ? `${FLOORS[p.floor]}층 · 에스컬레이터`
+                : p.zone === 'stairs'
+                  ? this.stairLocation()
+                  : `${FLOORS[p.floor]}층 · ${this.world.location(p)}`;
 
-    $('game-lift-state').textContent = `엘리베이터 ${FLOORS[c.floor]}층 · ${
-      c.state === 'moving' ? (c.direction > 0 ? '올라가는 중' : '내려가는 중') : c.door > 0 ? '문 열림' : '대기'
+    const hudLift = inMall && mc ? mc : c;
+    const hudLiftName = inMall && mc ? '몰 승강기' : '엘리베이터';
+    $('game-lift-state').textContent = `${hudLiftName} ${FLOORS[hudLift.floor]}층 · ${
+      hudLift.state === 'moving' ? (hudLift.direction > 0 ? '올라가는 중' : '내려가는 중') : hudLift.door > 0 ? '문 열림' : '대기'
     }`;
 
     if ($('vip-tier-badge')) {
@@ -1464,13 +1619,18 @@ export class GameMode {
     let text;
     if (hit) {
       text = this.getActionHint(hit.userData);
-    } else if (p.inDoorway()) {
+    } else if (p.inDoorway() || p.inMallDoorway()) {
       text = '출입문 감지선 · 안쪽이나 승강장으로 한 걸음 이동하세요';
     } else if (p.zone === 'cabin') {
       text =
         c.state === 'moving'
           ? `${FLOORS[c.target ?? c.floor]}층으로 이동 중`
           : '층 버튼 · 10키 패드 · 편의 버튼을 클릭하세요';
+    } else if (p.zone === 'mallCabin') {
+      text =
+        mc?.state === 'moving'
+          ? `몰 ${FLOORS[mc.target ?? mc.floor]}층으로 이동 중`
+          : '몰 전망 엘리베이터 · 내부 층 버튼을 클릭하세요 (B5~6F)';
     } else if (p.zone === 'room') {
       text = '301호 스위트 · 객실 내 가구와 스마트 기기를 클릭해 이용하세요';
     } else if (p.zone === 'pool') {
@@ -1492,9 +1652,15 @@ export class GameMode {
   renderMinimap() {
     const p = this.player;
     const c = this.controller;
-    const f = p.zone === 'cabin' ? c.floor : p.floor;
+    const mc = this.mallController;
+    const inMall =
+      p.zone === 'mallCabin' ||
+      (p.x <= -14.0 && p.z < 36.2) ||
+      (p.x <= -10.8 && p.z >= 5.2 && p.z <= 7.6);
+    const f = p.zone === 'cabin' ? c.floor : p.zone === 'mallCabin' ? mc.floor : p.floor;
     if ($('minimap-caption')) {
-      $('minimap-caption').textContent = `${FLOORS[f]}F · ${floorUsage(f).ko} RADAR`;
+      const capUsage = inMall && f <= MALL_MAX_FLOOR ? mallFloorMeta(f, FLOORS[f]).ko : floorUsage(f).ko;
+      $('minimap-caption').textContent = `${FLOORS[f]}F · ${capUsage} RADAR`;
     }
     const canvas = $('game-minimap');
     const ctx = canvas?.getContext?.('2d');
@@ -1506,14 +1672,46 @@ export class GameMode {
     ctx.fillStyle = '#0b141a';
     ctx.fillRect(0, 0, W, H);
 
-    // Coordinate transform: world (x in [-14..12], z in [-2..28]) -> minimap pixels
-    const mapX = (wx) => W / 2 - wx * 4.6;
-    const mapZ = (wz) => 22 + wz * 3.8;
+    // Coordinate transform: Mall radar covers x ∈ [-52..-10], Hotel radar covers x ∈ [-14..12]
+    const mapX = inMall ? (wx) => 12 + (wx + 51) * 2.9 : (wx) => W / 2 - wx * 4.6;
+    const mapZ = inMall ? (wz) => 12 + (wz - 3) * 3.1 : (wz) => 22 + wz * 3.8;
 
     // 1. Floor zone background
     ctx.strokeStyle = '#284556';
     ctx.lineWidth = 1.5;
-    if (f === 5) {
+    if (inMall) {
+      ctx.fillStyle = f < 5 ? '#151f26' : '#142a33';
+      ctx.fillRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
+      ctx.strokeRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
+      // Central Atrium Void & Floating Skybridge (2F..5F) or Twin Lightwells (6F)
+      if (f >= 6 && f <= 9) {
+        ctx.fillStyle = '#0b141a';
+        ctx.fillRect(mapX(-41), mapZ(12), 20 * 2.9, 16 * 3.1);
+        ctx.strokeRect(mapX(-41), mapZ(12), 20 * 2.9, 16 * 3.1);
+        if (f === 7 || f === 9) {
+          ctx.fillStyle = '#2c5b63';
+          ctx.fillRect(mapX(-41), mapZ(18.6), 20 * 2.9, 2.8 * 3.1);
+        }
+      } else if (f === 10) {
+        ctx.fillStyle = '#1b412e';
+        ctx.fillRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
+        ctx.fillStyle = '#0b141a';
+        ctx.fillRect(mapX(-38.5), mapZ(16), 7 * 2.9, 8 * 3.1);
+        ctx.fillRect(mapX(-24.5), mapZ(16), 6 * 2.9, 8 * 3.1);
+      } else if (f === 5) {
+        // 1F Waterfall & Starfield Library
+        ctx.fillStyle = '#2a6b84';
+        ctx.fillRect(mapX(-22.9), mapZ(29.1), 8.2 * 2.9, 4.2 * 3.1);
+        ctx.fillStyle = '#735035';
+        ctx.fillRect(mapX(-47.8), mapZ(13.8), 2.4 * 2.9, 12.4 * 3.1);
+      }
+      // Escalator side bridge link to Hotel
+      ctx.fillStyle = '#2f5866';
+      ctx.fillRect(mapX(-14.2), mapZ(5.2), 4.2 * 2.9, 2.4 * 3.1);
+      // Mall Panoramic Elevator
+      ctx.fillStyle = mc.floor === f ? '#d4b26f' : '#2a3e4a';
+      ctx.fillRect(mapX(MALL_LIFT_X - 1.25), mapZ(MALL_LIFT_Z - 1.1), 2.5 * 2.9, 2.25 * 3.1);
+    } else if (f === 5) {
       // 1F Grand Lobby
       ctx.fillStyle = '#142630';
       ctx.fillRect(mapX(11.6), mapZ(1.2), 23.2 * 4.6, 25 * 3.8);
@@ -1545,42 +1743,44 @@ export class GameMode {
       }
     }
 
-    // 2. Elevator shaft & cabin
-    ctx.fillStyle = c.floor === f ? '#d4b26f' : '#2a3e4a';
-    ctx.fillRect(mapX(0.95), mapZ(-0.9), 1.9 * 4.6, 1.8 * 3.8);
+    if (!inMall) {
+      // 2. Elevator shaft & cabin
+      ctx.fillStyle = c.floor === f ? '#d4b26f' : '#2a3e4a';
+      ctx.fillRect(mapX(0.95), mapZ(-0.9), 1.9 * 4.6, 1.8 * 3.8);
 
-    // 3. Escalator & Stairwell wings
-    ctx.fillStyle = '#25424c';
-    ctx.fillRect(mapX(-2.5), mapZ(0.2), 3.2 * 4.6, 2.8 * 3.8);
-    ctx.fillRect(mapX(4.5), mapZ(-0.8), 2.1 * 4.6, 3.8 * 3.8);
+      // 3. Escalator & Stairwell wings
+      ctx.fillStyle = '#25424c';
+      ctx.fillRect(mapX(-2.5), mapZ(0.2), 3.2 * 4.6, 2.8 * 3.8);
+      ctx.fillRect(mapX(4.5), mapZ(-0.8), 2.1 * 4.6, 3.8 * 3.8);
 
-    // 4. Floor Amenity Station marker
-    const ax = f >= 6 && f <= 13 ? 0 : 2.18;
-    const az = f >= 6 && f <= 13 ? 3.55 : 2.55;
-    ctx.fillStyle = '#f5d076';
-    ctx.beginPath();
-    ctx.arc(mapX(ax), mapZ(az), 3, 0, Math.PI * 2);
-    ctx.fill();
+      // 4. Floor Amenity Station marker
+      const ax = f >= 6 && f <= 13 ? 0 : 2.18;
+      const az = f >= 6 && f <= 13 ? 3.55 : 2.55;
+      ctx.fillStyle = '#f5d076';
+      ctx.beginPath();
+      ctx.arc(mapX(ax), mapZ(az), 3, 0, Math.PI * 2);
+      ctx.fill();
 
-    // 5. NPCs on this floor
-    for (const npc of this.npcs?.npcs ?? []) {
-      const nf = npc.zone === 'cabin' ? c.floor : npc.floor;
-      if (nf === f) {
-        ctx.fillStyle = '#70d6ff';
-        ctx.beginPath();
-        ctx.arc(mapX(npc.x), mapZ(npc.z), 2.8, 0, Math.PI * 2);
-        ctx.fill();
+      // 5. NPCs on this floor
+      for (const npc of this.npcs?.npcs ?? []) {
+        const nf = npc.zone === 'cabin' ? c.floor : npc.floor;
+        if (nf === f) {
+          ctx.fillStyle = '#70d6ff';
+          ctx.beginPath();
+          ctx.arc(mapX(npc.x), mapZ(npc.z), 2.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
-    }
 
-    // 6. DELI Service Robot
-    if (this.robot) {
-      const rf = this.robot.zone === 'cabin' ? c.floor : this.robot.floor;
-      if (rf === f) {
-        ctx.fillStyle = '#7ef7e1';
-        ctx.beginPath();
-        ctx.arc(mapX(this.robot.x), mapZ(this.robot.z), 3.2, 0, Math.PI * 2);
-        ctx.fill();
+      // 6. DELI Service Robot
+      if (this.robot) {
+        const rf = this.robot.zone === 'cabin' ? c.floor : this.robot.floor;
+        if (rf === f) {
+          ctx.fillStyle = '#7ef7e1';
+          ctx.beginPath();
+          ctx.arc(mapX(this.robot.x), mapZ(this.robot.z), 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 
@@ -1589,7 +1789,7 @@ export class GameMode {
     const pz = mapZ(p.z);
     const dirX = Math.sin(p.yaw);
     const dirZ = -Math.cos(p.yaw);
-    const screenAngle = Math.atan2(dirZ * 3.8, -dirX * 4.6);
+    const screenAngle = inMall ? Math.atan2(dirZ * 3.1, dirX * 2.9) : Math.atan2(dirZ * 3.8, -dirX * 4.6);
 
     ctx.fillStyle = 'rgba(118, 232, 199, 0.24)';
     ctx.beginPath();

@@ -1,5 +1,5 @@
 import { HotelAnnouncements } from './announcements.js';
-import { floorMeta } from './building.js';
+import { floorMeta, MALL_MAX_FLOOR, mallFloorMeta } from './building.js';
 import { computeCabinLoad, FLOORS, LiftController, PITCH } from './controller.js';
 import { computeElevatorAudioGain, HotelSoundEffects } from './elevator-audio.js';
 import { EmergencyAlarm } from './emergency-alarm.js';
@@ -9,6 +9,15 @@ import { LiftScene } from './scene.js';
 const $ = (id) => document.getElementById(id);
 
 const controller = new LiftController();
+const mallController = new LiftController({
+  minFloor: 0,
+  maxFloor: MALL_MAX_FLOOR,
+  id: 'mall',
+  label: '몰 전망 엘리베이터',
+  startFloor: 5,
+});
+let activeLift = 'hotel';
+const getActiveController = () => (activeLift === 'mall' ? mallController : controller);
 let view;
 let game;
 let rate = 1;
@@ -215,27 +224,100 @@ function act(action, floor, direction, data) {
     if (game?.active) game.message(msg);
     return;
   }
+  if (
+    [
+      'mallWaterfall',
+      'mallLibrary',
+      'mallCafe',
+      'mallShop',
+      'mallSkybridge',
+      'mallFood',
+      'mallForest',
+      'mallMediaWall',
+      'mallParking',
+      'mallConcierge',
+    ].includes(action)
+  ) {
+    if (action === 'mallWaterfall') sfx.playWater?.();
+    else if (action === 'mallCafe') sfx.playCoffeeSip?.() ?? sfx.playButton();
+    else if (action === 'mallParking') sfx.playCarChirp?.() ?? sfx.playButton();
+    else sfx.playAmenity?.() ?? sfx.playButton();
+    const res = game?.interactMall?.(action, data);
+    if (res?.message) say(res.message);
+    return;
+  }
+  if (action === 'mallHall') {
+    sfx.playButton();
+    mallController.callHall(floor, direction);
+    const msg = `🛍️ [몰 승강기] ${FLOORS[floor]}층 ${direction === 1 ? '상행' : '하행'} 호출이 등록되었습니다.`;
+    say(msg);
+    if (game?.active) game.message(msg);
+    updateUI();
+    return;
+  }
+  if (action === 'mallCar') {
+    sfx.playButton();
+    game?.stepInsideMallCabinIfInDoorway?.();
+    const res = mallController.toggleCar(floor, { allowCancel: true });
+    const msg =
+      res.action === 'cancelled'
+        ? `🛍️ [몰 승강기] ${FLOORS[floor]}층 목적지 선택을 취소했습니다.`
+        : res.action === 'invalid'
+          ? `🛍️ [몰 승강기] B5~6F 범위의 층만 선택할 수 있습니다.`
+          : `🛍️ [몰 승강기] ${FLOORS[floor]}층 목적지가 등록되었습니다.`;
+    say(msg);
+    if (game?.active) game.message(msg);
+    updateUI();
+    return;
+  }
+  if (action === 'mallOpen') {
+    sfx.playButton();
+    const opened = mallController.openDoor();
+    const msg = opened ? '🛍️ [몰 승강기] 문을 엽니다.' : '🛍️ [몰 승강기] 운행 중에는 문을 열 수 없습니다.';
+    say(msg);
+    if (game?.active) game.message(msg);
+    updateUI();
+    return;
+  }
+  if (action === 'mallClose') {
+    sfx.playButton();
+    game?.stepInsideMallCabinIfInDoorway?.();
+    const closed = mallController.closeDoor();
+    say(closed ? '🛍️ [몰 승강기] 문을 닫습니다.' : '🛍️ [몰 승강기] 문이 열려 있을 때 사용할 수 있습니다.');
+    updateUI();
+    return;
+  }
+  if (action === 'mallAlarm') {
+    sfx.playBuzzer?.();
+    mallController.toggleAlarm();
+    const msg = mallController.alarm ? '🚨 [몰 승강기] 비상 경보가 울립니다.' : '🟢 [몰 승강기] 비상 호출을 해제했습니다.';
+    say(msg);
+    if (game?.active) game.message(msg);
+    updateUI();
+    return;
+  }
+  const targetCtrl = data?.targetCtrl || (data?.fromSidebar ? getActiveController() : controller);
   if (['cabinLight', 'cabinFan', 'cabinMusic', 'cabinIntercom', 'cabinVip', 'cabinAccessible', 'cabinMirror'].includes(action)) {
     if (action === 'cabinIntercom') sfx.playIntercom();
     else if (action === 'cabinVip' || action === 'cabinAccessible') sfx.playKeycard(true);
     else if (action !== 'cabinMusic') sfx.playButton();
-    if (game?.active) {
+    if (game?.active && targetCtrl === controller) {
       game.interactCabin(action);
       if (action === 'cabinMusic') sfx.playMusic(controller.cabinMusicTrack.id);
     } else if (action === 'cabinLight') {
-      say(controller.cycleCabinLight().message);
+      say(targetCtrl.cycleCabinLight().message);
     } else if (action === 'cabinFan') {
-      say(controller.cycleCabinFan().message);
+      say(targetCtrl.cycleCabinFan().message);
     } else if (action === 'cabinMusic') {
-      const res = controller.cycleCabinMusic();
+      const res = targetCtrl.cycleCabinMusic();
       sfx.playMusic(res.track.id);
       say(res.message);
     } else if (action === 'cabinIntercom') {
-      say(controller.callIntercom().message);
+      say(targetCtrl.callIntercom().message);
     } else if (action === 'cabinAccessible') {
-      say(controller.toggleAccessibleMode().message);
+      say(targetCtrl.toggleAccessibleMode().message);
     } else if (action === 'cabinVip') {
-      const vip = controller.toggleVipMode();
+      const vip = targetCtrl.toggleVipMode();
       say(
         vip
           ? 'VIP 직통 운행 모드가 켜졌습니다. 카 내부 목적층 호출만 직통으로 처리합니다.'
@@ -249,8 +331,9 @@ function act(action, floor, direction, data) {
   }
   if (action === 'tenKey') {
     sfx.playButton();
-    game?.stepInsideCabinIfInDoorway();
-    const res = controller.pressTenKey(data?.key ?? floor);
+    if (targetCtrl === mallController) game?.stepInsideMallCabinIfInDoorway?.();
+    else game?.stepInsideCabinIfInDoorway();
+    const res = targetCtrl.pressTenKey(data?.key ?? floor);
     if (res?.message) {
       say(res.message);
       if (game?.active) game.message(res.message);
@@ -261,68 +344,77 @@ function act(action, floor, direction, data) {
   }
   if (action === 'car') {
     sfx.playButton();
-    game?.stepInsideCabinIfInDoorway();
-    if (data?.accessible && !controller.accessibleMode) {
-      controller.toggleAccessibleMode(true);
+    if (targetCtrl === mallController) game?.stepInsideMallCabinIfInDoorway?.();
+    else game?.stepInsideCabinIfInDoorway();
+    if (data?.accessible && !targetCtrl.accessibleMode) {
+      targetCtrl.toggleAccessibleMode(true);
     }
-    const res = controller.toggleCar(floor, { allowCancel: true });
+    const res = targetCtrl.toggleCar(floor, { allowCancel: true });
     const accPrefix = data?.accessible ? '♿ [장애인용 가로 조작반] ' : '';
-    if (res.action === 'cancelled') {
-      const msg = `${accPrefix}${FLOORS[floor]}층 목적지 선택을 취소했습니다.`;
+    const liftPrefix = targetCtrl === mallController ? '🛍️ [몰 승강기] ' : '';
+    if (res.action === 'invalid') {
+      const msg = `${liftPrefix}${FLOORS[floor] ?? floor}층은 해당 엘리베이터 운행 구간(B5~6F)이 아닙니다.`;
+      say(msg);
+      if (game?.active) game.message(msg);
+    } else if (res.action === 'cancelled') {
+      const msg = `${liftPrefix}${accPrefix}${FLOORS[floor]}층 목적지 선택을 취소했습니다.`;
       say(msg);
       if (game?.active) game.message(msg);
     } else if (res.action === 'locked') {
-      const msg = `${accPrefix}${FLOORS[floor]}층은 이미 감속 구간에 진입해 취소할 수 없습니다.`;
+      const msg = `${liftPrefix}${accPrefix}${FLOORS[floor]}층은 이미 감속 구간에 진입해 취소할 수 없습니다.`;
       say(msg);
       if (game?.active) game.message(msg);
     } else {
-      const eta = controller.etaToFloor(floor);
+      const eta = targetCtrl.etaToFloor(floor);
       const etaStr = eta ? ` (약 ${eta}초)` : '';
-      const accTail = controller.accessibleMode ? ' · ♿ 문 열림 7.5초 연장' : '';
-      const msg = `${accPrefix}${FLOORS[floor]}층 목적지가 등록되었습니다.${etaStr}${accTail}`;
+      const accTail = targetCtrl.accessibleMode ? ' · ♿ 문 열림 7.5초 연장' : '';
+      const msg = `${liftPrefix}${accPrefix}${FLOORS[floor]}층 목적지가 등록되었습니다.${etaStr}${accTail}`;
       say(msg);
       if (game?.active) game.message(msg);
     }
   }
   if (action === 'hall') {
     sfx.playButton();
-    controller.callHall(floor, direction);
+    targetCtrl.callHall(floor, direction);
+    const liftPrefix = targetCtrl === mallController ? '🛍️ [몰 승강기] ' : '';
     say(
-      controller.vipMode
-        ? `VIP 직통 모드가 켜져 있어 승강장 호출이 보류됩니다.`
-        : `${FLOORS[floor]}층 ${direction === 1 ? '상행' : '하행'} 호출이 등록되었습니다.`
+      targetCtrl.vipMode
+        ? `${liftPrefix}VIP 직통 모드가 켜져 있어 승강장 호출이 보류됩니다.`
+        : `${liftPrefix}${FLOORS[floor]}층 ${direction === 1 ? '상행' : '하행'} 호출이 등록되었습니다.`
     );
   }
   if (action === 'open') {
     sfx.playButton();
-    if (data?.accessible && !controller.accessibleMode) {
-      controller.toggleAccessibleMode(true);
+    if (data?.accessible && !targetCtrl.accessibleMode) {
+      targetCtrl.toggleAccessibleMode(true);
     }
-    const opened = controller.openDoor();
+    const opened = targetCtrl.openDoor();
+    const liftPrefix = targetCtrl === mallController ? '🛍️ [몰 승강기] ' : '';
     const msg = opened
-      ? controller.accessibleMode
-        ? '♿ 장애인 배려 모드로 문을 열고 대기 시간을 7.5초로 연장합니다.'
-        : '문을 열고 대기 시간을 연장합니다.'
-      : '운행 중에는 문을 열 수 없습니다.';
+      ? targetCtrl.accessibleMode
+        ? `${liftPrefix}♿ 장애인 배려 모드로 문을 열고 대기 시간을 7.5초로 연장합니다.`
+        : `${liftPrefix}문을 열고 대기 시간을 연장합니다.`
+      : `${liftPrefix}운행 중에는 문을 열 수 없습니다.`;
     say(msg);
     if (game?.active) game.message(msg);
   }
   if (action === 'close') {
     sfx.playButton();
-    game?.stepInsideCabinIfInDoorway();
+    if (targetCtrl === mallController) game?.stepInsideMallCabinIfInDoorway?.();
+    else game?.stepInsideCabinIfInDoorway();
     say(
-      controller.closeDoor()
+      targetCtrl.closeDoor()
         ? '문을 닫습니다.'
-        : controller.obstruction
+        : targetCtrl.obstruction
           ? '감지선이 차단되어 문을 닫을 수 없습니다.'
           : '문이 열려 있을 때 사용할 수 있습니다.'
     );
   }
   if (action === 'alarm') {
-    controller.toggleAlarm();
-    emergencyAlarm.setEnabled(controller.alarm);
+    targetCtrl.toggleAlarm();
+    if (targetCtrl === controller) emergencyAlarm.setEnabled(controller.alarm);
     say(
-      controller.alarm
+      targetCtrl.alarm
         ? '비상 경보가 울립니다. 버튼을 다시 누르면 해제됩니다.'
         : '비상 호출 신호를 해제했습니다.'
     );
@@ -351,7 +443,7 @@ for (let i = 14; i >= 0; i--) {
     b.disabled = (dir === 1 && i === 14) || (dir === -1 && i === 0);
     b.setAttribute('aria-label', `${FLOORS[i]}층 ${dir === 1 ? '상행' : '하행'} 호출`);
     b.setAttribute('aria-pressed', 'false');
-    b.addEventListener('click', () => act('hall', i, dir));
+    b.addEventListener('click', () => act('hall', i, dir, { fromSidebar: true }));
     row.querySelector('.hall-controls').append(b);
     rowButtons.push({ b, i, dir });
   }
@@ -369,7 +461,7 @@ for (const i of [12, 13, 14, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2]) {
   b.className = i === 5 ? 'home' : '';
   b.setAttribute('aria-label', `${FLOORS[i]}층 목적지`);
   b.setAttribute('aria-pressed', 'false');
-  b.addEventListener('click', () => act('car', i));
+  b.addEventListener('click', () => act('car', i, 0, { fromSidebar: true }));
   $('car-buttons').append(b);
   carButtons.push({ b, i });
 }
@@ -385,7 +477,7 @@ if ($('accessible-car-buttons')) {
     b.className = i === 5 ? 'home' : '';
     b.setAttribute('aria-label', `장애인용 ${FLOORS[i]}층 목적지`);
     b.setAttribute('aria-pressed', 'false');
-    b.addEventListener('click', () => act('car', i, 0, { accessible: true }));
+    b.addEventListener('click', () => act('car', i, 0, { accessible: true, fromSidebar: true }));
     $('accessible-car-buttons').append(b);
     accCarButtons.push({ b, i });
   }
@@ -415,47 +507,64 @@ if ($('tenkey-buttons')) {
     if (spec.cls) b.className = spec.cls;
     b.innerHTML = spec.sub ? `<span>${spec.label}</span><small>${spec.sub}</small>` : `<span>${spec.label}</span>`;
     b.setAttribute('aria-label', `10키 ${spec.title}`);
-    b.addEventListener('click', () => act('tenKey', 0, 0, { key: spec.key }));
+    b.addEventListener('click', () => act('tenKey', 0, 0, { key: spec.key, fromSidebar: true }));
     $('tenkey-buttons').append(b);
     tenKeyButtons.push({ b, key: spec.key });
   }
 }
 
-$('open-door').onclick = () => act('open');
-$('close-door').onclick = () => act('close');
-$('alarm').onclick = () => act('alarm');
+$('open-door').onclick = () => act('open', 0, 0, { fromSidebar: true });
+$('close-door').onclick = () => act('close', 0, 0, { fromSidebar: true });
+$('alarm').onclick = () => act('alarm', 0, 0, { fromSidebar: true });
 
 if ($('accessible-mode')) {
-  $('accessible-mode').onclick = () => act('cabinAccessible');
+  $('accessible-mode').onclick = () => act('cabinAccessible', 0, 0, { fromSidebar: true });
 }
 if ($('accessible-open')) {
-  $('accessible-open').onclick = () => act('open', 0, 0, { accessible: true });
+  $('accessible-open').onclick = () => act('open', 0, 0, { accessible: true, fromSidebar: true });
 }
 if ($('vip-mode')) {
-  $('vip-mode').onclick = () => act('cabinVip');
+  $('vip-mode').onclick = () => act('cabinVip', 0, 0, { fromSidebar: true });
 }
 if ($('cabin-light')) {
-  $('cabin-light').onclick = () => act('cabinLight');
+  $('cabin-light').onclick = () => act('cabinLight', 0, 0, { fromSidebar: true });
 }
 if ($('cabin-fan')) {
-  $('cabin-fan').onclick = () => act('cabinFan');
+  $('cabin-fan').onclick = () => act('cabinFan', 0, 0, { fromSidebar: true });
 }
 if ($('cabin-music')) {
-  $('cabin-music').onclick = () => act('cabinMusic');
+  $('cabin-music').onclick = () => act('cabinMusic', 0, 0, { fromSidebar: true });
 }
 if ($('cabin-intercom')) {
-  $('cabin-intercom').onclick = () => act('cabinIntercom');
+  $('cabin-intercom').onclick = () => act('cabinIntercom', 0, 0, { fromSidebar: true });
 }
 if ($('cabin-clear')) {
   $('cabin-clear').onclick = () => {
     sfx.playButton();
-    const count = controller.clearCarCalls();
+    const targetCtrl = getActiveController();
+    const count = targetCtrl.clearCarCalls();
     const msg = count > 0 ? `내부 목적층 선택 ${count}건을 모두 취소했습니다.` : '취소할 내부 목적층 호출이 없습니다.';
     say(msg);
     if (game?.active) game.message(msg);
     updateUI();
   };
 }
+
+function selectActiveLift(id) {
+  activeLift = id === 'mall' ? 'mall' : 'hotel';
+  const isMall = activeLift === 'mall';
+  $('select-hotel-lift')?.classList.toggle('active', !isMall);
+  $('select-hotel-lift')?.setAttribute('aria-pressed', String(!isMall));
+  $('select-mall-lift')?.classList.toggle('active', isMall);
+  $('select-mall-lift')?.setAttribute('aria-pressed', String(isMall));
+  setText('cop-panel-title', isMall ? '내부 조작반 · 몰 (B5–6F)' : '내부 조작반');
+  queueKey = '';
+  eventKey = '';
+  say(isMall ? '🛍️ 쇼핑몰 전망 엘리베이터(B5–6F) 제어 패널로 전환했습니다.' : '🏨 호텔 메인 엘리베이터(B5–10F) 제어 패널로 전환했습니다.');
+  updateUI();
+}
+if ($('select-hotel-lift')) $('select-hotel-lift').onclick = () => selectActiveLift('hotel');
+if ($('select-mall-lift')) $('select-mall-lift').onclick = () => selectActiveLift('mall');
 
 function handleCycleTimeOfDay() {
   if (!view) return;
@@ -481,18 +590,21 @@ if ($('topbar-guide')) {
 }
 
 $('obstruction').onclick = () => {
-  controller.setObstruction(!controller.obstructionSources.has('manual'));
+  const c = getActiveController();
+  c.setObstruction(!c.obstructionSources.has('manual'));
   say(
-    controller.obstructionSources.has('manual')
+    c.obstructionSources.has('manual')
       ? '감지선을 차단했습니다. 문이 닫히면 다시 열립니다.'
-      : `감지선이 복구되었습니다. ${controller.doorDwellSeconds}초 후 문이 닫힙니다.`
+      : `감지선이 복구되었습니다. ${c.doorDwellSeconds}초 후 문이 닫힙니다.`
   );
   updateUI();
 };
 
 $('pause').onclick = () => {
-  controller.paused = !controller.paused;
-  if (controller.paused) stopChime();
+  const next = !controller.paused;
+  controller.paused = next;
+  mallController.paused = next;
+  if (next) stopChime();
   announcer.observe(controller);
   updateUI();
 };
@@ -537,6 +649,7 @@ document.addEventListener('visibilitychange', () => {
 
 $('reset').onclick = () => {
   controller.reset();
+  mallController.reset();
   emergencyAlarm.stop();
   stopChime();
   announcer.reset(controller);
@@ -549,9 +662,10 @@ $('reset').onclick = () => {
 };
 
 const captions = {
-  exterior: '호텔 외관 · 로비와 주차장 진입로',
+  exterior: '호텔 · 그랜드 아트리움 몰 외관',
   lobby: '승강장 · 카 위치 따라가기',
   cabin: '탑승 시점 · 내부 버튼 직접 조작',
+  mall: '그랜드 아트리움 몰 · 중정·스카이브리지·사운즈 포레스트 (B5—6F)',
   shaft: 'B5—10F · 승강로와 균형추',
   controller: '제어반 · 운행 상태 실시간 연동',
 };
@@ -571,21 +685,24 @@ for (const b of viewButtons) {
 window.addEventListener('keydown', (e) => {
   if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.target.closest?.('input,select,textarea,[contenteditable="true"],dialog')) return;
-  const canUseTenKey = !game?.active || game.player?.zone === 'cabin' || game.player?.inDoorway?.();
+  const inHotelLift = game?.player?.zone === 'cabin' || game?.player?.inDoorway?.();
+  const inMallLift = game?.player?.zone === 'mallCabin' || game?.player?.inMallDoorway?.();
+  const canUseTenKey = !game?.active || inHotelLift || inMallLift;
   if (!canUseTenKey) return;
+  const targetCtrl = game?.active ? (inMallLift ? mallController : controller) : getActiveController();
 
   if (/^(Digit|Numpad)[0-9]$/.test(e.code)) {
     e.preventDefault();
-    act('tenKey', 0, 0, { key: e.code.slice(-1) });
+    act('tenKey', 0, 0, { key: e.code.slice(-1), targetCtrl });
   } else if (e.code === 'KeyB' || e.code === 'NumpadSubtract' || e.code === 'Minus') {
     e.preventDefault();
-    act('tenKey', 0, 0, { key: 'B' });
+    act('tenKey', 0, 0, { key: 'B', targetCtrl });
   } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
     e.preventDefault();
-    act('tenKey', 0, 0, { key: 'ENT' });
+    act('tenKey', 0, 0, { key: 'ENT', targetCtrl });
   } else if (e.code === 'Backspace' || e.code === 'Delete') {
     e.preventDefault();
-    act('tenKey', 0, 0, { key: 'CLR' });
+    act('tenKey', 0, 0, { key: 'CLR', targetCtrl });
   }
 });
 
@@ -598,7 +715,8 @@ function setText(id, value) {
 }
 
 function updateUI() {
-  const c = controller;
+  const isMall = activeLift === 'mall';
+  const c = getActiveController();
   const arrow = c.direction === 1 ? '↑' : c.direction === -1 ? '↓' : '—';
 
   setText('big-floor', FLOORS[c.floor]);
@@ -646,7 +764,9 @@ function updateUI() {
   document.body.classList.toggle('paused', c.paused);
 
   for (const { b, i } of carButtons) {
-    const active = c.car.has(i);
+    const allowed = !isMall || i <= MALL_MAX_FLOOR;
+    const active = allowed && c.car.has(i);
+    if (b.disabled !== !allowed) b.disabled = !allowed;
     if (b._lastActive !== active) {
       b._lastActive = active;
       b.classList.toggle('active', active);
@@ -655,7 +775,9 @@ function updateUI() {
   }
 
   for (const { b, i } of accCarButtons) {
-    const active = c.car.has(i);
+    const allowed = !isMall || i <= MALL_MAX_FLOOR;
+    const active = allowed && c.car.has(i);
+    if (b.disabled !== !allowed) b.disabled = !allowed;
     if (b._lastActive !== active) {
       b._lastActive = active;
       b.classList.toggle('active', active);
@@ -686,7 +808,10 @@ function updateUI() {
   }
 
   for (const { b, i, dir } of rowButtons) {
-    const active = (dir === 1 ? c.up : c.down).has(i);
+    const atTop = dir === 1 && i === (isMall ? MALL_MAX_FLOOR : 14);
+    const outOfRange = (isMall && i > MALL_MAX_FLOOR) || atTop || (dir === -1 && i === 0);
+    if (b.disabled !== outOfRange) b.disabled = outOfRange;
+    const active = !outOfRange && (dir === 1 ? c.up : c.down).has(i);
     if (b._lastActive !== active) {
       b._lastActive = active;
       b.classList.toggle('active', active);
@@ -697,7 +822,14 @@ function updateUI() {
   const continuousFloor = c.position / PITCH;
   const subFloorOffset = continuousFloor - c.floor;
   for (const { row, floor, marker } of rowElements) {
-    const isCurrent = floor === c.floor;
+    const mallOut = isMall && floor > MALL_MAX_FLOOR;
+    row.classList.toggle('mall-disabled', mallOut);
+    const purpose = row.querySelector('.floor-purpose');
+    if (purpose) {
+      const badgeText = isMall && floor <= MALL_MAX_FLOOR ? mallFloorMeta(floor, FLOORS[floor]).zone.toUpperCase() : floorMeta(floor, FLOORS[floor]).badge;
+      if (purpose.textContent !== badgeText) purpose.textContent = badgeText;
+    }
+    const isCurrent = !mallOut && floor === c.floor;
     if (row._lastCurrent !== isCurrent) {
       row._lastCurrent = isCurrent;
       row.classList.toggle('current', isCurrent);
@@ -716,6 +848,7 @@ function updateUI() {
     player: game?.player ?? null,
     npcs: game?.npcs ?? null,
     robot: game?.robot ?? null,
+    cabinZone: isMall ? 'mallCabin' : 'cabin',
   });
   setText('cabin-load', load.summary);
   setText('load-sensor', `${load.weightKg}kg (${load.percent}%)`);
@@ -792,7 +925,7 @@ function updateUI() {
 try {
   view = new LiftScene($('scene'), act);
   view.sfx = sfx;
-  game = new GameMode(view, controller);
+  game = new GameMode(view, controller, mallController);
   view
     .load()
     .then(() => {
@@ -813,6 +946,7 @@ try {
 // Public inspection API for the simulator; no external machinery or network control.
 window.liftStudio = {
   controller,
+  mallController,
   announcer,
   emergencyAlarm,
   sfx,
@@ -839,13 +973,14 @@ function frame(now) {
   game?.npcs?.update(dt * rate, controller, game?.active ? game.player : null);
   game?.robot?.update(dt * rate, controller);
   controller.tick(dt * rate);
+  mallController.tick(dt * rate);
   const proximityGain = getElevatorAudioGain();
   emergencyAlarm.setProximityGain(proximityGain);
   announcer.syncProximity();
   announcer.observe(controller);
   game?.update(dt);
   uiElapsed += dt;
-  view?.update(controller);
+  view?.update(controller, mallController);
   view?.render();
   if (uiElapsed > (game?.active ? 0.22 : 0.08)) {
     updateUI();

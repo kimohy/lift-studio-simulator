@@ -2524,3 +2524,68 @@ body.game-fullscreen .game-tools {
     scroll-behavior: auto !important;
   }
 }
+
+/* Mall Expansion & Dual Lift UI */
+.lift-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 18px 12px;
+}
+
+.lift-selector button {
+  padding: 7px 8px;
+  border: 1px solid #354752;
+  border-radius: 6px;
+  background: #18232a;
+  color: #b5cad6;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.lift-selector button:hover {
+  border-color: var(--accent);
+  color: #eef8f4;
+}
+
+.lift-selector button.active {
+  background: #1b3d38;
+  border-color: var(--accent);
+  color: #9ff0d3;
+  box-shadow: 0 0 8px rgba(46, 175, 125, 0.25);
+}
+
+.floor-row.mall-disabled {
+  opacity: 0.36;
+}
+
+.dir-badge.mall-lift {
+  background: #233c35;
+  color: #8eead2;
+  border: 1px solid #3a6e5e;
+}
+
+.dir-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.dir-teleport-mall-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #3c7260;
+  background: #1b3930;
+  color: #a4f0d8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.dir-teleport-mall-btn:hover {
+  background: #36c29b;
+  color: #091713;
+  border-color: #36c29b;
+}

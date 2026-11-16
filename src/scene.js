@@ -18,6 +18,7 @@ import { RooftopPoolView } from './rooftop-pool-view.js';
 import { ServiceRobotView } from './service-robot-view.js';
 import { StairwellView } from './stairwell-view.js';
 import { AutomaticDoorSystem } from './automatic-doors.js';
+import { MallScene } from './mall-scene.js';
 
 export const TIME_OF_DAY_MODES = [
   {
@@ -452,6 +453,8 @@ export class LiftScene {
     for (const root of [
       ...(this.hotelScene?.floors ?? []),
       this.hotelScene?.exterior,
+      ...(this.mallScene?.floors ?? []),
+      this.mallScene?.exterior,
       ...(this.gameRoom?.children ?? []),
       ...(this.stairwellView?.root.children ?? []),
       ...(this.escalatorView?.root.children ?? []),
@@ -482,6 +485,8 @@ export class LiftScene {
       this.escalatorView?.root,
       this.automaticDoors?.root,
       this.hotelScene?.root,
+      this.mallScene?.root,
+      this.mallScene?.exterior,
     ]) {
       root?.traverseVisible((o) => {
         if (o.isMesh) meshes.push(o);
@@ -619,7 +624,10 @@ export class LiftScene {
     if (this.game?.room) this.guestRoomView = new GuestRoomView(this.scene, this.game.room, this.pickables);
     if (this.game?.pool) this.rooftopPoolView = new RooftopPoolView(this.scene, this.game.pool, this.pickables);
     if (this.game?.escalators) this.escalatorView = new EscalatorView(this.scene, this.pickables);
-    if (this.game?.world) this.hotelScene = new HotelScene(this.scene, this.game.world, this.pickables);
+    if (this.game?.world) {
+      this.hotelScene = new HotelScene(this.scene, this.game.world, this.pickables);
+      this.mallScene = new MallScene(this.scene, this.game.world, this.pickables);
+    }
     if (this.game?.stairs) this.stairwellView = new StairwellView(this.scene, this.game.stairs, this.pickables);
     if (this.game?.npcs) this.npcView = new NPCView(this.scene, this.game.npcs, this.pickables);
     if (this.game?.robot) this.robotView = new ServiceRobotView(this.scene, this.game.robot, this.pickables);
@@ -1077,14 +1085,15 @@ export class LiftScene {
       return;
     }
     this.controls.minDistance = view === 'cabin' ? 0.12 : 0.4;
-    this.controls.maxDistance = view === 'shaft' || view === 'exterior' ? 110 : 15;
+    this.controls.maxDistance = ['shaft', 'exterior', 'mall'].includes(view) ? 110 : 15;
 
     const presets = {
-      exterior: { p: [44, 24, 64], t: [3, 15, 16] },
+      exterior: { p: [-10, 28, 76], t: [-15, 11, 20] },
       lobby: { p: [3.1, 2.7, 6.8], t: [0, 1.18, 0.5] },
       cabin: { p: [-0.52, 1.62, -0.62], t: [0.26, 1.3, 0.79] },
       shaft: { p: [38, 19, 68], t: [0, 8.5, 0] },
       controller: { p: [5.2, 1.8, 3.4], t: [3.46, 0.97, 0] },
+      mall: { p: [-24, 16, 26], t: [-32, 8.5, 19] },
     };
     const v = presets[view];
     this.camera.position.fromArray(v.p);
@@ -1172,16 +1181,21 @@ export class LiftScene {
     this.escalatorView?.updateVisibility(floor, v === 'game');
     this.stairwellView?.updateVisibility(floor, v === 'game');
     this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior', this.game?.player);
+    this.mallScene?.updateVisibility(v, c?.floor ?? 5, v === 'game');
     this.automaticDoors?.applyVisibility(floor, this.game?.player?.floor);
+    const inMallDaylight = v === 'mall' || (v === 'game' && floor >= 5 && (this.game?.player?.x ?? 0) <= -14);
     this.scene.background =
-      v === 'exterior' || (v === 'game' && (floor === 5 || floor === 7 || floor === 14))
+      v === 'exterior' || inMallDaylight || (v === 'game' && (floor === 5 || floor === 7 || floor === 14))
         ? new THREE.Color(tod.sky)
         : null;
     if (this.weatherPoints) {
       this.weatherPoints.visible =
         v === 'exterior' ||
         v === 'shaft' ||
-        (v === 'game' && (floor === 14 || (this.weather.id !== 'clear' && (floor === 5 || floor === 7))));
+        (v === 'game' &&
+          (floor === 14 ||
+            (floor === 10 && (this.game?.player?.x ?? 0) <= -14) ||
+            (this.weather.id !== 'clear' && (floor === 5 || floor === 7))));
     }
     this.scene.fog = v === 'exterior' ? new THREE.Fog(tod.sky, 90, 190) : null;
     if (this.gameRoom) {
@@ -1213,8 +1227,9 @@ export class LiftScene {
     this.rebuildOcclusionCache();
   }
 
-  update(c) {
+  update(c, mallController = null) {
     if (!this.ready) return;
+    const mc = mallController ?? this.game?.mallController;
     const visibleFloor = this.game?.active ? this.game.player.floor : c.floor;
     const inMainLobby =
       this.view === 'game' &&
@@ -1222,8 +1237,10 @@ export class LiftScene {
       this.game?.player?.zone === 'lobby' &&
       (this.game?.player?.x ?? 0) < 10.5 &&
       (this.game?.player?.z ?? 12) < 25;
-    if (visibleFloor !== this.lastFloor || inMainLobby !== this.lastInMainLobby) {
+    const inMallWing = this.view === 'game' && (this.game?.player?.x ?? 0) <= -14;
+    if (visibleFloor !== this.lastFloor || inMainLobby !== this.lastInMainLobby || inMallWing !== this.lastInMallWing) {
       this.lastInMainLobby = inMainLobby;
+      this.lastInMallWing = inMallWing;
       this.applyVisibility(c);
     }
 
@@ -1232,6 +1249,7 @@ export class LiftScene {
     this.escalatorView?.update(c.time, c.paused, this.game?.escalators?.stopped);
     this.stairwellView?.update();
     this.hotelScene?.update(c.time, this.game?.player);
+    this.mallScene?.update(mc, c.time, this.game?.player);
     this.npcView?.update(c.time, visibleFloor, this.view);
     this.robotView?.update(c.time, visibleFloor, this.view);
     this.automaticDoors?.update(0.016, this.game?.player);

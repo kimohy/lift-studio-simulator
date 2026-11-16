@@ -1,4 +1,4 @@
-import { floorMeta, floorUsage, MALL_MAX_FLOOR, mallFloorMeta } from './building.js';
+import { floorMeta, floorUsage, MALL_MAX_FLOOR, MALL_VALID_FLOORS, mallFloorMeta, normalizeMallFloor } from './building.js';
 import { FLOORS, LiftController } from './controller.js';
 import { Escalators } from './escalator.js';
 import { GuestRoom } from './guest-room.js';
@@ -21,6 +21,11 @@ const MALL_ACTIONS = new Set([
   'mallMediaWall',
   'mallParking',
   'mallConcierge',
+  'mallCinemaTicket',
+  'mallCinemaSnack',
+  'mallCinemaScreen',
+  'mallCinemaSeat',
+  'mallPerson',
 ]);
 
 const $ = (id) => document.getElementById(id);
@@ -50,6 +55,7 @@ export class GameMode {
         id: 'mall',
         label: '몰 전망 엘리베이터',
         startFloor: 5,
+        allowedFloors: MALL_VALID_FLOORS,
       });
     view.game = this;
 
@@ -454,7 +460,7 @@ export class GameMode {
     for (let f = 14; f >= 0; f--) {
       const meta = floorMeta(f, FLOORS[f]);
       const usage = floorUsage(f);
-      const hasMall = f <= MALL_MAX_FLOOR;
+      const hasMall = MALL_VALID_FLOORS.includes(f);
       const mallInfo = hasMall ? mallFloorMeta(f, FLOORS[f]) : null;
       const row = document.createElement('div');
       row.className = 'directory-row' + (f < 5 ? ' basement' : '') + (f === playerFloor ? ' player-here' : '');
@@ -481,12 +487,12 @@ export class GameMode {
             <strong>${usage.ko}</strong>
             <span class="dir-en">${usage.en}</span>
           </div>
-          <div class="dir-floor-desc">${meta.desc}${mallInfo ? ` · <strong>[그랜드 몰]</strong> ${mallInfo.ko}` : ''}</div>
+          <div class="dir-floor-desc">${meta.desc}${mallInfo ? ` · <strong>[그랜드 몰 7m]</strong> ${mallInfo.ko}` : f >= 6 ? ` · [그랜드 몰 ${mallFloorMeta(f).mallCode} 2배 층고 오픈 보이드]` : ''}</div>
           ${badges.length ? `<div class="dir-badges">${badges.join(' ')}</div>` : ''}
         </div>
         <div class="dir-actions">
           <button type="button" class="dir-teleport-btn" data-floor="${f}">호텔 이동</button>
-          ${hasMall ? `<button type="button" class="dir-teleport-mall-btn" data-mall-floor="${f}">몰 이동</button>` : ''}
+          ${hasMall ? `<button type="button" class="dir-teleport-mall-btn" data-mall-floor="${f}">몰 (${mallInfo.mallCode})</button>` : ''}
         </div>
       `;
 
@@ -504,13 +510,12 @@ export class GameMode {
   }
 
   fastTravelToMallFloor(floorIndex) {
-    const f = Math.max(0, Math.min(MALL_MAX_FLOOR, floorIndex | 0));
+    const f = normalizeMallFloor(floorIndex);
     if (!this.active && this.view?.ready) {
       this.enter();
     }
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
-    this.mallController?.setObstruction(false, 'player');
     this.mallController?.setObstruction(false, 'player');
     if (f !== 5) this.stay.completeMilestone('verticalTransit');
 
@@ -1086,10 +1091,11 @@ export class GameMode {
 
   interactMall(action, data = {}) {
     if (!this.active) return;
-    const res = this.stay.interactMall(action, data);
+    const res = this.stay.interactMall(action, data, this.player);
     this.notifyQuestProgress?.(res.newlyCompletedQuests);
     this.message(res.message);
     this.messageUntil = performance.now() + 5500;
+    if (action === 'mallCinemaSeat') this.applyCamera();
     this.updateHUD();
     return res;
   }
@@ -1518,16 +1524,26 @@ export class GameMode {
         return `★ VIP 직통 운행 (${this.controller.vipMode ? '켜짐' : '꺼짐'})`;
       case 'cabinMirror':
         return '🪞 엘리베이터 거울 확인';
-      case 'mallHall':
-        return `🛍️ 몰 승강기 · ${FLOORS[d.floorIndex]}층 ${d.direction === 1 ? '▲ 상행' : '▼ 하행'} 호출`;
-      case 'mallCar':
-        return `🛍️ 몰 ${FLOORS[d.floorIndex]}층 ${this.mallController?.car?.has(d.floorIndex) ? '선택 취소' : '선택'}`;
+      case 'mallHall': {
+        const mcCode = d.floorIndex < 5 ? FLOORS[d.floorIndex] : mallFloorMeta(d.floorIndex).mallCode;
+        return `🛍️ 몰 승강기 · ${mcCode} ${d.direction === 1 ? '▲ 상행' : '▼ 하행'} 호출`;
+      }
+      case 'mallCar': {
+        const mcCode = d.floorIndex < 5 ? FLOORS[d.floorIndex] : mallFloorMeta(d.floorIndex).mallCode;
+        return `🛍️ 몰 ${mcCode} ${this.mallController?.car?.has(d.floorIndex) ? '선택 취소' : '선택'}`;
+      }
       case 'mallOpen':
         return '🛍️ 몰 엘리베이터 문 열림';
       case 'mallClose':
         return '🛍️ 몰 엘리베이터 문 닫힘';
       case 'mallAlarm':
         return '🛍️ 몰 엘리베이터 비상 호출';
+      case 'mallPerson':
+        return `💬 ${d.personName || '몰 방문객'} (${d.roleLabel || '게스트'}) · 대화하기`;
+      case 'mallCinemaTicket':
+      case 'mallCinemaSnack':
+      case 'mallCinemaScreen':
+      case 'mallCinemaSeat':
       case 'mallWaterfall':
       case 'mallLibrary':
       case 'mallCafe':
@@ -1538,7 +1554,7 @@ export class GameMode {
       case 'mallMediaWall':
       case 'mallParking':
       case 'mallConcierge':
-        return `✨ ${d.label || '그랜드 아트리움 몰'} · 체험하기`;
+        return `✨ ${d.label || '그랜드 아트리움 몰'} · 이용하기`;
       default:
         return `${d.accessible ? '♿ ' : d.tenKey ? '🔢 ' : ''}${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action] || '상호작용'}`;
     }
@@ -1548,12 +1564,17 @@ export class GameMode {
     const p = this.player;
     const c = this.controller;
     const mc = this.mallController;
-    const inMall = p.zone === 'mallCabin' || p.x <= -14 || (p.x <= -10.8 && p.z >= 5.2 && p.z <= 7.6);
+    const inMall =
+      p.zone === 'mallCabin' ||
+      p.x <= -12.0 ||
+      (p.x <= -10.8 && p.z >= 5.2 && p.z <= 7.6);
+    const mcCode = mc ? (mc.floor < 5 ? FLOORS[mc.floor] : mallFloorMeta(mc.floor).mallCode) : 'M1F';
+    const pMallCode = p.floor < 5 ? FLOORS[p.floor] : mallFloorMeta(p.floor).mallCode;
     $('player-location').textContent =
       p.zone === 'cabin'
         ? `호텔 엘리베이터 안 · ${FLOORS[c.floor]}층${c.state === 'moving' ? ' 이동 중' : ''}`
         : p.zone === 'mallCabin'
-          ? `몰 전망 엘리베이터 안 · ${FLOORS[mc.floor]}층${mc.state === 'moving' ? ' 이동 중' : ''}`
+          ? `몰 전망 엘리베이터 안 · ${mcCode}${mc.state === 'moving' ? ' 이동 중' : ''}`
           : p.zone === 'room'
             ? `3층 · 301호 객실${this.room.wearingRobe ? ' (호텔 가운 🥼)' : ''}${this.room.privacyMode.id === 'dnd' ? ' · 🔕 DND' : this.room.privacyMode.id === 'makeup' ? ' · 🧹 정비요청' : ''}`
             : p.zone === 'pool'
@@ -1566,11 +1587,14 @@ export class GameMode {
                 ? `${FLOORS[p.floor]}층 · 에스컬레이터`
                 : p.zone === 'stairs'
                   ? this.stairLocation()
-                  : `${FLOORS[p.floor]}층 · ${this.world.location(p)}`;
+                  : inMall
+                    ? `${pMallCode} · ${this.world.location(p)}`
+                    : `${FLOORS[p.floor]}층 · ${this.world.location(p)}`;
 
     const hudLift = inMall && mc ? mc : c;
     const hudLiftName = inMall && mc ? '몰 승강기' : '엘리베이터';
-    $('game-lift-state').textContent = `${hudLiftName} ${FLOORS[hudLift.floor]}층 · ${
+    const hudFloorCode = inMall && mc ? mcCode : `${FLOORS[hudLift.floor]}층`;
+    $('game-lift-state').textContent = `${hudLiftName} ${hudFloorCode} · ${
       hudLift.state === 'moving' ? (hudLift.direction > 0 ? '올라가는 중' : '내려가는 중') : hudLift.door > 0 ? '문 열림' : '대기'
     }`;
 
@@ -1629,8 +1653,8 @@ export class GameMode {
     } else if (p.zone === 'mallCabin') {
       text =
         mc?.state === 'moving'
-          ? `몰 ${FLOORS[mc.target ?? mc.floor]}층으로 이동 중`
-          : '몰 전망 엘리베이터 · 내부 층 버튼을 클릭하세요 (B5~6F)';
+          ? `몰 ${mc.floor < 5 ? FLOORS[mc.floor] : mallFloorMeta(mc.floor).mallCode}(으)로 이동 중`
+          : '몰 전망 엘리베이터 · 내부 층 버튼을 클릭하세요 (B5~M5F 영화관)';
     } else if (p.zone === 'room') {
       text = '301호 스위트 · 객실 내 가구와 스마트 기기를 클릭해 이용하세요';
     } else if (p.zone === 'pool') {
@@ -1683,25 +1707,29 @@ export class GameMode {
       ctx.fillStyle = f < 5 ? '#151f26' : '#142a33';
       ctx.fillRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
       ctx.strokeRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
-      // Central Atrium Void & Floating Skybridge (2F..5F) or Twin Lightwells (6F)
-      if (f >= 6 && f <= 9) {
+      // Central Atrium Void & Floating Skybridge (M2F=7, M3F=9, M4F=11) or Twin Lightwells (M5F Cinema=13)
+      if (f === 7 || f === 9 || f === 11) {
         ctx.fillStyle = '#0b141a';
         ctx.fillRect(mapX(-41), mapZ(12), 20 * 2.9, 16 * 3.1);
         ctx.strokeRect(mapX(-41), mapZ(12), 20 * 2.9, 16 * 3.1);
-        if (f === 7 || f === 9) {
+        if (f === 9 || f === 11) {
           ctx.fillStyle = '#2c5b63';
           ctx.fillRect(mapX(-41), mapZ(18.6), 20 * 2.9, 2.8 * 3.1);
         }
-      } else if (f === 10) {
+      } else if (f === 13) {
+        ctx.fillStyle = '#2a1622';
+        ctx.fillRect(mapX(-50), mapZ(13), 10.5 * 2.9, 22 * 3.1);
         ctx.fillStyle = '#1b412e';
-        ctx.fillRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
+        ctx.fillRect(mapX(-32), mapZ(26), 17 * 2.9, 9 * 3.1);
         ctx.fillStyle = '#0b141a';
         ctx.fillRect(mapX(-38.5), mapZ(16), 7 * 2.9, 8 * 3.1);
         ctx.fillRect(mapX(-24.5), mapZ(16), 6 * 2.9, 8 * 3.1);
       } else if (f === 5) {
-        // 1F Waterfall & Starfield Library
+        // M1F Open Lobby Link, Waterfall & Starfield Library
+        ctx.fillStyle = '#295763';
+        ctx.fillRect(mapX(-14.2), mapZ(10.2), 4.2 * 2.9, 11.6 * 3.1);
         ctx.fillStyle = '#2a6b84';
-        ctx.fillRect(mapX(-22.9), mapZ(29.1), 8.2 * 2.9, 4.2 * 3.1);
+        ctx.fillRect(mapX(-22.9), mapZ(30.3), 8.0 * 2.9, 3.8 * 3.1);
         ctx.fillStyle = '#735035';
         ctx.fillRect(mapX(-47.8), mapZ(13.8), 2.4 * 2.9, 12.4 * 3.1);
       }
@@ -1711,6 +1739,15 @@ export class GameMode {
       // Mall Panoramic Elevator
       ctx.fillStyle = mc.floor === f ? '#d4b26f' : '#2a3e4a';
       ctx.fillRect(mapX(MALL_LIFT_X - 1.25), mapZ(MALL_LIFT_Z - 1.1), 2.5 * 2.9, 2.25 * 3.1);
+      // Mall Crowd dots on active floor
+      for (const mp of this.view?.mallScene?.mallPeople ?? []) {
+        if (mp.floor === f) {
+          ctx.fillStyle = '#ffbe6b';
+          ctx.beginPath();
+          ctx.arc(mapX(mp.x), mapZ(mp.z), 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     } else if (f === 5) {
       // 1F Grand Lobby
       ctx.fillStyle = '#142630';

@@ -61,32 +61,41 @@ export function floorMeta(index, floorName = '') {
   };
 }
 
-export const MALL_MAX_FLOOR = 10;
+export const MALL_VALID_FLOORS = Object.freeze([0, 1, 2, 3, 4, 5, 7, 9, 11, 13]);
+export const MALL_MAX_FLOOR = 13;
 
-const MALL_FLOORS = Object.freeze([
-  { floor: 'B5', ko: '몰 지하주차장 B5', en: 'MALL PARKING B5 · EV ZONE', zone: 'parking' },
-  { floor: 'B4', ko: '몰 지하주차장 B4', en: 'MALL PARKING B4 · HOTEL LINK', zone: 'parking' },
-  { floor: 'B3', ko: '몰 지하주차장 B3', en: 'MALL PARKING B3', zone: 'parking' },
-  { floor: 'B2', ko: '몰 지하주차장 B2', en: 'MALL PARKING B2 · SUPERCHARGER', zone: 'parking' },
-  { floor: 'B1', ko: '몰 지하주차장 B1', en: 'MALL PARKING B1 · VALET & PICKUP', zone: 'parking' },
-  { floor: '1F', ko: '1F 그랜드 아트리움 · 워터폴 가든', en: 'GRAND ATRIUM · WATERFALL GARDEN', zone: 'atrium' },
-  { floor: '2F', ko: '2F 럭셔리 부티크 · 별마당 서가', en: 'LUXURY BOUTIQUE · LIBRARY', zone: 'retail' },
-  { floor: '3F', ko: '3F 스카이브리지 · 라이프스타일', en: 'FLOATING SKYBRIDGE · LIFESTYLE', zone: 'retail' },
-  { floor: '4F', ko: '4F 컬처 서가 · 시네마 라운지', en: 'CULTURE LIBRARY · LOUNGE', zone: 'retail' },
-  { floor: '5F', ko: '5F 고메 스트리트 · 스카이워크', en: 'GOURMET DINING · SKYBRIDGE', zone: 'dining' },
-  { floor: '6F', ko: '6F 사운즈 포레스트 · 하늘정원', en: 'SOUNDS FOREST · ROOFTOP PARK', zone: 'forest' },
-]);
+export function normalizeMallFloor(index) {
+  const n = Number(index) | 0;
+  if (n <= 0) return 0;
+  if (n <= 4) return n;
+  if (n >= 13) return 13;
+  return n % 2 === 0 ? n - 1 : n;
+}
+
+const MALL_FLOOR_SPECS = Object.freeze({
+  0: { floor: 'B5', mallCode: 'B5', ko: '몰 지하주차장 B5 · EV 존', en: 'MALL PARKING B5 · EV ZONE', zone: 'parking' },
+  1: { floor: 'B4', mallCode: 'B4', ko: '몰 지하주차장 B4 · 호텔 직결', en: 'MALL PARKING B4 · HOTEL LINK', zone: 'parking' },
+  2: { floor: 'B3', mallCode: 'B3', ko: '몰 지하주차장 B3', en: 'MALL PARKING B3', zone: 'parking' },
+  3: { floor: 'B2', mallCode: 'B2', ko: '몰 지하주차장 B2 · 급속충전', en: 'MALL PARKING B2 · SUPERCHARGER', zone: 'parking' },
+  4: { floor: 'B1', mallCode: 'B1', ko: '몰 지하주차장 B1 · 발렛 & 픽업', en: 'MALL PARKING B1 · VALET & PICKUP', zone: 'parking' },
+  5: { floor: '1', mallCode: 'M1F', ko: 'M1F 그랜드 아트리움 · 럭셔리 부티크', en: 'M1F LUXURY BOUTIQUE · ATRIUM', zone: 'atrium' },
+  7: { floor: '3', mallCode: 'M2F', ko: 'M2F 컨템포러리 패션 · 별마당 도서관', en: 'M2F FASHION · STARFIELD LIBRARY', zone: 'retail' },
+  9: { floor: '5', mallCode: 'M3F', ko: 'M3F 테크 플래그십 · 스카이브리지', en: 'M3F TECH FLAGSHIP · SKYBRIDGE', zone: 'retail' },
+  11: { floor: '7', mallCode: 'M4F', ko: 'M4F 고메 스트리트 · 사운즈 포레스트', en: 'M4F GOURMET · SOUNDS FOREST', zone: 'dining' },
+  13: { floor: '9', mallCode: 'M5F', ko: 'M5F 그랜드 시네마 멀티플렉스 (IMAX)', en: 'M5F GRAND CINEMA MULTIPLEX', zone: 'cinema' },
+});
 
 export function mallFloorMeta(index, floorName = '') {
-  const clamped = Math.max(0, Math.min(MALL_MAX_FLOOR, index | 0));
-  const entry = MALL_FLOORS[clamped];
+  const snapped = normalizeMallFloor(index);
+  const entry = MALL_FLOOR_SPECS[snapped];
   return {
     floor: floorName || entry.floor,
+    mallCode: entry.mallCode,
     ko: entry.ko,
     en: entry.en,
     zone: entry.zone,
-    isParking: clamped < 5,
-    isAtrium: clamped >= 5,
+    isParking: snapped < 5,
+    isAtrium: snapped >= 5,
   };
 }
 

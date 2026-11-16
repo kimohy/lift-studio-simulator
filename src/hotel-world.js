@@ -3,7 +3,8 @@ const inside = (x, z, a, b, c, d) => between(x, a, b) && between(z, c, d);
 
 export const MALL_LIFT_X = -28.0;
 export const MALL_LIFT_Z = 6.2;
-export const MALL_MAX_FLOOR = 10;
+export const MALL_VALID_FLOORS = Object.freeze([0, 1, 2, 3, 4, 5, 7, 9, 11, 13]);
+export const MALL_MAX_FLOOR = 13;
 
 export class HotelWorld {
   constructor() {
@@ -28,18 +29,20 @@ export class HotelWorld {
   }
 
   isMallArea(x, z, floor) {
-    if (!Number.isInteger(floor) || floor < 0 || floor > MALL_MAX_FLOOR) return false;
-    // Escalator side connection bridge (x ∈ [-14.5, -10.0], z ∈ [5.25, 7.55]) across B5..6F
+    if (!Number.isInteger(floor) || !MALL_VALID_FLOORS.includes(floor)) return false;
+    // 1F Open Lobby Connection directly linking Grand Hotel Lobby and Mall M1F Atrium (z ∈ [10.2, 21.8])
+    if (floor === 5 && inside(x, z, -14.6, -11.4, 10.2, 21.8)) return true;
+    // Escalator side connection bridge (x ∈ [-14.5, -10.0], z ∈ [5.25, 7.55]) on matching Mall/Hotel levels
     if (inside(x, z, -14.5, -10.0, 5.25, 7.55)) return true;
-    // Underground parking connection portals along x = -14 on B5..B1
-    if (floor < 5 && (inside(x, z, -14.6, -13.5, 14.7, 17.1) || inside(x, z, -14.6, -13.5, 19.4, 25.2))) {
+    // Unified Underground Parking connection portals along x = -14 on B5..B1
+    if (floor < 5 && (inside(x, z, -14.6, -13.4, 14.6, 17.4) || inside(x, z, -14.6, -13.4, 19.1, 25.3))) {
       return true;
     }
-    // 1F Outdoor Mall Entrance Plaza (connects seamlessly to Hotel Entrance Plaza)
+    // M1F Outdoor Mall Entrance Plaza (connects seamlessly to Hotel Entrance Plaza)
     if (floor === 5 && inside(x, z, -49.6, -14.0, 36.3, 47.7)) {
       return true;
     }
-    // 1F South Curtain-Wall Automatic Entrance Aperture
+    // M1F South Curtain-Wall Automatic Entrance Aperture
     if (floor === 5 && inside(x, z, -33.8, -30.2, 35.2, 36.4)) {
       return true;
     }
@@ -47,18 +50,22 @@ export class HotelWorld {
     if (inside(x, z, MALL_LIFT_X - 1.35, MALL_LIFT_X + 1.35, MALL_LIFT_Z - 1.35, MALL_LIFT_Z + 1.6)) {
       return false;
     }
-    if (!inside(x, z, -49.6, -14.3, 4.6, 35.4)) return false;
-    // B5..B1 Mall Underground Parking & 1F Grand Atrium Floor
-    if (floor <= 5) return true;
-    // 6F Sounds Forest Rooftop Garden (twin atrium lightwells)
-    if (floor === 10) {
+    // B5..B1 Unified Mall Underground Parking (main garage z ∈ [8.2, 35.6] + north lift/escalator vestibule)
+    if (floor < 5) {
+      return inside(x, z, -49.6, -14.2, 8.2, 35.6) || inside(x, z, -31.5, -14.2, 4.6, 8.5);
+    }
+    if (!inside(x, z, -49.6, -14.2, 4.6, 35.4)) return false;
+    // M1F (floor 5, 7m ceiling) Full Grand Atrium Floor
+    if (floor === 5) return true;
+    // M5F (floor 13, 7m ceiling) Top-Floor Grand Cinema & Sky Observatory (twin atrium lightwells)
+    if (floor === 13) {
       return !inside(x, z, -38.5, -31.5, 16.0, 24.0) && !inside(x, z, -24.5, -18.5, 16.0, 24.0);
     }
-    // 2F..5F Ring Gallery around Central Atrium Void (x ∈ [-41, -21], z ∈ [12, 28])
+    // M2F (floor 7), M3F (floor 9), M4F (floor 11) Ring Gallery around Central Atrium Void
     const inVoid = inside(x, z, -41.0, -21.0, 12.0, 28.0);
     if (!inVoid) return true;
-    // Walkable Floating Atrium Skybridges on 3F (floor 7) and 5F (floor 9)
-    if ((floor === 7 || floor === 9) && inside(x, z, -41.2, -20.8, 18.65, 21.35)) {
+    // Walkable Floating Atrium Skybridges on M3F (floor 9) and M4F (floor 11)
+    if ((floor === 9 || floor === 11) && inside(x, z, -41.2, -20.8, 18.6, 21.4)) {
       return true;
     }
     return false;
@@ -137,21 +144,33 @@ export class HotelWorld {
 
   location(player) {
     if (player.zone === 'ramp') return '차량 경사로';
-    if (player.zone === 'mallCabin') return '그랜드 몰 엘리베이터';
-    if (player.x <= -14.0 || (player.x <= -10.8 && player.z >= 5.2 && player.z <= 7.6)) {
-      if (player.floor < 5) return '그랜드 몰 · 지하주차장';
+    if (player.zone === 'mallCabin') return '그랜드 몰 전망 엘리베이터';
+    if (player.x <= -14.0 || (player.x <= -11.5 && player.z >= 10.2 && player.z <= 21.8 && player.floor === 5) || (player.x <= -10.8 && player.z >= 5.2 && player.z <= 7.6)) {
+      if (player.floor < 5) return '그랜드 몰 · 통합 지하주차장';
       if (player.floor === 5) {
         if (player.z > 36) return '그랜드 몰 · 야외 광장';
-        if (player.z > 27) return '그랜드 몰 · 워터폴 가든';
-        if (player.x < -41) return '그랜드 몰 · 별마당 서가';
-        return '그랜드 몰 · 1F 중앙 아트리움';
+        if (player.z > 27) return '그랜드 몰 · M1F 워터폴 가든';
+        if (player.x < -41) return '그랜드 몰 · M1F 명품 부티크';
+        if (player.x > -16) return '그랜드 몰 ↔ 호텔 1F 연결 로비';
+        return '그랜드 몰 · M1F 럭셔리 아트리움';
       }
-      if (player.floor === 10) return '그랜드 몰 · 6F 사운즈 포레스트';
-      if ((player.floor === 7 || player.floor === 9) && inside(player.x, player.z, -41.5, -20.5, 18.4, 21.6)) {
-        return `그랜드 몰 · ${player.floor - 4}F 스카이브리지`;
+      if (player.floor === 7) {
+        if (player.x < -41) return '그랜드 몰 · M2F 별마당 도서관';
+        return '그랜드 몰 · M2F 패션 & 뷰티 스트리트';
       }
-      if (player.x < -41 && player.floor <= 8) return `그랜드 몰 · ${player.floor - 4}F 별마당 서가`;
-      return `그랜드 몰 · ${player.floor - 4}F 아트리움 갤러리`;
+      if (player.floor === 9) {
+        if (inside(player.x, player.z, -41.5, -20.5, 18.4, 21.6)) return '그랜드 몰 · M3F 플로팅 스카이브리지';
+        return '그랜드 몰 · M3F 테크 플래그십 라운지';
+      }
+      if (player.floor === 11) {
+        if (inside(player.x, player.z, -41.5, -20.5, 18.4, 21.6)) return '그랜드 몰 · M4F 스카이워크';
+        return '그랜드 몰 · M4F 고메 & 사운즈 포레스트';
+      }
+      if (player.floor === 13) {
+        if (player.x < -39 && player.z > 13) return '그랜드 몰 · M5F IMAX 상영관';
+        return '그랜드 몰 · M5F 그랜드 시네마';
+      }
+      return '그랜드 몰';
     }
     if (player.floor < 5) return '주차장';
     if (player.floor > 5) return '호텔 객실';

@@ -81,7 +81,8 @@ export class EscalatorView {
       box(g, 'Return_corridor', [6.8, 0.14, 2.65], [-7.4, -0.07, 6.625], stone);
       box(g, 'Escalator_back_wall', [8.4, 3.56, 0.2], [-6.7, 1.75, 8.0], stone);
       box(g, 'Escalator_front_wall', [8.4, 3.56, 0.16], [-6.7, 1.75, 1.32], stone);
-      if (f <= 10) {
+      const hasMallBridge = f <= 4 || (f >= 5 && f <= 13 && f % 2 === 1);
+      if (hasMallBridge) {
         box(g, 'Escalator_outer_wall', [0.16, 3.56, 3.98], [-10.88, 1.75, 3.21], stone);
         box(g, 'Escalator_outer_wall_rear', [0.16, 3.56, 0.5], [-10.88, 1.75, 7.85], stone);
         box(g, 'Escalator_mall_portal_lintel', [0.16, 1.03, 2.4], [-10.88, 3.015, 6.4], stone);
@@ -102,8 +103,9 @@ export class EscalatorView {
       if (f === 14) box(g, 'Escalator_shaft_top_cap', [8.4, 0.2, 6.9], [-6.7, 3.4, 4.65], stone);
 
       sign(g, [`${FLOORS[f]}F · 에스컬레이터`, 'ESCALATOR'], [-2.46, 2.65, 2.35], Math.PI / 2);
-      if (f <= 10) {
-        sign(g, ['← 그랜드 몰 연결통로', 'TO GRAND ATRIUM MALL'], [-10.78, 2.68, 6.35], Math.PI / 2);
+      if (hasMallBridge) {
+        const mallTag = f < 5 ? `${FLOORS[f]} 지하주차장` : `M${(f - 3) / 2}F 그랜드 몰`;
+        sign(g, [`← ${mallTag} 연결통로`, 'TO GRAND ATRIUM MALL'], [-10.78, 2.68, 6.35], Math.PI / 2);
       } else {
         sign(g, ['엘리베이터 · 복도 →', 'ELEVATOR & LOBBY'], [-10.78, 1.85, 6.35], Math.PI / 2);
       }

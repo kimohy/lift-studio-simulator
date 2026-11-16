@@ -29,17 +29,40 @@ export const CABIN_INTERCOM_RESPONSES = [
 ];
 
 export class LiftController {
-  constructor({ minFloor = 0, maxFloor = FLOORS.length - 1, id = 'hotel', label = '호텔 엘리베이터', startFloor = 5 } = {}) {
+  constructor({
+    minFloor = 0,
+    maxFloor = FLOORS.length - 1,
+    id = 'hotel',
+    label = '호텔 엘리베이터',
+    startFloor = 5,
+    allowedFloors = null,
+  } = {}) {
     this.minFloor = minFloor;
     this.maxFloor = maxFloor;
     this.id = id;
     this.label = label;
+    this.allowedFloors = Array.isArray(allowedFloors) ? [...allowedFloors] : null;
     this.startFloor = Math.max(minFloor, Math.min(maxFloor, startFloor));
     this.reset();
   }
 
+  normalizeFloor(n) {
+    if (!this.allowedFloors || !Number.isInteger(n)) return n;
+    if (this.allowedFloors.includes(n)) return n;
+    if (n >= 5 && n <= 14) {
+      const snapped = n % 2 === 0 ? n - 1 : n;
+      if (this.allowedFloors.includes(snapped)) return snapped;
+    }
+    return n;
+  }
+
   isValidFloor(n) {
-    return Number.isInteger(n) && n >= this.minFloor && n <= this.maxFloor;
+    return (
+      Number.isInteger(n) &&
+      n >= this.minFloor &&
+      n <= this.maxFloor &&
+      (!this.allowedFloors || this.allowedFloors.includes(n))
+    );
   }
 
   reset() {
@@ -121,19 +144,21 @@ export class LiftController {
   }
 
   callCar(n) {
-    if (!this.isValidFloor(n)) return false;
-    return this.add(this.car, n, '내부');
+    const f = this.normalizeFloor(n);
+    if (!this.isValidFloor(f)) return false;
+    return this.add(this.car, f, '내부');
   }
 
   cancelCar(n) {
-    if (!this.isValidFloor(n) || !this.car.has(n)) return false;
-    if (this.state === 'moving' && this.target === n) {
+    const f = this.normalizeFloor(n);
+    if (!this.isValidFloor(f) || !this.car.has(f)) return false;
+    if (this.state === 'moving' && this.target === f) {
       const braking = (this.velocity * this.velocity) / (2 * this.accel) + 0.08;
-      if (Math.abs(n * PITCH - this.position) <= braking) {
+      if (Math.abs(f * PITCH - this.position) <= braking) {
         return false;
       }
-      this.car.delete(n);
-      this.log(`${FLOORS[n]}층 · 내부 호출 취소`);
+      this.car.delete(f);
+      this.log(`${FLOORS[f]}층 · 내부 호출 취소`);
       const next = this.chooseTarget();
       if (next !== null && (next - this.position / PITCH) * this.direction > 0) {
         this.target = next;
@@ -141,8 +166,8 @@ export class LiftController {
       }
       return true;
     }
-    this.car.delete(n);
-    this.log(`${FLOORS[n]}층 · 내부 호출 취소`);
+    this.car.delete(f);
+    this.log(`${FLOORS[f]}층 · 내부 호출 취소`);
     if (this.state === 'idle' && this.pending().length === 0) {
       this.direction = 0;
       this.target = null;
@@ -151,20 +176,21 @@ export class LiftController {
   }
 
   toggleCar(n, { allowCancel = false } = {}) {
-    if (!this.isValidFloor(n)) return { ok: false, action: 'invalid', floor: n };
-    if (allowCancel && this.car.has(n)) {
-      const cancelled = this.cancelCar(n);
+    const f = this.normalizeFloor(n);
+    if (!this.isValidFloor(f)) return { ok: false, action: 'invalid', floor: n };
+    if (allowCancel && this.car.has(f)) {
+      const cancelled = this.cancelCar(f);
       return {
         ok: cancelled,
         action: cancelled ? 'cancelled' : 'locked',
-        floor: n,
+        floor: f,
       };
     }
-    const added = this.callCar(n);
+    const added = this.callCar(f);
     return {
       ok: added,
       action: added ? 'added' : 'exists',
-      floor: n,
+      floor: f,
     };
   }
 
@@ -177,7 +203,8 @@ export class LiftController {
   }
 
   commitTenKeyFloor(floorIndex) {
-    if (!this.isValidFloor(floorIndex)) {
+    const f = this.normalizeFloor(floorIndex);
+    if (!this.isValidFloor(f)) {
       this.tenKeyBuffer = '';
       this.tenKeyTimer = 0;
       this.tenKeyDisplay = 'ERR';
@@ -190,9 +217,9 @@ export class LiftController {
     }
     this.tenKeyBuffer = '';
     this.tenKeyTimer = 0;
-    const res = this.toggleCar(floorIndex, { allowCancel: true });
-    const label = FLOORS[floorIndex];
-    if (floorIndex === 5 && res.action === 'added') {
+    const res = this.toggleCar(f, { allowCancel: true });
+    const label = FLOORS[f];
+    if (f === 5 && res.action === 'added') {
       this.tenKeyLastOneCommitAt = this.time;
     }
     this.tenKeyDisplay =
@@ -307,12 +334,26 @@ export class LiftController {
         if (digit === 0) {
           return this.commitTenKeyFloor(14); // 10F
         }
-        if (digit === 1) {
+        if (this.allowedFloors) {
+        if (digit >= 1 && digit <= 5) {
+          return this.commitTenKeyFloor([5, 7, 9, 11, 13][digit - 1]);
+        }
+        return this.commitTenKeyFloor(-1);
+      }
+
+      if (digit === 1) {
           return this.commitTenKeyFloor(5); // 1F confirmed immediately
         }
         // Commit buffered 1F and then commit the new floor (2F..9F)
         this.commitTenKeyFloor(5);
         return this.commitTenKeyFloor(digit + 4);
+      }
+
+      if (this.allowedFloors) {
+        if (digit >= 1 && digit <= 5) {
+          return this.commitTenKeyFloor([5, 7, 9, 11, 13][digit - 1]);
+        }
+        return this.commitTenKeyFloor(-1);
       }
 
       if (digit === 1) {
@@ -455,10 +496,11 @@ export class LiftController {
   }
 
   callHall(n, dir) {
-    if (!this.isValidFloor(n) || ![1, -1].includes(dir) || (n === this.minFloor && dir === -1) || (n === this.maxFloor && dir === 1)) {
+    const f = this.normalizeFloor(n);
+    if (!this.isValidFloor(f) || ![1, -1].includes(dir) || (f === this.minFloor && dir === -1) || (f === this.maxFloor && dir === 1)) {
       return false;
     }
-    return this.add(dir === 1 ? this.up : this.down, n, dir === 1 ? '상행 호출' : '하행 호출');
+    return this.add(dir === 1 ? this.up : this.down, f, dir === 1 ? '상행 호출' : '하행 호출');
   }
 
   add(set, n, label) {
@@ -682,7 +724,15 @@ export class LiftController {
       }
       this.position = m.start + travelled * this.direction;
       this.velocity = speed * this.direction;
-      this.floor = Math.max(this.minFloor, Math.min(this.maxFloor, Math.round(this.position / PITCH)));
+      if (this.allowedFloors) {
+        const posF = this.position / PITCH;
+        this.floor = this.allowedFloors.reduce(
+          (best, f) => (Math.abs(f - posF) < Math.abs(best - posF) ? f : best),
+          this.allowedFloors[0]
+        );
+      } else {
+        this.floor = Math.max(this.minFloor, Math.min(this.maxFloor, Math.round(this.position / PITCH)));
+      }
       if (m.t >= m.total) {
         this.position = this.target * PITCH;
         this.velocity = 0;
@@ -718,7 +768,8 @@ export class LiftController {
 
   arrive() {
     this.velocity = 0;
-    this.floor = Math.round(this.position / PITCH);
+    const raw = Math.round(this.position / PITCH);
+    this.floor = this.allowedFloors ? this.normalizeFloor(raw) : raw;
     const incoming = this.direction === 1 ? this.up : this.down;
     const opposite = this.direction === 1 ? this.down : this.up;
     const reverse =

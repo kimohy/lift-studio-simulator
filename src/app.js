@@ -1,5 +1,5 @@
 import { HotelAnnouncements } from './announcements.js';
-import { floorMeta, MALL_MAX_FLOOR, mallFloorMeta } from './building.js';
+import { floorMeta, MALL_MAX_FLOOR, MALL_VALID_FLOORS, mallFloorMeta } from './building.js';
 import { computeCabinLoad, FLOORS, LiftController, PITCH } from './controller.js';
 import { computeElevatorAudioGain, HotelSoundEffects } from './elevator-audio.js';
 import { EmergencyAlarm } from './emergency-alarm.js';
@@ -15,8 +15,10 @@ const mallController = new LiftController({
   id: 'mall',
   label: '몰 전망 엘리베이터',
   startFloor: 5,
+  allowedFloors: MALL_VALID_FLOORS,
 });
 let activeLift = 'hotel';
+let lastAutoWing = 'hotel';
 const getActiveController = () => (activeLift === 'mall' ? mallController : controller);
 let view;
 let game;
@@ -173,7 +175,12 @@ function act(action, floor, direction, data) {
   }
   if (action === 'parkingCar') {
     sfx.playCarChirp();
-    game?.interactParking(data);
+    if (data?.mall) {
+      const res = game?.interactMall?.('mallParking', data);
+      if (res?.message) say(res.message);
+    } else {
+      game?.interactParking(data);
+    }
     return;
   }
   if (action === 'escalatorStop') {
@@ -236,11 +243,17 @@ function act(action, floor, direction, data) {
       'mallMediaWall',
       'mallParking',
       'mallConcierge',
+      'mallCinemaTicket',
+      'mallCinemaSnack',
+      'mallCinemaScreen',
+      'mallCinemaSeat',
+      'mallPerson',
     ].includes(action)
   ) {
     if (action === 'mallWaterfall') sfx.playWater?.();
-    else if (action === 'mallCafe') sfx.playCoffeeSip?.() ?? sfx.playButton();
+    else if (action === 'mallCafe' || action === 'mallCinemaSnack') sfx.playCoffeeSip?.() ?? sfx.playButton();
     else if (action === 'mallParking') sfx.playCarChirp?.() ?? sfx.playButton();
+    else if (action === 'mallPerson') sfx.playButton();
     else sfx.playAmenity?.() ?? sfx.playButton();
     const res = game?.interactMall?.(action, data);
     if (res?.message) say(res.message);
@@ -249,7 +262,8 @@ function act(action, floor, direction, data) {
   if (action === 'mallHall') {
     sfx.playButton();
     mallController.callHall(floor, direction);
-    const msg = `🛍️ [몰 승강기] ${FLOORS[floor]}층 ${direction === 1 ? '상행' : '하행'} 호출이 등록되었습니다.`;
+    const code = floor < 5 ? FLOORS[floor] : mallFloorMeta(floor).mallCode;
+    const msg = `🛍️ [몰 승강기] ${code} ${direction === 1 ? '상행' : '하행'} 호출이 등록되었습니다.`;
     say(msg);
     if (game?.active) game.message(msg);
     updateUI();
@@ -259,12 +273,14 @@ function act(action, floor, direction, data) {
     sfx.playButton();
     game?.stepInsideMallCabinIfInDoorway?.();
     const res = mallController.toggleCar(floor, { allowCancel: true });
+    const fIdx = res.floor ?? floor;
+    const code = fIdx < 5 ? FLOORS[fIdx] : mallFloorMeta(fIdx).mallCode;
     const msg =
       res.action === 'cancelled'
-        ? `🛍️ [몰 승강기] ${FLOORS[floor]}층 목적지 선택을 취소했습니다.`
+        ? `🛍️ [몰 승강기] ${code} 목적지 선택을 취소했습니다.`
         : res.action === 'invalid'
-          ? `🛍️ [몰 승강기] B5~6F 범위의 층만 선택할 수 있습니다.`
-          : `🛍️ [몰 승강기] ${FLOORS[floor]}층 목적지가 등록되었습니다.`;
+          ? `🛍️ [몰 승강기] B5~M5F 범위의 층만 선택할 수 있습니다.`
+          : `🛍️ [몰 승강기] ${code} 목적지가 등록되었습니다.`;
     say(msg);
     if (game?.active) game.message(msg);
     updateUI();
@@ -550,17 +566,23 @@ if ($('cabin-clear')) {
   };
 }
 
-function selectActiveLift(id) {
+function selectActiveLift(id, silent = false) {
   activeLift = id === 'mall' ? 'mall' : 'hotel';
   const isMall = activeLift === 'mall';
   $('select-hotel-lift')?.classList.toggle('active', !isMall);
   $('select-hotel-lift')?.setAttribute('aria-pressed', String(!isMall));
   $('select-mall-lift')?.classList.toggle('active', isMall);
   $('select-mall-lift')?.setAttribute('aria-pressed', String(isMall));
-  setText('cop-panel-title', isMall ? '내부 조작반 · 몰 (B5–6F)' : '내부 조작반');
+  setText('cop-panel-title', isMall ? '내부 조작반 · 몰 (B5–M5F)' : '내부 조작반');
   queueKey = '';
   eventKey = '';
-  say(isMall ? '🛍️ 쇼핑몰 전망 엘리베이터(B5–6F) 제어 패널로 전환했습니다.' : '🏨 호텔 메인 엘리베이터(B5–10F) 제어 패널로 전환했습니다.');
+  if (!silent) {
+    say(
+      isMall
+        ? '🛍️ 쇼핑몰 전망 엘리베이터(B5–M5F 시네마) 제어 패널로 전환했습니다.'
+        : '🏨 호텔 메인 엘리베이터(B5–10F) 제어 패널로 전환했습니다.'
+    );
+  }
   updateUI();
 }
 if ($('select-hotel-lift')) $('select-hotel-lift').onclick = () => selectActiveLift('hotel');
@@ -718,9 +740,10 @@ function updateUI() {
   const isMall = activeLift === 'mall';
   const c = getActiveController();
   const arrow = c.direction === 1 ? '↑' : c.direction === -1 ? '↓' : '—';
+  const fmtFloor = (idx) => (isMall && idx >= 5 ? mallFloorMeta(idx).mallCode : FLOORS[idx]);
 
-  setText('big-floor', FLOORS[c.floor]);
-  setText('panel-floor', FLOORS[c.floor]);
+  setText('big-floor', fmtFloor(c.floor));
+  setText('panel-floor', fmtFloor(c.floor));
   setText('big-direction', arrow);
   setText('panel-direction', arrow);
 
@@ -744,7 +767,7 @@ function updateUI() {
 
   $('speed-value').innerHTML = `${Math.abs(c.velocity).toFixed(2)} <small>m/s</small>`;
   const eta = c.target !== null ? c.etaToFloor(c.target) : null;
-  setText('target-value', c.target !== null ? `${FLOORS[c.target]}F${eta ? ` (${eta}s)` : ''}` : '—');
+  setText('target-value', c.target !== null ? `${fmtFloor(c.target)}${eta ? ` (${eta}s)` : ''}` : '—');
   setText('door-value', c.door === 0 ? '닫힘' : c.door === 1 ? '열림' : `${Math.round(c.door * 100)}%`);
 
   setText('interlock', c.door === 0 ? '잠금' : '해제');
@@ -764,8 +787,10 @@ function updateUI() {
   document.body.classList.toggle('paused', c.paused);
 
   for (const { b, i } of carButtons) {
-    const allowed = !isMall || i <= MALL_MAX_FLOOR;
+    const allowed = !isMall || MALL_VALID_FLOORS.includes(i);
     const active = allowed && c.car.has(i);
+    const label = isMall && allowed && i >= 5 ? mallFloorMeta(i).mallCode : FLOORS[i];
+    if (b.textContent !== label) b.textContent = label;
     if (b.disabled !== !allowed) b.disabled = !allowed;
     if (b._lastActive !== active) {
       b._lastActive = active;
@@ -775,8 +800,10 @@ function updateUI() {
   }
 
   for (const { b, i } of accCarButtons) {
-    const allowed = !isMall || i <= MALL_MAX_FLOOR;
+    const allowed = !isMall || MALL_VALID_FLOORS.includes(i);
     const active = allowed && c.car.has(i);
+    const label = isMall && allowed && i >= 5 ? mallFloorMeta(i).mallCode : FLOORS[i];
+    if (b.textContent !== label) b.textContent = label;
     if (b.disabled !== !allowed) b.disabled = !allowed;
     if (b._lastActive !== active) {
       b._lastActive = active;
@@ -792,15 +819,16 @@ function updateUI() {
         ? `${c.tenKeyBuffer}_`
         : c.tenKeyDisplay && c.tenKeyDisplay !== 'READY'
           ? c.tenKeyDisplay
-          : `${FLOORS[c.floor]}F READY`
+          : `${fmtFloor(c.floor)} READY`
     );
   }
+  const mallDigitToFloor = { 1: 5, 2: 7, 3: 9, 4: 11, 5: 13 };
   for (const { b, key } of tenKeyButtons) {
     const active =
       (key === 'B' && c.tenKeyBuffer === 'B') ||
       (key === '1' && (c.tenKeyBuffer === '1' || c.car.has(5))) ||
-      (key === '0' && c.car.has(14)) ||
-      (/^[2-9]$/.test(key) && c.car.has(Number(key) + 4));
+      (!isMall && key === '0' && c.car.has(14)) ||
+      (isMall ? Boolean(mallDigitToFloor[key] && c.car.has(mallDigitToFloor[key])) : /^[2-9]$/.test(key) && c.car.has(Number(key) + 4));
     if (b._lastActive !== active) {
       b._lastActive = active;
       b.classList.toggle('active', active);
@@ -809,7 +837,7 @@ function updateUI() {
 
   for (const { b, i, dir } of rowButtons) {
     const atTop = dir === 1 && i === (isMall ? MALL_MAX_FLOOR : 14);
-    const outOfRange = (isMall && i > MALL_MAX_FLOOR) || atTop || (dir === -1 && i === 0);
+    const outOfRange = (isMall && !MALL_VALID_FLOORS.includes(i)) || atTop || (dir === -1 && i === 0);
     if (b.disabled !== outOfRange) b.disabled = outOfRange;
     const active = !outOfRange && (dir === 1 ? c.up : c.down).has(i);
     if (b._lastActive !== active) {
@@ -822,11 +850,16 @@ function updateUI() {
   const continuousFloor = c.position / PITCH;
   const subFloorOffset = continuousFloor - c.floor;
   for (const { row, floor, marker } of rowElements) {
-    const mallOut = isMall && floor > MALL_MAX_FLOOR;
+    const mallValid = MALL_VALID_FLOORS.includes(floor);
+    const mallOut = isMall && !mallValid;
     row.classList.toggle('mall-disabled', mallOut);
     const purpose = row.querySelector('.floor-purpose');
     if (purpose) {
-      const badgeText = isMall && floor <= MALL_MAX_FLOOR ? mallFloorMeta(floor, FLOORS[floor]).zone.toUpperCase() : floorMeta(floor, FLOORS[floor]).badge;
+      const badgeText = isMall && mallValid
+        ? mallFloorMeta(floor, FLOORS[floor]).mallCode
+        : isMall
+          ? '보이드'
+          : floorMeta(floor, FLOORS[floor]).badge;
       if (purpose.textContent !== badgeText) purpose.textContent = badgeText;
     }
     const isCurrent = !mallOut && floor === c.floor;
@@ -884,7 +917,7 @@ function updateUI() {
       for (const n of pending) {
         const e = document.createElement('span');
         e.className = 'queue-chip';
-        e.textContent = FLOORS[n] + 'F' + (c.up.has(n) ? ' ↑' : '') + (c.down.has(n) ? ' ↓' : '');
+        e.textContent = fmtFloor(n) + (!isMall || n < 5 ? 'F' : '') + (c.up.has(n) ? ' ↑' : '') + (c.down.has(n) ? ' ↓' : '');
         $('queue').append(e);
       }
     }
@@ -979,6 +1012,17 @@ function frame(now) {
   announcer.syncProximity();
   announcer.observe(controller);
   game?.update(dt);
+  if (game?.active && game.player) {
+    const inMallNow =
+      game.player.zone === 'mallCabin' ||
+      game.player.x <= -12.5 ||
+      (game.player.x <= -10.8 && game.player.z >= 5.2 && game.player.z <= 7.6);
+    const wing = inMallNow ? 'mall' : 'hotel';
+    if (wing !== lastAutoWing) {
+      lastAutoWing = wing;
+      selectActiveLift(wing, true);
+    }
+  }
   uiElapsed += dt;
   view?.update(controller, mallController);
   view?.render();

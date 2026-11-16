@@ -487,6 +487,7 @@ export class LiftScene {
       this.hotelScene?.root,
       this.mallScene?.root,
       this.mallScene?.exterior,
+      this.mallScene?.elevatorGroup,
     ]) {
       root?.traverseVisible((o) => {
         if (o.isMesh) meshes.push(o);
@@ -519,7 +520,12 @@ export class LiftScene {
     }
     const meshes = this.cachedStaticOcclusionMeshes;
     const dynamicMeshes = [];
-    for (const root of [this.npcView?.root, this.robotView?.root]) {
+    for (const root of [
+      this.npcView?.root,
+      this.robotView?.root,
+      this.mallScene?.elevatorGroup,
+      this.mallScene?.crowdGroup,
+    ]) {
       root?.traverseVisible((o) => {
         if (o.isMesh) dynamicMeshes.push(o);
       });
@@ -1180,10 +1186,10 @@ export class LiftScene {
     this.rooftopPoolView?.updateVisibility(floor, v === 'game', v === 'exterior' || v === 'shaft');
     this.escalatorView?.updateVisibility(floor, v === 'game');
     this.stairwellView?.updateVisibility(floor, v === 'game');
-    this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior', this.game?.player);
+    this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior' || v === 'mall', this.game?.player);
     this.mallScene?.updateVisibility(v, c?.floor ?? 5, v === 'game');
     this.automaticDoors?.applyVisibility(floor, this.game?.player?.floor);
-    const inMallDaylight = v === 'mall' || (v === 'game' && floor >= 5 && (this.game?.player?.x ?? 0) <= -14);
+    const inMallDaylight = v === 'mall' || (v === 'game' && floor >= 5 && (this.game?.player?.x ?? 0) <= -11.5);
     this.scene.background =
       v === 'exterior' || inMallDaylight || (v === 'game' && (floor === 5 || floor === 7 || floor === 14))
         ? new THREE.Color(tod.sky)
@@ -1194,7 +1200,7 @@ export class LiftScene {
         v === 'shaft' ||
         (v === 'game' &&
           (floor === 14 ||
-            (floor === 10 && (this.game?.player?.x ?? 0) <= -14) ||
+            (floor === 13 && (this.game?.player?.x ?? 0) <= -14) ||
             (this.weather.id !== 'clear' && (floor === 5 || floor === 7))));
     }
     this.scene.fog = v === 'exterior' ? new THREE.Fog(tod.sky, 90, 190) : null;

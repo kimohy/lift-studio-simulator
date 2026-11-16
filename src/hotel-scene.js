@@ -223,11 +223,25 @@ export class HotelScene {
 
   lobby(g) {
     const m = this.m;
-    this.box(g, 'Marble_lobby_floor', [23.6, 0.18, 18], [-0.2, -0.09, 17], m.marble);
-    this.box(g, 'Lobby_ceiling', [23.6, 0.12, 18], [-0.2, 3.4, 17], m.wall);
-    for (const x of [-12, 11.6]) {
-      this.box(g, 'Lobby_side_wall', [0.18, 3.4, 18], [x, 1.7, 17], m.wall);
+    this.box(g, 'Marble_lobby_floor', [25.8, 0.18, 18], [-1.3, -0.09, 17], m.marble);
+    this.box(g, 'Lobby_ceiling', [25.8, 0.12, 18], [-1.3, 3.4, 17], m.wall);
+    // East wall stays solid; West wall (x = -12) opens wide (z ∈ [10.0, 22.0]) straight into Mall 1F Atrium!
+    this.box(g, 'Lobby_side_wall', [0.18, 3.4, 2.0], [-12, 1.7, 9.0], m.wall);
+    this.box(g, 'Lobby_side_wall', [0.18, 3.4, 4.0], [-12, 1.7, 24.0], m.wall);
+    this.box(g, 'Lobby_mall_portal_lintel', [0.24, 0.44, 12.0], [-12, 3.18, 16.0], m.wall);
+    for (const pz of [10.1, 21.9]) {
+      this.cylinder(g, 'Lobby_mall_portal_pier', 0.28, 0.28, 3.3, [-12, 1.65, pz], m.marble);
+      this.cylinder(g, 'Lobby_mall_portal_base', 0.33, 0.33, 0.1, [-12, 0.05, pz], m.gold);
     }
+    this.sign(
+      g,
+      'Lobby_to_mall_sign',
+      ['← THE GRAND ATRIUM MALL', '쇼핑몰 1F · 명품관 · 워터폴 가든 직결'],
+      [-11.82, 3.05, 16.0],
+      [4.2, 0.65],
+      Math.PI / 2
+    );
+    this.box(g, 'Lobby_side_wall', [0.18, 3.4, 18], [11.6, 1.7, 17], m.wall);
     for (const x of [-7.3, 7.3]) {
       this.box(g, 'Lobby_service_wall', [9.4, 3.4, 0.18], [x, 1.7, 8], m.wall);
     }
@@ -339,7 +353,7 @@ export class HotelScene {
     ]) {
       this.plant(g, ...pos);
     }
-    this.makeTrolley(g, -10, 18.5);
+    this.makeTrolley(g, -10.2, 23.4);
 
     // Cafe bar with equipment and seating.
     const cafeOrderData = { action: 'cafeOrder', floorIndex: 5 };
@@ -589,19 +603,19 @@ export class HotelScene {
     const m = this.m;
     this.box(g, 'Garage_floor', [24.8, 0.18, 28], [-1.6, -0.09, 22], m.concrete);
     this.box(g, 'Garage_ceiling', [24.8, 0.16, 28], [-1.6, 3.34, 22], m.concrete);
-    // West garage wall (x = -14) opens via two vehicle/pedestrian portals into the Mall underground parking
+    // West garage wall (x = -14) opens via two consistent vehicle/pedestrian portals into Mall underground parking
     for (const [z, depth] of [
       [11.25, 6.5],
-      [18.25, 1.9],
+      [18.25, 1.5],
       [30.7, 10.6],
     ]) {
       this.box(g, 'Garage_outer_wall', [0.18, 3.4, depth], [-14, 1.7, z], m.concrete);
     }
     for (const [z, depth] of [
-      [15.9, 2.8],
-      [22.3, 6.2],
+      [16.0, 3.0],
+      [22.2, 6.4],
     ]) {
-      this.box(g, 'Garage_mall_portal_lintel', [0.22, 0.75, depth], [-14, 3.025, z], m.concrete);
+      this.box(g, 'Garage_mall_portal_lintel', [0.22, 0.68, depth], [-14, 3.06, z], m.concrete);
     }
     this.box(g, 'Garage_outer_wall', [0.18, 3.4, 28], [10.8, 1.7, 22], m.concrete);
     for (const [x, width] of [
@@ -645,6 +659,11 @@ export class HotelScene {
       this.box(g, 'Turning_bay_ceiling', [13.4, 0.16, 8], [17.2, 3.34, z], m.concrete);
     }
     this.box(g, 'Drive_aisle', [5.3, 0.01, 27], [0.5, 0.014, 22], m.asphalt);
+    // Continuous East-West cross-aisle driving lane connecting directly to Mall Garage Portal 2 (z = 21.8)
+    this.box(g, 'Garage_west_cross_aisle', [14.8, 0.012, 5.2], [-6.8, 0.015, 21.8], m.asphalt);
+    for (let x = -13.5; x < -2; x += 2.8) {
+      this.box(g, 'Cross_aisle_dash', [1.4, 0.009, 0.09], [x, 0.026, 21.8], m.yellow);
+    }
     for (let z = 9; z < 36; z += 3) {
       this.box(g, 'Aisle_center_dash', [0.09, 0.009, 1.5], [0.5, 0.026, z], m.yellow);
     }
@@ -658,11 +677,12 @@ export class HotelScene {
     }
     for (const x of [-11.6, -8.9, -6.2, 5.8, 8.5]) {
       for (const z of [12.4, 20.4, 28.4]) {
+        if (x < 0 && z === 20.4) continue; // Keep East-West cross-aisle to Mall parking completely open
         this.box(g, 'Parking_stall_line', [0.05, 0.008, 4.9], [x, 0.023, z], m.white);
       }
     }
     for (const z of [15, 23, 31]) {
-      this.box(g, 'Parking_stall_end', [10, 0.009, 0.05], [-9, 0.023, z], m.white);
+      if (z !== 23) this.box(g, 'Parking_stall_end', [10, 0.009, 0.05], [-9, 0.023, z], m.white);
       this.box(g, 'Parking_stall_end', [5.4, 0.009, 0.05], [7.15, 0.023, z], m.white);
     }
 
@@ -670,7 +690,6 @@ export class HotelScene {
     for (const [i, [x, z]] of [
       [-10.25, 12.5],
       [7.1, 12.5],
-      [-7.5, 20.5],
       [7.1, 20.5],
       [-10.25, 28.5],
       [-7.5, 28.5],

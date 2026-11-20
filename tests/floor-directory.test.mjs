@@ -35,8 +35,14 @@ function createMockGame() {
         setAttribute: () => {},
         getAttribute: () => null,
         dispatchEvent: () => {},
-        showModal: () => {},
-        close: () => {},
+        showModal() {
+          this.open = true;
+        },
+        close() {
+          this.open = false;
+        },
+        open: false,
+        hidden: false,
         style: {},
       };
       elements.set(id, el);
@@ -49,6 +55,7 @@ function createMockGame() {
     createElement: (tag) => ({
       tagName: tag.toUpperCase(),
       className: '',
+      dataset: {},
       innerHTML: '',
       textContent: '',
       children: [],
@@ -84,8 +91,12 @@ function createMockGame() {
     removeEventListener: () => {},
   };
 
+  const windowListeners = new Map();
   globalThis.window = {
-    addEventListener: () => {},
+    addEventListener: (type, fn) => {
+      if (!windowListeners.has(type)) windowListeners.set(type, []);
+      windowListeners.get(type).push(fn);
+    },
     removeEventListener: () => {},
     matchMedia: () => ({ matches: false }),
   };
@@ -118,7 +129,7 @@ function createMockGame() {
 
   const controller = new LiftController();
   const game = new GameMode(mockView, controller);
-  return { game, controller, mockCamera, elements };
+  return { game, controller, mockCamera, elements, windowListeners };
 }
 
 test('all 15 floors have rich directory metadata and usage info', () => {
@@ -361,5 +372,50 @@ test('GameMode accepts poolSwimmer interaction on floor 14 and displays action h
   assert.ok(hint.includes('김지호'));
   assert.ok(hint.includes('자유형 랩 수영 중'));
 });
+
+test('startHotelExperience, startMallExperience, and Tab guide toggle keep player in experience mode', () => {
+  const { game, elements, windowListeners } = createMockGame();
+  const welcome = globalThis.document.getElementById('experience-welcome');
+  welcome.hidden = false;
+
+  // Start Mall experience directly (auto-enters game mode, dismisses welcome, teleports to Mall M1F)
+  const mallRes = game.startMallExperience('mall-atrium');
+  assert.equal(mallRes.ok, true);
+  assert.equal(game.active, true);
+  assert.equal(welcome.hidden, true);
+  assert.equal(game.player.floor, 5);
+  assert.ok(game.player.x <= -12.0, `Expected player inside Mall wing, got x=${game.player.x}`);
+  assert.equal(elements.get('experience-heading')?.textContent, '그랜드 아트리움 몰 체험');
+
+  // Switch to Hotel experience lobby start
+  welcome.hidden = false;
+  const hotelRes = game.startHotelExperience('lobby-start');
+  assert.equal(hotelRes.ok, true);
+  assert.equal(game.active, true);
+  assert.equal(welcome.hidden, true);
+  assert.equal(game.player.floor, 5);
+  assert.equal(game.player.x, 0);
+  assert.equal(game.player.z, 12);
+  assert.equal(elements.get('experience-heading')?.textContent, '그랜드 호텔 체험');
+
+  // Tab opens and closes concierge-dialog without exiting active experience mode
+  const keydowns = windowListeners.get('keydown') || [];
+  assert.ok(keydowns.length > 0);
+  const dialog = globalThis.document.getElementById('concierge-dialog');
+  assert.equal(dialog.open, false);
+
+  for (const fn of keydowns) {
+    fn({ code: 'Tab', repeat: false, target: {}, preventDefault() {} });
+  }
+  assert.equal(game.active, true);
+  assert.equal(dialog.open, true);
+
+  for (const fn of keydowns) {
+    fn({ code: 'Tab', repeat: false, target: {}, preventDefault() {} });
+  }
+  assert.equal(game.active, true);
+  assert.equal(dialog.open, false);
+});
+
 
 

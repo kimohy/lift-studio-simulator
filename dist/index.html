@@ -7,30 +7,32 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Grand Hotel — 호텔 체험</title>
-  <meta name="description" content="일인칭으로 호텔 로비, 카페, 301호 객실, 10층 루프탑 인피니티 풀과 지하 주차장을 둘러보고 직원·투숙객·룸서비스 로봇과 만나세요. 엘리베이터와 계단으로 B5부터 10층까지 이동할 수 있습니다.">
+  <title>Grand Hotel & Atrium Mall — 호텔 · 몰 체험</title>
+  <meta name="description" content="일인칭으로 그랜드 호텔(로비, 카페, 301호 객실, 10층 루프탑 인피니티 풀, 지하 주차장)과 그랜드 아트리움 몰(워터폴 가든, 별마당 도서관, 스카이브리지, 35m 슬라이드, IMAX 영화관)을 바로 체험하세요.">
   <link rel="icon" href="./favicon.svg">
   <link rel="stylesheet" href="./style.css?v=2.1.0">
 </head>
-<body>
+<body class="game-active">
   <header class="topbar">
     <a class="brand" href="./" aria-label="Grand Hotel 홈">
       <span class="brand-mark">Ⅱ</span>
       <span>GRAND <b>HOTEL</b></span>
     </a>
-    <span class="project-title">호텔 체험 <span class="version">B5—10F</span></span>
+    <span class="project-title">호텔 & 아트리움 몰 체험 <span class="version">B5—10F · M1F—M5F</span></span>
     <div class="top-actions">
-      <button id="game-toggle" class="game-toggle" aria-pressed="false" disabled>호텔 체험 시작</button>
-      <button id="topbar-guide" class="quiet">호텔 가이드</button>
-      <button id="time-of-day" class="quiet" title="호텔 시간대 조명 전환 (주간/노을/야경)">☀️ 주간</button>
+      <button id="start-hotel-exp" type="button" class="exp-switch-btn active" aria-pressed="true">🏨 호텔 체험</button>
+      <button id="start-mall-exp" type="button" class="exp-switch-btn" aria-pressed="false">🛍️ 몰 체험</button>
+      <button id="topbar-guide" class="quiet">투어 가이드</button>
+      <button id="time-of-day" class="quiet" title="호텔·몰 시간대 조명 전환 (주간/노을/야경)">☀️ 주간</button>
       <button id="sound" class="quiet" aria-pressed="false">음성 안내 켜기</button>
       <button id="reset" class="quiet">초기화</button>
-      <span class="sim-label">HOTEL EXPERIENCE</span>
+      <button id="game-toggle" class="game-toggle simulator-backend" aria-pressed="true" hidden disabled>호텔 체험 시작</button>
+      <span class="sim-label">HOTEL & MALL EXPERIENCE</span>
     </div>
   </header>
 
   <main class="workspace">
-    <aside class="floors-panel panel">
+    <aside class="floors-panel panel simulator-backend" hidden>
       <div class="section-heading">
         <div>
           <span class="eyebrow">BUILDING</span>
@@ -47,13 +49,22 @@
       <div class="floor-help">원하는 층에서 이동 방향을 눌러<br>엘리베이터를 호출하세요.</div>
     </aside>
 
-    <section class="scene-panel panel" aria-label="3D 호텔 체험">
+    <section class="scene-panel panel" aria-label="3D 호텔 & 몰 체험">
       <div class="scene-top">
         <div>
-          <span class="eyebrow">WELCOME TO GRAND HOTEL</span>
-          <h1>호텔 둘러보기</h1>
+          <span class="eyebrow">WELCOME TO GRAND HOTEL & THE GRAND ATRIUM MALL</span>
+          <h1 id="experience-heading">호텔 & 아트리움 몰 체험</h1>
         </div>
-        <span id="state-badge" class="state-badge">대기 중</span>
+        <div class="experience-quick-bar" role="group" aria-label="주요 체험 장소 바로가기">
+          <button type="button" class="exp-pill" data-exp-spot="lobby-reception">🏨 1F 로비</button>
+          <button type="button" class="exp-pill" data-exp-spot="room-301">🛏️ 3F 301호</button>
+          <button type="button" class="exp-pill" data-exp-spot="rooftop-pool">🏊 10F 루프탑 풀</button>
+          <button type="button" class="exp-pill mall" data-exp-spot="mall-atrium">🛍️ M1F 몰 중정</button>
+          <button type="button" class="exp-pill mall" data-exp-spot="mall-library">📚 M2F 별마당</button>
+          <button type="button" class="exp-pill mall" data-exp-spot="mall-skybridge">🌉 M3F 스카이브리지</button>
+          <button type="button" class="exp-pill mall" data-exp-spot="mall-cinema">🎬 M5F IMAX·슬라이드</button>
+        </div>
+        <span id="state-badge" class="state-badge simulator-backend" hidden>대기 중</span>
       </div>
 
       <div id="voice-panel" class="voice-panel" hidden>
@@ -75,7 +86,7 @@
         </div>
       </div>
 
-      <div class="views" role="group" aria-label="카메라 시점">
+      <div class="views simulator-backend" role="group" aria-label="카메라 시점" hidden>
         <button data-view="lobby" class="selected" aria-pressed="true">승강장</button>
         <button data-view="cabin" aria-pressed="false">탑승</button>
         <button data-view="mall" aria-pressed="false">쇼핑몰 중정</button>
@@ -88,11 +99,53 @@
         <canvas id="scene" aria-label="드래그로 회전하고 스크롤로 확대하는 3D 모델"></canvas>
         <div id="loading">
           <span class="loader"></span>
-          <strong>3D 모델을 불러오는 중</strong>
-          <span id="loading-detail">호텔 로비와 객실, 주차장 준비</span>
+          <strong>3D 호텔 & 몰 공간을 불러오는 중</strong>
+          <span id="loading-detail">그랜드 호텔 로비·객실과 아트리움 몰 준비</span>
         </div>
 
-        <div id="game-hud" hidden>
+        <div id="experience-welcome" class="experience-welcome" role="dialog" aria-label="체험 선택">
+          <div class="welcome-shell">
+            <div class="welcome-header">
+              <div>
+                <span class="eyebrow">GRAND HOTEL & THE GRAND ATRIUM MALL</span>
+                <h2>어떤 체험부터 시작할까요?</h2>
+                <p>페이지 진입과 동시에 일인칭 자유 탐험이 시작됩니다. 호텔과 아트리움 몰을 언제든 한 번의 클릭으로 오갈 수 있습니다.</p>
+              </div>
+              <button id="welcome-close" type="button" class="welcome-dismiss-btn">바로 둘러보기 (WASD)</button>
+            </div>
+            <div class="welcome-cards">
+              <article class="welcome-card hotel">
+                <div class="welcome-card-head">
+                  <span class="welcome-badge">B5 — 10F · GRAND HOTEL</span>
+                  <h3>🏨 그랜드 호텔 체험</h3>
+                  <p>1F 로비 체크인, 그랜드 카페, 301호 스마트 스위트, AI 서빙 로봇 딜리, 10F 루프탑 인피니티 풀까지 즐겨보세요.</p>
+                </div>
+                <button id="welcome-hotel-btn" type="button" class="welcome-primary-btn hotel">🏨 호텔 로비에서 체험 시작</button>
+                <div class="welcome-chips">
+                  <button type="button" class="welcome-chip" data-exp-spot="grand-cafe">☕ 1F 그랜드 카페</button>
+                  <button type="button" class="welcome-chip" data-exp-spot="room-301">🛏️ 3F 301호 스위트</button>
+                  <button type="button" class="welcome-chip" data-exp-spot="rooftop-pool">🏊 10F 루프탑 풀</button>
+                </div>
+              </article>
+
+              <article class="welcome-card mall">
+                <div class="welcome-card-head">
+                  <span class="welcome-badge">M1F — M5F · GRAND ATRIUM MALL</span>
+                  <h3>🛍️ 그랜드 아트리움 몰 체험</h3>
+                  <p>14m 워터폴 가든과 별마당 도서관, 스카이브리지, 네온 볼링·팀랩 아트, IMAX 영화관 & 35m 슬라이드를 체험하세요.</p>
+                </div>
+                <button id="welcome-mall-btn" type="button" class="welcome-primary-btn mall">🛍️ 아트리움 몰에서 체험 시작</button>
+                <div class="welcome-chips">
+                  <button type="button" class="welcome-chip" data-exp-spot="mall-library">📚 M2F 별마당 도서관</button>
+                  <button type="button" class="welcome-chip" data-exp-spot="mall-skybridge">🌉 M3F 스카이브리지·볼링</button>
+                  <button type="button" class="welcome-chip" data-exp-spot="mall-cinema">🎬 M5F IMAX·35m 슬라이드</button>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <div id="game-hud">
           <div class="game-location">
             <span>FIRST PERSON</span>
             <strong id="player-location">1층 승강장</strong>
@@ -102,14 +155,16 @@
           </div>
 
           <div class="game-tools">
-            <button id="guide-button" title="호텔 컨시어지 가이드 & 빠른 이동 (G / Tab)">호텔 가이드 · 0/6</button>
-            <button id="floor-directory-button" title="호텔 전 층별 안내도 & 빠른 이동 (M / F)">층별 안내도 (M)</button>
+            <button id="hud-hotel-exp" type="button" class="hud-exp-btn active" aria-pressed="true" title="그랜드 호텔 1F 로비로 이동">🏨 호텔 체험</button>
+            <button id="hud-mall-exp" type="button" class="hud-exp-btn" aria-pressed="false" title="그랜드 아트리움 몰 M1F 중정으로 이동">🛍️ 몰 체험</button>
+            <button id="guide-button" title="호텔·몰 투어 가이드 & 빠른 이동 (G / Tab)">투어 가이드 · 0/6</button>
+            <button id="floor-directory-button" title="전 층별 안내도 & 빠른 이동 (M / F)">층별 안내도 (M)</button>
             <button id="game-time-of-day" title="시간대 분위기 전환">☀️ 주간</button>
             <button id="game-weather" title="날씨 & 스카이 파티클 전환">✨ 맑음</button>
             <button id="keycard-button" hidden>키카드 · 301</button>
             <button id="game-fullscreen" aria-pressed="false">전체화면</button>
             <button id="game-lock">마우스 고정</button>
-            <button id="game-exit">관찰 모드</button>
+            <button id="game-exit" class="simulator-backend" hidden>관찰 모드</button>
           </div>
 
           <div id="game-toast" class="game-toast" role="status" aria-live="polite" hidden>
@@ -138,24 +193,24 @@
             <span><kbd>WASD</kbd> 이동</span>
             <span><kbd>Shift</kbd> 달리기</span>
             <span><kbd>E</kbd>/클릭 상호작용</span>
-            <span><kbd>G</kbd> 가이드</span>
+            <span><kbd>G</kbd>/<kbd>Tab</kbd> 가이드</span>
             <span><kbd>M</kbd> 층별안내</span>
           </div>
         </div>
 
-        <div class="scene-caption">
+        <div class="scene-caption simulator-backend" hidden>
           <span id="view-caption">승강장 · 카 위치 따라가기</span>
           <small>드래그 회전 · 스크롤 확대</small>
         </div>
 
-        <div class="level-overlay">
+        <div class="level-overlay simulator-backend" hidden>
           <span id="big-direction">—</span>
           <strong id="big-floor">1</strong>
           <span>FLOOR</span>
         </div>
       </div>
 
-      <div class="motion-stats">
+      <div class="motion-stats simulator-backend" hidden>
         <div>
           <span>운행 속도</span>
           <strong id="speed-value">0.00 <small>m/s</small></strong>
@@ -178,7 +233,7 @@
         </div>
       </div>
 
-      <div class="queue-area">
+      <div class="queue-area simulator-backend" hidden>
         <span>대기 요청</span>
         <div id="queue">
           <span class="empty">층 버튼을 눌러 운행을 시작하세요.</span>
@@ -186,7 +241,7 @@
       </div>
     </section>
 
-    <aside class="right-panel">
+    <aside class="right-panel simulator-backend" hidden>
       <section class="cabin-panel panel">
         <div class="section-heading">
           <div>
@@ -282,7 +337,7 @@
       </section>
     </aside>
 
-    <section class="event-panel panel">
+    <section class="event-panel panel simulator-backend" hidden>
       <div class="event-title">
         <span class="eyebrow">EVENT LOG</span>
         <h2>운행 기록</h2>
@@ -292,9 +347,9 @@
     </section>
   </main>
 
-  <footer>
-    <span>로비 · 그랜드 카페 · 301호 객실 · 10층 루프탑 인피니티 풀 · 지하 주차장</span>
-    <span>WASD / 방향키 / 터치 패드 / 호텔 가이드로 즐기는 3D 호텔 체험</span>
+  <footer class="simulator-backend" hidden>
+    <span>그랜드 호텔 · 그랜드 아트리움 몰 · 301호 객실 · 10층 루프탑 풀 · M5F IMAX 시네마</span>
+    <span>WASD / 방향키 / 터치 패드 / 투어 가이드로 즐기는 3D 호텔 & 몰 체험</span>
   </footer>
 
   <dialog id="keycard-dialog" class="keycard-dialog">

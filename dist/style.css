@@ -329,6 +329,8 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 18px;
 }
 
 .state-badge {
@@ -402,7 +404,7 @@ h2 {
   justify-content: center;
   gap: 14px;
   background: #121b23;
-  z-index: 3;
+  z-index: 40;
   font-size: 14px;
 }
 
@@ -1269,7 +1271,7 @@ body.paused #viewport {
 
 .game-active #viewport {
   flex: none;
-  height: clamp(480px, calc(100svh - 210px), 780px);
+  height: clamp(520px, calc(100svh - 175px), 860px);
   min-height: 480px;
 }
 
@@ -1350,6 +1352,9 @@ body.paused #viewport {
   top: 20px;
   right: 20px;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 280px);
   gap: 8px;
   pointer-events: auto;
 }
@@ -2588,4 +2593,282 @@ body.game-fullscreen .game-tools {
   background: #36c29b;
   color: #091713;
   border-color: #36c29b;
+}
+
+/* Simulator Backend Hiding & Experience-First Launcher */
+body:not(.show-simulator-backend) .simulator-backend {
+  display: none !important;
+}
+
+.game-active:not(.show-simulator-backend) .motion-stats,
+.game-active:not(.show-simulator-backend) #state-badge,
+.game-active:not(.show-simulator-backend) #game-toggle,
+.game-active:not(.show-simulator-backend) #game-exit {
+  display: none !important;
+}
+
+.exp-switch-btn,
+.hud-exp-btn {
+  padding: 8px 13px;
+  border: 1px solid #486459;
+  border-radius: 6px;
+  background: #17272d;
+  color: #d7eae2;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.exp-switch-btn:hover,
+.hud-exp-btn:hover {
+  border-color: var(--accent);
+  background: #233c36;
+  color: #ffffff;
+}
+
+.exp-switch-btn.active,
+.hud-exp-btn.active {
+  background: linear-gradient(135deg, #b9f3d3, #76cfbf);
+  border-color: #d6fbe7;
+  color: #0f211b;
+  box-shadow: 0 0 14px rgba(118, 207, 191, 0.28);
+}
+
+#start-mall-exp.active,
+#hud-mall-exp.active {
+  background: linear-gradient(135deg, #f3ce95, #d4a65a);
+  border-color: #ffe2b3;
+  color: #231a0d;
+  box-shadow: 0 0 14px rgba(243, 206, 149, 0.3);
+}
+
+.experience-quick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.exp-pill {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid #354c57;
+  background: #132028;
+  color: #c8dce4;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.exp-pill:hover {
+  border-color: var(--accent);
+  background: #1f3932;
+  color: #ffffff;
+}
+
+.exp-pill.mall {
+  border-color: #5b4d34;
+  background: #1d1a15;
+  color: #ecd6ad;
+}
+
+.exp-pill.mall:hover {
+  border-color: var(--gold);
+  background: #33291b;
+  color: #fff6e6;
+}
+
+.experience-welcome[hidden] {
+  display: none;
+}
+
+.experience-welcome {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 35%, rgba(15, 27, 34, 0.72), rgba(8, 14, 18, 0.88));
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.welcome-shell {
+  width: min(860px, 100%);
+  padding: 24px 26px;
+  border-radius: 14px;
+  border: 1px solid #48645c;
+  background: linear-gradient(160deg, rgba(18, 29, 37, 0.96), rgba(14, 21, 27, 0.96));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.68);
+}
+
+.welcome-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.welcome-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #f3faf6;
+  margin-bottom: 6px;
+}
+
+.welcome-header p {
+  font-size: 13px;
+  color: #a9bdc7;
+  line-height: 1.5;
+}
+
+.welcome-dismiss-btn {
+  padding: 8px 13px;
+  border-radius: 7px;
+  border: 1px solid #445a66;
+  background: #1a2832;
+  color: #d6e6ee;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.welcome-dismiss-btn:hover {
+  border-color: var(--accent);
+  background: #233b35;
+  color: #ffffff;
+}
+
+.welcome-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid #354c58;
+  background: #142029;
+}
+
+.welcome-card.hotel {
+  border-color: #3f6a5c;
+  background: linear-gradient(165deg, rgba(22, 43, 38, 0.9), rgba(16, 28, 34, 0.94));
+}
+
+.welcome-card.mall {
+  border-color: #6b5839;
+  background: linear-gradient(165deg, rgba(39, 32, 22, 0.9), rgba(19, 24, 30, 0.94));
+}
+
+.welcome-badge {
+  display: inline-block;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  font-weight: 600;
+  color: var(--cyan);
+  margin-bottom: 6px;
+}
+
+.welcome-card.mall .welcome-badge {
+  color: var(--gold);
+}
+
+.welcome-card-head h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f4fbf7;
+}
+
+.welcome-card-head p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #b4c7d0;
+}
+
+.welcome-primary-btn {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.welcome-primary-btn.hotel {
+  background: linear-gradient(135deg, #b9f3d3, #76cfbf);
+  border-color: #dbfceb;
+  color: #10241d;
+}
+
+.welcome-primary-btn.hotel:hover {
+  filter: brightness(1.06);
+}
+
+.welcome-primary-btn.mall {
+  background: linear-gradient(135deg, #f3ce95, #d4a65a);
+  border-color: #ffe4b8;
+  color: #241b0c;
+}
+
+.welcome-primary-btn.mall:hover {
+  filter: brightness(1.06);
+}
+
+.welcome-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.welcome-chip {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #3c5460;
+  background: rgba(17, 29, 36, 0.85);
+  color: #cde0e8;
+  font-size: 11px;
+}
+
+.welcome-chip:hover {
+  border-color: var(--accent);
+  background: #233c36;
+  color: #ffffff;
+}
+
+.welcome-card.mall .welcome-chip:hover {
+  border-color: var(--gold);
+  background: #362c1c;
+}
+
+@media (max-width: 780px) {
+  .experience-welcome {
+    align-items: flex-start;
+    padding: 12px;
+  }
+  .welcome-shell {
+    padding: 16px;
+  }
+  .welcome-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .welcome-header h2 {
+    font-size: 18px;
+  }
+  .welcome-cards {
+    grid-template-columns: 1fr;
+  }
+  .game-tools {
+    max-width: calc(100% - 24px);
+  }
 }

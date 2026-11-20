@@ -153,8 +153,13 @@ export class GameMode {
       if (e.target.closest?.('input,select,textarea,[contenteditable="true"],dialog')) return;
       if (e.code === 'Tab' && this.view.ready && !e.repeat) {
         e.preventDefault();
-        if (this.active) this.exit();
-        else this.enter();
+        if (this.active) {
+          const dlg = $('concierge-dialog');
+          if (dlg?.open) dlg.close?.();
+          else this.openConciergeGuide();
+        } else {
+          this.enter();
+        }
         return;
       }
       if (!this.active) return;
@@ -188,6 +193,7 @@ export class GameMode {
       }
       if (MOVE_KEYS.has(e.code)) {
         e.preventDefault();
+        this.dismissWelcome();
         this.keys.add(e.code);
       }
     });
@@ -220,6 +226,7 @@ export class GameMode {
       canvas.focus({ preventScroll: true });
       if (e.button === 2) {
         this.dragging = true;
+        this.dismissWelcome();
         this.pointerDownInfo = {
           id: e.pointerId,
           button: 2,
@@ -276,6 +283,7 @@ export class GameMode {
       }
 
       if (document.pointerLockElement === canvas) {
+        this.dismissWelcome();
         this.player.look(e.movementX, e.movementY);
         this.applyCamera();
         return;
@@ -293,6 +301,7 @@ export class GameMode {
           Math.hypot(e.clientX - this.pointerDownInfo.startX, e.clientY - this.pointerDownInfo.startY) > dragThreshold
         ) {
           this.dragging = true;
+          this.dismissWelcome();
           try {
             canvas.setPointerCapture(e.pointerId);
           } catch {}
@@ -337,6 +346,21 @@ export class GameMode {
     $('game-fullscreen')?.addEventListener('click', () => this.toggleFullscreen());
     document.addEventListener('fullscreenchange', () => this.syncFullscreen());
     $('game-exit')?.addEventListener('click', () => this.exit());
+    $('start-hotel-exp')?.addEventListener('click', () => this.startHotelExperience('lobby-start'));
+    $('hud-hotel-exp')?.addEventListener('click', () => this.startHotelExperience('lobby-start'));
+    $('welcome-hotel-btn')?.addEventListener('click', () => this.startHotelExperience('lobby-start'));
+    $('start-mall-exp')?.addEventListener('click', () => this.startMallExperience('mall-atrium'));
+    $('hud-mall-exp')?.addEventListener('click', () => this.startMallExperience('mall-atrium'));
+    $('welcome-mall-btn')?.addEventListener('click', () => this.startMallExperience('mall-atrium'));
+    $('welcome-close')?.addEventListener('click', () => this.dismissWelcome());
+    for (const btn of document.querySelectorAll?.('[data-exp-spot]') ?? []) {
+      btn.addEventListener('click', () => {
+        const spot = btn.dataset.expSpot;
+        if (!spot) return;
+        this.dismissWelcome();
+        this.fastTravelTo(spot);
+      });
+    }
     $('game-lock')?.addEventListener('click', () => {
       if (document.pointerLockElement === canvas) {
         document.exitPointerLock();
@@ -704,6 +728,67 @@ export class GameMode {
     Object.assign(this.player, { x: 0, z: 12, yaw: Math.PI, pitch: -0.04 });
   }
 
+  dismissWelcome() {
+    const welcome = $('experience-welcome');
+    if (welcome) welcome.hidden = true;
+  }
+
+  startHotelExperience(spotId = 'lobby-reception') {
+    this.dismissWelcome();
+    if (!this.active && this.view?.ready) {
+      this.enter();
+    }
+    if (spotId === 'lobby-start') {
+      this.player.leaveDoorway?.();
+      this.controller.setObstruction(false, 'player');
+      this.mallController?.setObstruction(false, 'player');
+      Object.assign(this.player, {
+        floor: 5,
+        zone: 'lobby',
+        x: 0,
+        z: 12,
+        yaw: Math.PI,
+        pitch: -0.04,
+        worldY: 0,
+        stairY: 0,
+        escalatorY: 0,
+      });
+      this.view?.applyVisibility?.(this.controller);
+      this.applyCamera();
+      const msg = '🏨 그랜드 호텔 1층 로비 체험을 시작합니다. 리셉션·카페·301호·루프탑 풀을 자유롭게 둘러보세요!';
+      this.message(msg);
+      this.messageUntil = performance.now() + 4500;
+      this.showToast?.({
+        badge: '🏨 GRAND HOTEL EXPERIENCE',
+        title: '그랜드 호텔 체험 시작',
+        subtitle: '1F 그랜드 로비 · 리셉션 체크인 · 301호 스위트 · 10F 루프탑 풀',
+        duration: 3200,
+      });
+      this.updateHUD();
+      return { ok: true, spotId: 'lobby-start', message: msg };
+    }
+    const res = this.fastTravelTo(spotId);
+    this.showToast?.({
+      badge: '🏨 GRAND HOTEL EXPERIENCE',
+      title: res?.spot?.label || '그랜드 호텔 체험',
+      subtitle: res?.spot?.subtitle || 'WASD로 이동하고 E 또는 클릭으로 상호작용하세요',
+      duration: 3200,
+    });
+    return res;
+  }
+
+  startMallExperience(spotId = 'mall-atrium') {
+    this.dismissWelcome();
+    const res = this.fastTravelTo(spotId);
+    this.showToast?.({
+      badge: '🛍️ THE GRAND ATRIUM MALL',
+      title: res?.spot?.label || '그랜드 아트리움 몰 체험 시작',
+      subtitle: res?.spot?.subtitle || '워터폴 가든 · 별마당 도서관 · 스카이브리지 · M5F IMAX 영화관',
+      duration: 3400,
+    });
+    return res;
+  }
+
   clearInput() {
     this.keys.clear();
     this.virtualKeys.clear();
@@ -743,7 +828,7 @@ export class GameMode {
     this.applyCamera();
     this.view.canvas.focus({ preventScroll: true });
     this.view.resize();
-    this.message('그랜드 호텔에 오신 것을 환영합니다. WASD 이동 · 클릭/E 상호작용');
+    this.message('그랜드 호텔 & 아트리움 몰에 오신 것을 환영합니다. WASD 이동 · 클릭/E 상호작용');
     this.updateHUD();
   }
 
@@ -1714,7 +1799,25 @@ export class GameMode {
     const guideBtn = $('guide-button');
     if (guideBtn) {
       const status = this.stay.getChecklistStatus();
-      guideBtn.textContent = `호텔 가이드 · ${status.doneCount}/${status.totalCount}`;
+      guideBtn.textContent = `투어 가이드 · ${status.doneCount}/${status.totalCount}`;
+    }
+
+    for (const id of ['start-hotel-exp', 'hud-hotel-exp']) {
+      const el = $(id);
+      if (el) {
+        el.classList?.toggle('active', !inMall);
+        el.setAttribute?.('aria-pressed', String(!inMall));
+      }
+    }
+    for (const id of ['start-mall-exp', 'hud-mall-exp']) {
+      const el = $(id);
+      if (el) {
+        el.classList?.toggle('active', inMall);
+        el.setAttribute?.('aria-pressed', String(inMall));
+      }
+    }
+    if ($('experience-heading')) {
+      $('experience-heading').textContent = inMall ? '그랜드 아트리움 몰 체험' : '그랜드 호텔 체험';
     }
 
     const ndc =

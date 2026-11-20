@@ -994,6 +994,10 @@ try {
     .then(() => {
       $('game-toggle').disabled = false;
       game.enter();
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('wing') === 'mall' || window.location.hash === '#mall') {
+        game.startMallExperience('mall-atrium');
+      }
     })
     .catch((error) => {
       console.error(error);
@@ -1022,6 +1026,15 @@ window.liftStudio = {
   },
   get game() {
     return game;
+  },
+  setSimulatorBackendVisible(visible) {
+    const show = Boolean(visible);
+    document.body.classList.toggle('show-simulator-backend', show);
+    for (const el of document.querySelectorAll('.simulator-backend')) {
+      el.hidden = !show;
+    }
+    view?.resize?.();
+    return show;
   },
   version: '2.1.0',
 };

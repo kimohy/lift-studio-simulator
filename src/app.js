@@ -245,6 +245,7 @@ function act(action, floor, direction, data) {
       'mallConcierge',
       'mallCinemaTicket',
       'mallCinemaSnack',
+      'mallCinemaGate',
       'mallCinemaScreen',
       'mallCinemaSeat',
       'mallPerson',
@@ -282,6 +283,8 @@ function act(action, floor, direction, data) {
     else if (action === 'mallRobotDog') sfx.playRobot?.() ?? sfx.playButton();
     else if (action === 'mallCafe' || action === 'mallCinemaSnack' || action === 'mallMatchaCone') {
       sfx.playCoffeeSip?.() ?? sfx.playButton();
+    } else if (action === 'mallCinemaTicket' || action === 'mallCinemaGate') {
+      sfx.playKeycard?.(true) ?? sfx.playButton();
     } else if (action === 'mallParking') sfx.playCarChirp?.() ?? sfx.playButton();
     else if (action === 'mallPerson') sfx.playButton();
     else sfx.playAmenity?.() ?? sfx.playButton();

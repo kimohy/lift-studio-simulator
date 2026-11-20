@@ -85,6 +85,10 @@ export class MallScene {
     this.robotDogTrickUntil = -1;
     this.campfireFlame = null;
     this.cinemaMovieIndex = 0;
+    this.cinemaGateDoors = null;
+    this.cinemaGateDisplay = null;
+    this.cinemaGateScannerLeds = [];
+    this.cinemaGateOpen = false;
 
     const mat = (color, roughness = 0.68, metalness = 0.05) =>
       new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -1089,15 +1093,120 @@ export class MallScene {
       this.box(g, 'Mall_lightwell_rail_E', [0.08, 1.15, d], [cx + w / 2, 0.575, cz], m.glass);
     }
 
-    // 1. Walk-in IMAX Auditorium 1 in West Cinema Wing (x ∈ [-49.8, -39.5], z ∈ [13.5, 35.0])
-    // Acoustic partition separating Auditorium from Atrium Lightwell (open front entrance at z = 14.5..17.5)
-    this.box(g, 'Cinema_east_wall_s', [0.25, 6.4, 15.0], [-39.6, 3.2, 27.5], m.charcoal);
-    this.box(g, 'Cinema_east_lintel', [0.25, 3.2, 4.5], [-39.6, 4.8, 15.75], m.charcoal);
+    // 1. Enclosed Walk-in IMAX Auditorium 1 in West Cinema Wing (x ∈ [-49.8, -39.6], z ∈ [13.6, 35.0])
+    // Full acoustic partition walls enclosing East side & North foyer except the 2.2m QR Ticket Gate portal (x ∈ [-43.0, -40.8])
+    this.box(g, 'Cinema_east_wall_full', [0.25, 6.4, 21.8], [-39.6, 3.2, 24.6], m.charcoal);
+    this.box(g, 'Cinema_north_wall_W', [6.8, 6.4, 0.25], [-46.4, 3.2, 13.6], m.charcoal);
+    this.box(g, 'Cinema_north_wall_E', [1.2, 6.4, 0.25], [-40.2, 3.2, 13.6], m.charcoal);
+    this.box(g, 'Cinema_north_lintel', [2.2, 3.4, 0.25], [-41.9, 4.7, 13.6], m.charcoal);
     this.box(g, 'Cinema_ceiling', [10.4, 0.25, 22.0], [-44.8, 6.4, 24.5], m.charcoal);
-    this.box(g, 'Cinema_marquee_strip', [9.0, 0.1, 0.14], [-44.5, 5.9, 13.8], m.cyanLed);
-    this.sign(g, 'Cinema_auditorium_sign', ['IMAX LASER · HALL 1', 'NOW PLAYING · THE GRAND HORIZON'], [-44.5, 5.3, 13.7], [4.8, 0.85], 0);
+    this.box(g, 'Cinema_marquee_strip', [9.0, 0.1, 0.14], [-44.5, 5.9, 13.45], m.cyanLed);
+    this.sign(g, 'Cinema_auditorium_sign', ['IMAX LASER · HALL 1', 'NOW PLAYING · THE GRAND HORIZON'], [-44.5, 5.3, 13.42], [4.8, 0.85], 0);
 
-    // Giant 9.4m × 5.2m Glowing Animated IMAX Cinema Screen at z = 34.2 facing North (-Z)
+    // Acoustic wall ribs & warm theater sconces along both interior side walls
+    for (const [idx, az] of [17.0, 21.0, 25.0, 29.0, 32.5].entries()) {
+      this.box(g, `Cinema_acoustic_panel_W_${idx}`, [0.16, 4.8, 1.8], [-49.75, 2.8, az], m.cinemaRed);
+      this.box(g, `Cinema_acoustic_panel_E_${idx}`, [0.16, 4.8, 1.8], [-39.8, 2.8, az], m.cinemaRed);
+      this.box(g, `Cinema_wall_sconce_W_${idx}`, [0.08, 0.45, 0.14], [-49.64, 2.6, az], m.warmLed);
+      this.box(g, `Cinema_wall_sconce_E_${idx}`, [0.08, 0.45, 0.14], [-39.91, 2.6, az], m.warmLed);
+    }
+
+    // Rear Laser Projection Booth Window overlooking auditorium
+    this.box(g, 'Cinema_projection_window', [2.6, 0.9, 0.14], [-45.2, 4.8, 13.78], m.glass);
+    this.cyl(g, 'Cinema_projection_lens', 0.22, 0.22, 0.18, [-45.2, 4.8, 13.86], m.cyanLed, null, null);
+
+    // Proscenium stage deck & Dolby Atmos speaker arrays flanking the IMAX screen
+    this.box(g, 'Cinema_stage_deck', [9.6, 0.42, 1.4], [-44.6, 0.21, 33.8], m.darkOak);
+    this.box(g, 'Cinema_speaker_L', [0.55, 2.2, 0.45], [-49.3, 3.2, 33.6], m.black);
+    this.box(g, 'Cinema_speaker_R', [0.55, 2.2, 0.45], [-40.1, 3.2, 33.6], m.black);
+
+    // Smart Ticket Inspection Flap Gate at (x = -41.9, z = 13.55)
+    const gateGroup = new THREE.Group();
+    gateGroup.name = 'Cinema_ticket_gate';
+    g.add(gateGroup);
+    const gateInfo = {
+      action: 'mallCinemaGate',
+      floorIndex: f,
+      label: 'IMAX 상영관 스마트 티켓 검표 게이트 (QR 티켓 스캔) 🎟️',
+    };
+    const pedL = this.box(gateGroup, 'Cinema_gate_pedestal_L', [0.32, 1.08, 0.68], [-43.0, 0.54, 13.35], m.champagne, f, gateInfo);
+    const pedR = this.box(gateGroup, 'Cinema_gate_pedestal_R', [0.32, 1.08, 0.68], [-40.8, 0.54, 13.35], m.champagne, f, gateInfo);
+    pedL.userData.dynamic = true;
+    pedR.userData.dynamic = true;
+
+    this.cinemaGateScannerLeds = [];
+    for (const [idx, gx] of [-43.0, -40.8].entries()) {
+      const scanPad = this.box(
+        gateGroup,
+        `Cinema_qr_scanner_${idx === 0 ? 'L' : 'R'}`,
+        [0.24, 0.08, 0.26],
+        [gx, 1.1, 13.18],
+        m.charcoal,
+        null,
+        gateInfo
+      );
+      scanPad.userData.dynamic = true;
+      const ledMat = new THREE.MeshStandardMaterial({
+        color: 0xffaa3b,
+        emissive: 0xff7a1a,
+        emissiveIntensity: 0.9,
+        roughness: 0.25,
+      });
+      const ledMesh = new THREE.Mesh(unitBox, ledMat);
+      ledMesh.name = `Cinema_gate_led_${idx === 0 ? 'L' : 'R'}`;
+      ledMesh.scale.set(0.2, 0.05, 0.16);
+      ledMesh.position.set(gx, 1.14, 13.18);
+      ledMesh.userData.dynamic = true;
+      this.markInteractive(ledMesh, gateInfo);
+      gateGroup.add(ledMesh);
+      this.cinemaGateScannerLeds.push(ledMesh);
+    }
+
+    const gateDoorL = new THREE.Mesh(unitBox, m.glass);
+    gateDoorL.name = 'Cinema_gate_door_L';
+    gateDoorL.scale.set(0.92, 0.88, 0.05);
+    gateDoorL.position.set(-42.38, 0.52, 13.55);
+    gateDoorL.userData.dynamic = true;
+    this.markInteractive(gateDoorL, gateInfo);
+    const gateDoorR = new THREE.Mesh(unitBox, m.glass);
+    gateDoorR.name = 'Cinema_gate_door_R';
+    gateDoorR.scale.set(0.92, 0.88, 0.05);
+    gateDoorR.position.set(-41.42, 0.52, 13.55);
+    gateDoorR.userData.dynamic = true;
+    this.markInteractive(gateDoorR, gateInfo);
+    gateGroup.add(gateDoorL, gateDoorR);
+    this.cinemaGateDoors = { left: gateDoorL, right: gateDoorR };
+
+    const gateDispRes = safeCanvasTexture(512, 128, (ctx, w, h) => {
+      ctx.fillStyle = '#141a24';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#ff9d3b';
+      ctx.font = 'bold 34px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('TICKET REQUIRED', w / 2, 54);
+      ctx.fillStyle = '#d9e5f0';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText('북측 무인 키오스크 발권 후 QR 스캔', w / 2, 98);
+    });
+    if (gateDispRes) {
+      const gMat = new THREE.MeshStandardMaterial({
+        map: gateDispRes.tex,
+        emissiveMap: gateDispRes.tex,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.78,
+        roughness: 0.25,
+      });
+      const gScreen = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.52), gMat);
+      gScreen.name = 'Cinema_gate_status_screen';
+      gScreen.position.set(-41.9, 3.35, 13.44);
+      gScreen.rotation.y = Math.PI;
+      gScreen.userData.dynamic = true;
+      this.markInteractive(gScreen, gateInfo);
+      gateGroup.add(gScreen);
+      this.cinemaGateDisplay = { ...gateDispRes, lastKey: '' };
+    }
+
+    // Giant 9.2m × 5.0m Glowing Animated IMAX Cinema Screen at z = 34.4 facing North (-Z)
     const screenRes = safeCanvasTexture(1024, 512, (ctx, w, h) => {
       ctx.fillStyle = '#081326';
       ctx.fillRect(0, 0, w, h);
@@ -1133,8 +1242,10 @@ export class MallScene {
       this.cinemaScreen = screenRes;
     }
 
-    // 3 Rows of Plush Crimson Velvet Cinema Seats (Rows C, B, A facing z = +34.4)
+    // 3 Rows of Plush Crimson Velvet VIP Recliner Seats with Armrests & Illuminated Aisle Steps
     for (const [rowIdx, sz] of [23.0, 25.4, 27.8].entries()) {
+      const seatY = 0.25 + (2 - rowIdx) * 0.22;
+      this.box(g, `Cinema_aisle_led_${rowIdx}`, [0.22, 0.04, 1.55], [-41.6, (2 - rowIdx) * 0.22 + 0.03, sz], m.warmLed);
       for (let col = 0; col < 5; col++) {
         const sx = -47.4 + col * 1.4;
         const seatInfo = {
@@ -1145,13 +1256,15 @@ export class MallScene {
           seatYaw: Math.PI,
           label: `IMAX VIP ${['C', 'B', 'A'][rowIdx]}열 ${col + 1}번 좌석 착석`,
         };
-        this.box(g, 'Cinema_seat_base', [0.78, 0.45, 0.72], [sx, 0.25 + (2 - rowIdx) * 0.22, sz], m.cinemaRed, null, seatInfo);
-        this.box(g, 'Cinema_seat_back', [0.78, 0.85, 0.18], [sx, 0.72 + (2 - rowIdx) * 0.22, sz - 0.3], m.cinemaRed, null, seatInfo);
+        this.box(g, 'Cinema_seat_base', [0.78, 0.45, 0.72], [sx, seatY, sz], m.cinemaRed, null, seatInfo);
+        this.box(g, 'Cinema_seat_back', [0.78, 0.85, 0.18], [sx, seatY + 0.47, sz - 0.3], m.cinemaRed, null, seatInfo);
+        this.box(g, 'Cinema_seat_arm_L', [0.12, 0.26, 0.62], [sx - 0.42, seatY + 0.22, sz], m.charcoal, null, seatInfo);
+        this.box(g, 'Cinema_seat_arm_R', [0.12, 0.26, 0.62], [sx + 0.42, seatY + 0.22, sz], m.charcoal, null, seatInfo);
       }
       this.box(g, 'Cinema_riser', [8.4, (2 - rowIdx) * 0.22 + 0.05, 1.8], [-44.6, ((2 - rowIdx) * 0.22) / 2, sz], m.charcoal);
     }
 
-    // 2. Ticket Box Office & Popcorn Concession Bar flush against North Outer Wall (z = 4.0)
+    // 2. Self-Ticketing Touchscreen Kiosks & Gourmet Popcorn Concession Zone (North Foyer)
     this.buildStorefront(g, f, {
       x: -18.5,
       z: 5.82,
@@ -1159,34 +1272,143 @@ export class MallScene {
       d: 3.4,
       rotY: 0,
       brandEn: 'GRAND CINEMA TICKETS',
-      brandKo: 'M5F 그랜드 시네마 매표소',
+      brandKo: 'M5F 시네마 티켓팅 라운지',
       action: 'mallCinemaTicket',
       accentMat: m.charcoal,
       productColor: 0xf4c45c,
     });
+    // 4 Freestanding Touchscreen Ticket Kiosks at z = 7.85 facing South (+Z)
+    const kioskUiTex = safeCanvasTexture(256, 384, (ctx, w, h) => {
+      ctx.fillStyle = '#0e1928';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#f4c45c';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('SELF TICKETING', w / 2, 54);
+      ctx.fillStyle = '#6fe7db';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText('IMAX 4K 예매 · 발권', w / 2, 92);
+      ctx.fillStyle = '#1f3b58';
+      ctx.fillRect(28, 130, w - 56, 130);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText('QR 티켓 즉석 발권', w / 2, 205);
+      ctx.fillStyle = '#f4c45c';
+      ctx.fillRect(48, 290, w - 96, 52);
+      ctx.fillStyle = '#0e1928';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText('TOUCH TO BUY', w / 2, 324);
+    });
+    const kioskScreenMat = kioskUiTex
+      ? new THREE.MeshStandardMaterial({
+          map: kioskUiTex.tex,
+          emissiveMap: kioskUiTex.tex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.72,
+          roughness: 0.2,
+        })
+      : m.cyanLed;
+    for (const [kIdx, kx] of [-21.2, -19.4, -17.6, -15.8].entries()) {
+      const tKioskInfo = {
+        action: 'mallCinemaTicket',
+        floorIndex: f,
+        label: `영화 예매 무인 발권 키오스크 #${kIdx + 1} (QR 티켓 즉시 발권) 🎟️`,
+      };
+      this.box(g, `Cinema_ticket_kiosk_${kIdx}`, [0.68, 1.92, 0.42], [kx, 0.96, 7.85], m.charcoal, f, tKioskInfo);
+      const tScr = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.86), kioskScreenMat);
+      tScr.name = `Cinema_ticket_kiosk_screen_${kIdx}`;
+      tScr.position.set(kx, 1.38, 8.07);
+      this.markInteractive(tScr, tKioskInfo);
+      g.add(tScr);
+      this.box(g, `Cinema_ticket_kiosk_nfc_${kIdx}`, [0.22, 0.08, 0.14], [kx, 0.82, 8.11], m.cyanLed, null, tKioskInfo);
+    }
+
     this.buildStorefront(g, f, {
-      x: -38.5,
+      x: -36.8,
       z: 5.82,
       w: 7.4,
       d: 3.4,
       rotY: 0,
       brandEn: 'GOURMET POPCORN BAR',
-      brandKo: 'M5F 카라멜 팝콘 & 나초 스낵바',
+      brandKo: 'M5F 카라멜 팝콘 & 나초 매점',
       action: 'mallCinemaSnack',
       accentMat: m.vermilion,
       productColor: 0xffe075,
     });
+    // Popcorn Warmer Showcase, Soda Dispenser, & Overhead Combo Menu Board at Concession Pickup Counter
+    const snackPickupInfo = {
+      action: 'mallCinemaSnack',
+      floorIndex: f,
+      label: '시네마 매점 픽업 바 · 카라멜 팝콘 & 음료 수령 🍿',
+    };
+    this.box(g, 'Cinema_popcorn_warmer', [0.95, 0.82, 0.62], [-37.6, 1.5, 6.95], m.glass, null, snackPickupInfo);
+    this.box(g, 'Cinema_popcorn_gold', [0.72, 0.56, 0.42], [-37.6, 1.4, 6.95], m.warmLed, null, snackPickupInfo);
+    this.box(g, 'Cinema_soda_fountain', [0.85, 0.78, 0.56], [-36.0, 1.48, 6.95], m.steel, null, snackPickupInfo);
+    this.sign(
+      g,
+      'Cinema_menu_board',
+      ['COMBO MENU · POPCORN & DRINK', '1. 카라멜 팝콘 콤보  2. 치즈 나초  3. 오징어 콤보'],
+      [-36.8, 3.2, 6.85],
+      [4.2, 0.68],
+      0
+    );
+
+    // 3 Freestanding Concession Self-Order Kiosks at x = -43.2, -41.8, -40.4, z = 7.85
+    const snackKioskTex = safeCanvasTexture(256, 384, (ctx, w, h) => {
+      ctx.fillStyle = '#241118';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#ffe075';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('SNACK KIOSK', w / 2, 54);
+      ctx.fillStyle = '#ff8a65';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText('매점 셀프 주문 키오스크', w / 2, 92);
+      ctx.fillStyle = '#471f28';
+      ctx.fillRect(28, 130, w - 56, 130);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText('팝콘 · 나초 · 에이드', w / 2, 205);
+      ctx.fillStyle = '#ffe075';
+      ctx.fillRect(48, 290, w - 96, 52);
+      ctx.fillStyle = '#241118';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText('ORDER COMBO', w / 2, 324);
+    });
+    const snackScreenMat = snackKioskTex
+      ? new THREE.MeshStandardMaterial({
+          map: snackKioskTex.tex,
+          emissiveMap: snackKioskTex.tex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.72,
+          roughness: 0.2,
+        })
+      : m.warmLed;
+    for (const [sIdx, sx] of [-43.2, -41.8, -40.4].entries()) {
+      const sKioskInfo = {
+        action: 'mallCinemaSnack',
+        floorIndex: f,
+        label: `매점 셀프 오더 키오스크 #${sIdx + 1} (팝콘 & 음료 주문) 🍿`,
+      };
+      this.box(g, `Cinema_snack_kiosk_${sIdx}`, [0.68, 1.92, 0.42], [sx, 0.96, 7.85], m.vermilion, f, sKioskInfo);
+      const sScr = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.86), snackScreenMat);
+      sScr.name = `Cinema_snack_kiosk_screen_${sIdx}`;
+      sScr.position.set(sx, 1.38, 8.07);
+      this.markInteractive(sScr, sKioskInfo);
+      g.add(sScr);
+      this.box(g, `Cinema_snack_kiosk_nfc_${sIdx}`, [0.22, 0.08, 0.14], [sx, 0.82, 8.11], m.warmLed, null, sKioskInfo);
+    }
 
     // Illuminated Movie Poster Lightboxes along North Corridor
     for (const [px, title] of [
-      [-45.0, 'DUNE: ATRIUM'],
-      [-32.0, 'SEOUL SKYLINE'],
-      [-23.5, 'STARLIGHT 4K'],
+      [-46.5, 'DUNE: ATRIUM'],
+      [-31.8, 'SEOUL SKYLINE'],
+      [-23.8, 'STARLIGHT 4K'],
     ]) {
       this.box(g, 'Cinema_poster_box', [1.8, 2.5, 0.14], [px, 1.85, 4.25], m.warmLed, null, {
         action: 'mallCinemaTicket',
         floorIndex: f,
-        label: `${title} 예매 키오스크`,
+        label: `${title} 상영 안내 · 키오스크 예매`,
       });
     }
 
@@ -1210,13 +1432,13 @@ export class MallScene {
       });
     }
 
-    // 4. M5F 4DX Program Switcher Console, Top Spiral Slide Portal, Glamping Campfire, & Wishing Fountain
-    this.box(g, 'Mall_cinema_switcher', [0.75, 1.12, 0.55], [-40.8, 0.56, 18.2], m.charcoal, f, {
+    // 4. M5F 4DX Program Switcher Console (Lobby beside Gate), Top Spiral Slide Portal, Glamping Campfire, & Wishing Fountain
+    this.box(g, 'Mall_cinema_switcher', [0.75, 1.12, 0.55], [-44.2, 0.56, 12.6], m.charcoal, f, {
       action: 'mallCinemaSwitch',
       floorIndex: f,
       label: 'IMAX 4DX 상영 영화 실시간 변경 🎬',
     });
-    this.box(g, 'Mall_cinema_switcher_led', [0.46, 0.16, 0.36], [-40.8, 1.18, 18.2], m.cyanLed, null, {
+    this.box(g, 'Mall_cinema_switcher_led', [0.46, 0.16, 0.36], [-44.2, 1.18, 12.6], m.cyanLed, null, {
       action: 'mallCinemaSwitch',
       floorIndex: f,
       label: '상영작 전환',
@@ -1974,10 +2196,10 @@ export class MallScene {
 
       // M5F (floor 13) — Top-Floor Grand Cinema Multiplex (IMAX) & Sounds Forest
       { id: 'crowd-23', name: '씨네필 예린', role: 'IMAX 예매객', floor: 13, x: -23.5, z: 11.8, toX: -36.0, toZ: 11.8, coat: 0x8f2934, bag: 0xf4c45c, quote: '꼭대기층 M5F 전체가 IMAX 멀티플렉스랑 하늘정원이라 규모가 어마어마해요!' },
-      { id: 'crowd-24', name: '관객 승호', role: '팝콘 대기중', floor: 13, x: -39.0, z: 11.8, toX: -43.5, toZ: 16.5, coat: 0x263847, bag: 0xffe075, quote: '카라멜 팝콘 사서 바로 IMAX Laser 상영관으로 들어가고 있어요!' },
+      { id: 'crowd-24', name: '관객 승호', role: '팝콘 키오스크 주문', floor: 13, x: -38.8, z: 9.8, toX: -42.0, toZ: 11.4, coat: 0x263847, bag: 0xffe075, quote: '매점 셀프 오더 키오스크에서 카라멜 팝콘 콤보 주문하고 이제 검표 게이트로 들어가요!' },
       { id: 'crowd-25', name: '관객 다혜', role: '영화 관람객', floor: 13, x: -46.0, z: 25.25, toX: -46.0, toZ: 25.25, coat: 0x3b4d59, bag: null, seat: true, quote: '대형 IMAX 스크린 화질이 진짜 선명하네요! 빈 좌석 클릭하면 같이 앉을 수 있어요.' },
       { id: 'crowd-26', name: '관객 준영', role: '영화 관람객', floor: 13, x: -43.2, z: 27.65, toX: -43.2, toZ: 27.65, coat: 0x5c363e, bag: null, seat: true, quote: '돌비 애트모스 사운드가 웅장하게 울리네요.' },
-      { id: 'crowd-27', name: '어셔 미소', role: '시네마 스태프', floor: 13, x: -41.0, z: 15.2, toX: -39.6, toZ: 15.2, coat: 0x911d24, bag: null, quote: 'GRAND CINEMA HALL 1 상영 중입니다. 앞쪽 매표소와 스낵바도 이용해 주세요!' },
+      { id: 'crowd-27', name: '어셔 미소', role: '티켓 검표 매니저', floor: 13, x: -40.1, z: 12.6, toX: -40.1, toZ: 12.6, coat: 0x911d24, bag: null, quote: '북측 무인 키오스크에서 영화 티켓 발권과 매점 주문 후, 여기 게이트에 QR 티켓을 스캔하시면 입장 가능합니다!' },
       { id: 'crowd-28', name: '자연애호가 유리', role: '사운즈 포레스트 방문객', floor: 13, x: -29.0, z: 25.5, toX: -17.5, toZ: 25.5, coat: 0x457352, bag: null, quote: '영화 보고 나와서 주홍빛 트러스 천창 아래 사운즈 포레스트 나무 사이를 산책 중이에요.' },
       { id: 'crowd-29', name: '관광객 알렉스', role: '루프탑 가든 관람객', floor: 13, x: -21.2, z: 14.0, toX: -21.2, toZ: 24.0, coat: 0x334756, bag: 0x9fc2cf, quote: 'The glass skylight trusses 35 meters above look incredible!' },
 
@@ -2129,8 +2351,47 @@ export class MallScene {
     tex.needsUpdate = true;
   }
 
+  setCinemaGateState(open = false, ticket = null) {
+    this.cinemaGateOpen = Boolean(open);
+    for (const led of this.cinemaGateScannerLeds) {
+      led.material.color.setHex(open ? 0x39e596 : 0xffaa3b);
+      led.material.emissive.setHex(open ? 0x19c97b : 0xff7a1a);
+    }
+    const disp = this.cinemaGateDisplay;
+    if (!disp?.ctx) return;
+    const key = `${open ? 'OPEN' : ticket ? 'READY' : 'LOCK'}:${ticket?.seat || ''}`;
+    if (disp.lastKey === key) return;
+    disp.lastKey = key;
+    const { ctx, canvas, tex } = disp;
+    ctx.fillStyle = open ? '#0d261c' : ticket ? '#132236' : '#141a24';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = open ? '#55ffaa' : ticket ? '#6fe7db' : '#ff9d3b';
+    ctx.font = 'bold 34px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(open ? 'WELCOME · HALL 1 입장 허가' : ticket ? 'QR TICKET READY · 스캔하세요' : 'TICKET REQUIRED', canvas.width / 2, 54);
+    ctx.fillStyle = '#d9e5f0';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText(
+      open
+        ? `${ticket?.title || 'IMAX'} · ${ticket?.seat || 'VIP'}`
+        : ticket
+          ? `예매 좌석 ${ticket.seat} · 검표 리더기 클릭`
+          : '북측 무인 키오스크 발권 후 QR 스캔',
+      canvas.width / 2,
+      98
+    );
+    tex.needsUpdate = true;
+  }
+
   update(mc, time = 0, player = null) {
     if (!mc) return;
+    if (this.cinemaGateDoors) {
+      const targetShift = this.cinemaGateOpen ? 0.82 : 0;
+      const curShift = Math.abs(this.cinemaGateDoors.right.position.x - -41.42);
+      const nextShift = time === 0 ? targetShift : curShift + (targetShift - curShift) * 0.2;
+      this.cinemaGateDoors.left.position.x = -42.38 - nextShift;
+      this.cinemaGateDoors.right.position.x = -41.42 + nextShift;
+    }
     const carAY = mc.position - 5 * PITCH; // floor 5 (M1F) -> y = 0, floor 13 (M5F) -> y = 28.0m
     const floorCodeA = mc.floor < 5 ? FLOORS[mc.floor] : mallFloorMeta(mc.floor).mallCode;
 

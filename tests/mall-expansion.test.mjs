@@ -438,3 +438,84 @@ test('experiential mall attractions span spiral slide, kinetic show, arcade bowl
   const djRes = stay.interactMall('mallDjBooth', { floorIndex: 7 }, p);
   assert.equal(djRes.djTrackIndex, 1 % MALL_DJ_TRACKS.length);
 });
+
+test('cinema requires kiosk ticketing and concession flow with QR gate inspection before auditorium entry', () => {
+  const world = new HotelWorld();
+  const mallCtrl = new LiftController({
+    minFloor: 0,
+    maxFloor: MALL_MAX_FLOOR,
+    id: 'mall',
+    startFloor: 13,
+    allowedFloors: MALL_VALID_FLOORS,
+  });
+
+  withMockCanvas(() => {
+    const scene = new THREE.Scene();
+    const pickables = [];
+    const mall = new MallScene(scene, world, pickables);
+
+    assert.ok(mall.root.getObjectByName('Cinema_ticket_kiosk_0'));
+    assert.ok(mall.root.getObjectByName('Cinema_snack_kiosk_0'));
+    assert.ok(mall.root.getObjectByName('Cinema_popcorn_warmer'));
+    assert.ok(mall.root.getObjectByName('Cinema_soda_fountain'));
+    assert.ok(mall.root.getObjectByName('Cinema_ticket_gate'));
+    assert.ok(mall.root.getObjectByName('Cinema_projection_window'));
+    assert.ok(mall.root.getObjectByName('Cinema_stage_deck'));
+    assert.ok(pickables.some((o) => o.userData?.action === 'mallCinemaGate'));
+
+    // Before ticketing: gate and acoustic walls block direct entry into Hall 1
+    assert.equal(world.canOccupy(13, -41.9, 13.6), false);
+    assert.equal(world.canOccupy(13, -39.6, 20.0), false);
+
+    const stay = new HotelStay();
+    const guest = { floor: 13, x: -41.9, z: 11.4, yaw: Math.PI, pitch: 0, zone: 'lobby' };
+
+    const deniedGate = stay.interactMall('mallCinemaGate', { floorIndex: 13 }, guest);
+    assert.equal(deniedGate.ok, false);
+    assert.equal(deniedGate.gateBlocked, true);
+
+    const deniedSeat = stay.interactMall(
+      'mallCinemaSeat',
+      { seatX: -44.6, seatZ: 25.25, seatYaw: Math.PI, floorIndex: 13 },
+      guest
+    );
+    assert.equal(deniedSeat.ok, false);
+    assert.equal(deniedSeat.gateBlocked, true);
+
+    // 1) Self-Ticketing Kiosk order
+    const ticketRes = stay.interactMall('mallCinemaTicket', { floorIndex: 13 }, guest);
+    assert.equal(ticketRes.ok, true);
+    assert.equal(stay.heldMallItem, 'ticket');
+    assert.equal(stay.cinemaTicket?.seat, 'VIP B열 3번');
+    assert.equal(stay.cinemaGateOpen, false);
+
+    // 2) Self-Order Concession Kiosk snack pickup
+    const snackRes = stay.interactMall('mallCinemaSnack', { floorIndex: 13 }, guest);
+    assert.equal(snackRes.ok, true);
+    assert.equal(stay.heldMallItem, 'popcorn');
+    assert.ok(stay.cinemaSnack);
+
+    // 3) Smart QR Ticket Inspection at Entrance Gate opens flaps & advances guest inside
+    const gateRes = stay.interactMall('mallCinemaGate', { floorIndex: 13 }, guest);
+    assert.equal(gateRes.ok, true);
+    assert.equal(stay.cinemaGateOpen, true);
+    assert.ok(guest.z > 14.0, `expected guest inside auditorium, got z=${guest.z}`);
+
+    world.cinemaGateOpen = Boolean(stay.cinemaGateOpen);
+    assert.equal(world.canOccupy(13, -41.9, 13.6), true);
+
+    mall.setCinemaGateState(stay.cinemaGateOpen, stay.cinemaTicket);
+    mall.update(mallCtrl, 0, guest);
+    assert.ok(mall.cinemaGateDoors.left.position.x < -43.0);
+    assert.ok(mall.cinemaGateDoors.right.position.x > -40.7);
+
+    // 4) Guest can now sit in VIP recliner seat inside auditorium
+    const seatRes = stay.interactMall(
+      'mallCinemaSeat',
+      { seatX: -44.6, seatZ: 25.25, seatYaw: Math.PI, floorIndex: 13 },
+      guest
+    );
+    assert.equal(seatRes.ok, true);
+    assert.equal(guest.x, -44.6);
+  });
+});

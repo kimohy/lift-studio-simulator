@@ -10,6 +10,7 @@ export const MALL_MAX_FLOOR = 13;
 export class HotelWorld {
   constructor() {
     this.obstacles = [];
+    this.cinemaGateOpen = false;
   }
 
   addObstacle(floor, minX, maxX, minZ, maxZ) {
@@ -92,6 +93,16 @@ export class HotelWorld {
   }
 
   flatArea(x, z, floor) {
+    if (floor === 13) {
+      // M5F IMAX Auditorium 1 Acoustic Enclosure (East wall x = -39.6, North wall z = 13.6)
+      if (inside(x, z, -39.82, -39.38, 13.4, 35.5)) return false;
+      if (
+        inside(x, z, -49.8, -39.4, 13.35, 13.85) &&
+        !(this.cinemaGateOpen && inside(x, z, -43.0, -40.8, 13.3, 13.9))
+      ) {
+        return false;
+      }
+    }
     if (this.isMallArea(x, z, floor)) return true;
     // Vestibule left wall (x = -2.54): only passable through the 1.1m doorway (z ∈ [1.80, 2.90])
     if (inside(x, z, -2.68, -2.4, 1.2, 3.65) && !inside(x, z, -2.72, -2.35, 1.8, 2.9)) {

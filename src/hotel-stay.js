@@ -279,12 +279,12 @@ export const MALL_FAST_TRAVEL_SPOTS = [
   {
     id: 'mall-cinema',
     label: '몰 M5F · 그랜드 시네마 IMAX & 사운즈 포레스트',
-    subtitle: '꼭대기층 IMAX 레이저 상영관 · 매표소 · 하늘수목원 · 트러스 천창',
+    subtitle: '무인 발권 키오스크 · 매점 키오스크 · 스마트 검표 게이트 · IMAX 상영관',
     floor: 13,
     zone: 'lobby',
-    x: -41.5,
-    z: 14.5,
-    yaw: Math.PI,
+    x: -41.9,
+    z: 11.4,
+    yaw: Math.PI * 0.85,
     pitch: -0.05,
   },
 ];
@@ -353,14 +353,20 @@ const MALL_INTERACTION_SPECS = {
   mallCinemaTicket: {
     points: 60,
     energy: 8,
-    item: 'M5F IMAX 4K 레이저 VIP 예매권 🎟️',
-    message: '🎟️ [그랜드 시네마 매표소] M5F IMAX LASER 상영관 VIP 좌석 발권이 완료되었습니다! HALL 1 상영관 안으로 입장해 보세요.',
+    item: 'M5F IMAX 4K 레이저 QR 예매권 🎟️',
+    message: '🎟️ [무인 발권 키오스크] M5F IMAX LASER HALL 1 모바일 QR 티켓 발권을 완료했습니다!',
   },
   mallCinemaSnack: {
     points: 45,
     energy: 20,
-    item: '시네마 카라멜 팝콘 & 나초 콤보 🍿',
-    message: '🍿 [고메 팝콘 스낵바] 바삭한 트러플 카라멜 팝콘과 에이드 콤보를 수령했습니다. 에너지 +20!',
+    item: '시네마 키오스크 팝콘 & 음료 콤보 🍿',
+    message: '🍿 [매점 셀프 오더 키오스크] 갓 튀긴 팝콘과 음료 콤보를 픽업 바에서 수령했습니다. 에너지 +20!',
+  },
+  mallCinemaGate: {
+    points: 65,
+    energy: 10,
+    item: 'IMAX 상영관 스마트 검표 통과 🎟️',
+    message: '✅ [스마트 티켓 검표 게이트] QR 티켓 인증이 완료되어 IMAX HALL 1 상영관 문이 열렸습니다!',
   },
   mallCinemaScreen: {
     points: 75,
@@ -509,6 +515,12 @@ export const MALL_CINEMA_MOVIES = Object.freeze([
   { id: 'mystery', title: 'GRAND HOTEL MYSTERY', sub: '로열 스위트 미스터리 오리지널', bg: '#24160a', accent: '#f5cb75' },
 ]);
 
+export const MALL_CINEMA_COMBOS = Object.freeze([
+  '시그니처 카라멜 팝콘 & 콜라 콤보 🍿🥤',
+  '트러플 치즈 나초 & 자몽에이드 콤보 🧀🥤',
+  '버터구이 오징어 & 제로콜라 콤보 🦑🥤',
+]);
+
 export const MALL_DJ_TRACKS = Object.freeze([
   { id: 'citypop', title: 'SEOUL CITY POP VINYL', bpm: '116 BPM · MARBLE GROOVE' },
   { id: 'jazz', title: 'MIDNIGHT JAZZ LOUNGE', bpm: '92 BPM · BRASS & PIANO' },
@@ -541,6 +553,10 @@ export class HotelStay {
     this.cafeSeated = false;
     this.heldMallItem = null;
     this.cinemaMovieIndex = 0;
+    this.cinemaTicket = null;
+    this.cinemaSnack = null;
+    this.cinemaSnackIndex = 0;
+    this.cinemaGateOpen = false;
     this.djTrackIndex = 0;
     this.gachaCount = 0;
     this.bowlingStrikes = 0;
@@ -801,6 +817,24 @@ export class HotelStay {
       return { ok: false, message: '🛍️ 그랜드 아트리움 몰 시설을 확인했습니다.' };
     }
 
+    if (action === 'mallCinemaGate' && !this.cinemaTicket) {
+      return {
+        ok: false,
+        gateBlocked: true,
+        cinemaGateOpen: this.cinemaGateOpen,
+        message: '🚫 [티켓 검표 게이트] 발권된 영화 티켓이 없습니다! 먼저 북측 [시네마 무인 발권 키오스크]에서 티켓을 발권해 주세요.',
+      };
+    }
+
+    if (action === 'mallCinemaSeat' && player && player.z < 13.6 && !this.cinemaGateOpen) {
+      return {
+        ok: false,
+        gateBlocked: true,
+        cinemaGateOpen: this.cinemaGateOpen,
+        message: '🚫 [상영관 입장 제한] 먼저 무인 발권 키오스크에서 티켓을 발권한 뒤, 입구 검표 게이트에서 QR 검표를 완료해 주세요.',
+      };
+    }
+
     let slideRide = null;
     let extraNote = '';
     if (action === 'mallSpiralSlide') {
@@ -815,6 +849,19 @@ export class HotelStay {
         player.worldY = 0;
       }
       slideRide = { startFloor, endFloor: 5 };
+    } else if (action === 'mallCinemaGate') {
+      this.cinemaTicket.inspected = true;
+      this.cinemaGateOpen = true;
+      if (player && player.floor === 13 && player.z < 14.4) {
+        player.x = -41.9;
+        player.z = 14.8;
+        player.yaw = Math.PI;
+        player.pitch = 0.02;
+        player.zone = 'lobby';
+      }
+      extraNote = `검표 완료: [${this.cinemaTicket.title}] · 배정 좌석 [${this.cinemaTicket.seat}]${
+        this.cinemaSnack ? ` · 매점 [${this.cinemaSnack}] 반입 확인` : ''
+      }`;
     } else if (action === 'mallCinemaSeat' && player && Number.isFinite(data.seatX) && Number.isFinite(data.seatZ)) {
       player.x = data.seatX;
       player.z = data.seatZ;
@@ -847,6 +894,20 @@ export class HotelStay {
       this.cinemaMovieIndex = (this.cinemaMovieIndex + 1) % MALL_CINEMA_MOVIES.length;
       const m = MALL_CINEMA_MOVIES[this.cinemaMovieIndex];
       extraNote = `현재 상영작: [${m.title}] (${m.sub})`;
+    } else if (action === 'mallCinemaTicket') {
+      const movie = MALL_CINEMA_MOVIES[this.cinemaMovieIndex];
+      this.cinemaTicket = {
+        movieId: movie.id,
+        title: movie.title,
+        sub: movie.sub,
+        hall: 'IMAX LASER · HALL 1',
+        seat: 'VIP B열 3번',
+        seatX: -44.6,
+        seatZ: 25.25,
+        inspected: this.cinemaGateOpen,
+      };
+      this.heldMallItem = 'ticket';
+      extraNote = `발권 내역: [${movie.title}] · HALL 1 (${this.cinemaTicket.seat}) · 검표 게이트에서 QR 티켓을 스캔하세요`;
     } else if (action === 'mallDjBooth') {
       this.djTrackIndex = (this.djTrackIndex + 1) % MALL_DJ_TRACKS.length;
       const t = MALL_DJ_TRACKS[this.djTrackIndex];
@@ -864,7 +925,13 @@ export class HotelStay {
     } else if (action === 'mallMatchaCone') {
       this.heldMallItem = 'matcha';
     } else if (action === 'mallCinemaSnack') {
+      const combo = MALL_CINEMA_COMBOS[this.cinemaSnackIndex % MALL_CINEMA_COMBOS.length];
+      this.cinemaSnackIndex += 1;
+      this.cinemaSnack = combo;
       this.heldMallItem = 'popcorn';
+      extraNote = `수령 메뉴: [${combo}]${
+        this.cinemaTicket ? ' · 이제 검표 게이트로 이동해 입장하세요!' : ' · 무인 발권 키오스크에서 영화 티켓도 발권해 보세요!'
+      }`;
     } else if (action === 'mallShop') {
       this.heldMallItem = 'bag';
     }
@@ -880,6 +947,9 @@ export class HotelStay {
       item: spec.item,
       heldMallItem: this.heldMallItem,
       cinemaMovieIndex: this.cinemaMovieIndex,
+      cinemaTicket: this.cinemaTicket,
+      cinemaSnack: this.cinemaSnack,
+      cinemaGateOpen: this.cinemaGateOpen,
       djTrackIndex: this.djTrackIndex,
       slideRide,
       photoFlash: action === 'mallPhotoBooth',

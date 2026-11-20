@@ -342,6 +342,29 @@ export class LiftScene {
     this.vmPhotocard.add(stripBg);
     this.vmPhotocard.rotation.set(0.24, -0.35, 0.08);
     this.viewmodelGroup.add(this.vmPhotocard);
+
+    // 7. IMAX Cinema VIP Ticket & QR Pass viewmodel
+    this.vmTicket = new THREE.Group();
+    this.vmTicket.name = 'VM_cinema_ticket';
+    const ticketBg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.095, 0.05, 0.003),
+      new THREE.MeshStandardMaterial({ color: 0x8f1d24, roughness: 0.35, metalness: 0.25 })
+    );
+    const ticketGoldBar = new THREE.Mesh(new THREE.BoxGeometry(0.096, 0.011, 0.004), goldMat);
+    ticketGoldBar.position.y = 0.019;
+    const qrPatch = new THREE.Mesh(
+      new THREE.BoxGeometry(0.024, 0.024, 0.0045),
+      new THREE.MeshStandardMaterial({ color: 0xf7f7f5, roughness: 0.4 })
+    );
+    qrPatch.position.set(0.027, -0.006, 0.0005);
+    const qrCodeCore = new THREE.Mesh(
+      new THREE.BoxGeometry(0.014, 0.014, 0.0052),
+      new THREE.MeshStandardMaterial({ color: 0x15191f, roughness: 0.5 })
+    );
+    qrCodeCore.position.set(0.027, -0.006, 0.0008);
+    this.vmTicket.add(ticketBg, ticketGoldBar, qrPatch, qrCodeCore);
+    this.vmTicket.rotation.set(0.26, -0.38, 0.1);
+    this.viewmodelGroup.add(this.vmTicket);
   }
 
   updateViewmodel(time = 0) {
@@ -374,6 +397,7 @@ export class LiftScene {
     if (this.vmMatcha) this.vmMatcha.visible = mallItem === 'matcha';
     if (this.vmShoppingBag) this.vmShoppingBag.visible = mallItem === 'bag';
     if (this.vmPhotocard) this.vmPhotocard.visible = mallItem === 'photocard';
+    if (this.vmTicket) this.vmTicket.visible = mallItem === 'ticket';
 
     const bobPhase = game.walkBobPhase || 0;
     const moveAmp = game.isMoving ? 1 : 0.18;

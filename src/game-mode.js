@@ -23,6 +23,7 @@ const MALL_ACTIONS = new Set([
   'mallConcierge',
   'mallCinemaTicket',
   'mallCinemaSnack',
+  'mallCinemaGate',
   'mallCinemaScreen',
   'mallCinemaSeat',
   'mallPerson',
@@ -1072,6 +1073,25 @@ export class GameMode {
     if (this.player.zone === 'room') this.stay.completeMilestone('room301');
     if (this.player.zone === 'pool') this.stay.completeMilestone('rooftopPool');
 
+    if (
+      !this.world.cinemaGateOpen &&
+      this.player.floor === 13 &&
+      this.player.zone === 'lobby' &&
+      this.player.x >= -43.3 &&
+      this.player.x <= -40.5 &&
+      this.player.z >= 12.8 &&
+      this.player.z <= 13.55 &&
+      performance.now() > (this._cinemaGateHintUntil ?? 0)
+    ) {
+      this._cinemaGateHintUntil = performance.now() + 3500;
+      this.message(
+        this.stay.cinemaTicket
+          ? '🎟️ 발권된 QR 티켓을 소지 중입니다! 앞쪽 검표 게이트 리더기를 클릭하면 상영관 문이 열립니다.'
+          : '🚫 [티켓 검표 게이트] 북측 [무인 발권 키오스크]에서 먼저 영화 티켓을 발권한 뒤 검표 후 입장해 주세요.'
+      );
+      this.messageUntil = performance.now() + 3400;
+    }
+
     this.hoverTime += dt;
     if (this.hoverTime > 0.12) {
       this.hoverTime = 0;
@@ -1226,9 +1246,11 @@ export class GameMode {
   interactMall(action, data = {}) {
     if (!this.active) return;
     const res = this.stay.interactMall(action, data, this.player);
+    if (this.world) this.world.cinemaGateOpen = Boolean(this.stay.cinemaGateOpen);
     const mallScene = this.view?.mallScene;
     const t = this.controller?.time ?? 0;
     if (mallScene) {
+      mallScene.setCinemaGateState?.(this.stay.cinemaGateOpen, this.stay.cinemaTicket);
       if (action === 'mallFountainShow') mallScene.triggerFountainShow(t);
       else if (action === 'mallKineticShow') mallScene.triggerKineticShow(t);
       else if (action === 'mallBowling') mallScene.triggerBowlingStrike(t);
@@ -1252,6 +1274,28 @@ export class GameMode {
         title: '인생네컷 포토카드 인화 완료!',
         subtitle: '+70 VIP PTS · 오른손 포토카드를 확인하세요',
         duration: 3200,
+      });
+    } else if (action === 'mallCinemaTicket' && res.ok) {
+      this.showToast?.({
+        badge: '🎟️ KIOSK TICKET ISSUED',
+        title: `${res.cinemaTicket?.title || 'IMAX 4K'} 발권 완료!`,
+        subtitle: `${res.cinemaTicket?.seat || 'VIP B열 3번'} · 게이트 QR 리더기를 스캔하세요`,
+        duration: 3600,
+      });
+    } else if (action === 'mallCinemaSnack' && res.ok) {
+      this.showToast?.({
+        badge: '🍿 CONCESSION KIOSK PICKUP',
+        title: '시네마 매점 콤보 수령!',
+        subtitle: res.cinemaSnack || '카라멜 팝콘 & 음료 · 오른손에 착용됨',
+        duration: 3400,
+      });
+    } else if (action === 'mallCinemaGate' && res.ok) {
+      this.applyCamera();
+      this.showToast?.({
+        badge: '✅ TICKET VERIFIED · HALL 1',
+        title: 'QR 티켓 검표 완료 · 상영관 입장!',
+        subtitle: `${res.cinemaTicket?.title || 'IMAX LASER'} · 원하시는 VIP 리클라이너 좌석을 클릭해 착석하세요`,
+        duration: 3800,
       });
     }
     this.notifyQuestProgress?.(res.newlyCompletedQuests);
@@ -1716,7 +1760,15 @@ export class GameMode {
       case 'mallPerson':
         return `💬 ${d.personName || '몰 방문객'} (${d.roleLabel || '게스트'}) · 대화하기`;
       case 'mallCinemaTicket':
+        return '🎟️ 영화 예매 무인 발권 키오스크 · QR 티켓 발권';
       case 'mallCinemaSnack':
+        return '🍿 매점 셀프 오더 키오스크 · 팝콘/음료 콤보 구매';
+      case 'mallCinemaGate':
+        return this.stay?.cinemaGateOpen
+          ? '✅ IMAX 상영관 검표 완료 · 입장 가능'
+          : this.stay?.cinemaTicket
+            ? `🎟️ QR 티켓 스캔 검표 · 상영관 입장 (${this.stay.cinemaTicket.seat})`
+            : '🚫 스마트 검표 게이트 (무인 키오스크 티켓 발권 필요)';
       case 'mallCinemaScreen':
       case 'mallCinemaSeat':
       case 'mallSpiralSlide':

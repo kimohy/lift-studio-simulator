@@ -61,7 +61,7 @@ test('instanced escalator treads stay on their lanes and update only visible sto
     assert.equal(f.stepMesh.count, 24);
     f.stepMesh.getMatrixAt(0, m);
     const p = new THREE.Vector3().setFromMatrixPosition(m);
-    assert.ok(p.x >= -10 && p.x <= -4);
+    assert.ok(p.x >= -34 && p.x <= -28);
     assert.ok(Math.abs(p.z - f.z) < 1e-6);
     assert.ok(p.y >= -0.085 && p.y <= 3.5);
     const frozen = m.clone();

@@ -19,7 +19,7 @@ import {
   MALL_DJ_TRACKS,
   MALL_FAST_TRAVEL_SPOTS,
 } from '../src/hotel-stay.js';
-import { HotelWorld, MALL_LIFT_X, MALL_LIFT_Z } from '../src/hotel-world.js';
+import { HotelWorld, MALL_LIFT_X, MALL_LIFT_2_X, MALL_LIFT_Z } from '../src/hotel-world.js';
 import { MALL_ROOF_Y, MALL_STORY_H, MallScene } from '../src/mall-scene.js';
 import { WalkingPlayer } from '../src/player.js';
 import { LiftScene } from '../src/scene.js';
@@ -88,7 +88,7 @@ test('double-height mall floor mapping allocates 2 hotel floors per 1 mall story
   assert.equal(world.isMallArea(0, 2.65, 6), false);
 });
 
-test('1F hotel lobby opens wide directly into Mall M1F atrium and escalator bridges match double-height levels', () => {
+test('1F hotel lobby opens wide directly into Mall M1F atrium and central mall escalators match double-height levels', () => {
   withMockCanvas(() => {
     const pickables = [];
     const world = new HotelWorld();
@@ -101,13 +101,17 @@ test('1F hotel lobby opens wide directly into Mall M1F atrium and escalator brid
     view.root.updateMatrixWorld(true);
     for (const f of [0, 4, 5, 7, 9, 11, 13]) {
       const y = (f - 5) * PITCH + 1.4;
-      const portalHit = cast(view.root, [-9.5, y, 6.4], [-1, 0, 0], 2.5)[0];
-      assert.equal(portalHit, undefined, `expected escalator west portal open on floor ${FLOORS[f]}`);
+      const eastPortalHit = cast(view.root, [-27.2, y, 20.9], [1, 0, 0], 2.0)[0];
+      const westPortalHit = cast(view.root, [-34.8, y, 20.9], [-1, 0, 0], 2.0)[0];
+      assert.equal(eastPortalHit, undefined, `expected central escalator east portal open on floor ${FLOORS[f]}`);
+      assert.equal(westPortalHit, undefined, `expected central escalator west portal open on floor ${FLOORS[f]}`);
     }
     for (const f of [6, 8, 10, 12, 14]) {
       const y = (f - 5) * PITCH + 1.4;
-      const closedHit = cast(view.root, [-9.5, y, 6.4], [-1, 0, 0], 2.5)[0];
-      assert.equal(closedHit?.object.name, 'Escalator_outer_wall');
+      const eastClosed = cast(view.root, [-27.2, y, 20.9], [1, 0, 0], 2.0)[0];
+      const westClosed = cast(view.root, [-34.8, y, 20.9], [-1, 0, 0], 2.0)[0];
+      assert.equal(eastClosed?.object.name, 'Escalator_inner_wall');
+      assert.equal(westClosed?.object.name, 'Escalator_outer_wall');
     }
   });
 
@@ -130,18 +134,21 @@ test('1F hotel lobby opens wide directly into Mall M1F atrium and escalator brid
   for (let i = 0; i < 60; i++) player.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
   assert.ok(player.x < -18.0, `expected player inside Mall M1F via open lobby, got x=${player.x}`);
 
-  // Also test Escalator Bridge on M2F (floor 7)
+  // Walk out of Mall-Center Escalator onto M2F (floor 7) East Gallery Bridge & East Gallery
   const escalators = new Escalators();
   const escPlayer = new WalkingPlayer(null, world, escalators, null, null, mallCtrl);
   escPlayer.floor = 7;
   escPlayer.zone = 'escalator';
   escPlayer.escalatorY = (7 - 5) * PITCH;
   escPlayer.worldY = escPlayer.escalatorY;
-  escPlayer.x = -9.5;
-  escPlayer.z = 6.4;
-  escPlayer.yaw = Math.PI / 2;
-  for (let i = 0; i < 45; i++) escPlayer.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
-  assert.ok(escPlayer.x < -14.5);
+  escPlayer.x = -26.5;
+  escPlayer.z = 20.9;
+  escPlayer.yaw = -Math.PI / 2;
+  for (let i = 0; i < 4; i++) escPlayer.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
+  assert.ok(escPlayer.x > -26.2 && escPlayer.x < -22.0, `expected player on M2F east bridge, got x=${escPlayer.x}`);
+  for (let i = 0; i < 10; i++) escPlayer.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
+  assert.ok(escPlayer.x >= -22.0 && escPlayer.x <= -14.0, `expected player on M2F east gallery, got x=${escPlayer.x}`);
+  assert.equal(escPlayer.zone, 'lobby');
   assert.equal(escPlayer.floor, 7);
 });
 
@@ -232,7 +239,36 @@ test('mall elevator buttons pass 3D raycast interaction and ride independently t
     const hallHit = ls.getInteraction({ x: 0, y: 0 }, 2.5);
     assert.equal(hallHit?.userData?.action, 'mallHall');
 
-    // Inside cabin facing COP panel at (MALL_LIFT_X + 0.78, 1.25, MALL_LIFT_Z + 0.82)
+    // Verify Dual Transparent Elevators, Open Concourse Cutouts, & Horizontal Accessible Side COP
+    assert.equal(ls.mallScene.mallCars.length, 2);
+    assert.equal(ls.mallScene.mallCars[0].position.x, MALL_LIFT_X);
+    assert.equal(ls.mallScene.mallCars[1].position.x, MALL_LIFT_2_X);
+    assert.ok(ls.mallScene.m.crystalGlass.opacity <= 0.2, 'Expected ultra-transparent crystalGlass for dual elevators');
+    for (const f of [7, 9, 11, 13]) {
+      const fy = (f - 5) * PITCH;
+      for (const sx of [MALL_LIFT_X, MALL_LIFT_2_X]) {
+        const floorCutCheck = cast(ls.mallScene.root, [sx, fy + 0.5, MALL_LIFT_Z], [0, -1, 0], 1.2)[0];
+        assert.equal(floorCutCheck, undefined, `expected clear shaft opening without floor slab at ${FLOORS[f]} x=${sx}`);
+      }
+    }
+
+    // Inside cabin facing horizontal wheelchair-accessible side COP ♿ toggle at (MALL_LIFT_X + 0.975, 0.94, MALL_LIFT_Z + 0.43)
+    ls.camera.position.set(MALL_LIFT_X + 0.1, 0.96, MALL_LIFT_Z + 0.43);
+    ls.camera.lookAt(MALL_LIFT_X + 0.975, 0.94, MALL_LIFT_Z + 0.43);
+    ls.camera.updateMatrixWorld(true);
+    const accHit = ls.getInteraction({ x: 0, y: 0 }, 2.5);
+    assert.equal(accHit?.userData?.action, 'cabinAccessible');
+    assert.equal(accHit?.userData?.mall, true);
+
+    // Horizontal accessible side floor button row
+    ls.camera.position.set(MALL_LIFT_X + 0.1, 0.99, MALL_LIFT_Z + 0.26);
+    ls.camera.lookAt(MALL_LIFT_X + 0.975, 0.99, MALL_LIFT_Z + 0.26);
+    ls.camera.updateMatrixWorld(true);
+    const accFloorHit = ls.getInteraction({ x: 0, y: 0 }, 2.5);
+    assert.equal(accFloorHit?.userData?.action, 'mallCar');
+    assert.equal(accFloorHit?.userData?.accessible, true);
+
+    // Inside cabin facing front jamb COP panel at (MALL_LIFT_X + 0.78, 1.25, MALL_LIFT_Z + 0.82)
     ls.camera.position.set(MALL_LIFT_X + 0.1, 1.25, MALL_LIFT_Z);
     ls.camera.lookAt(MALL_LIFT_X + 0.78, 1.25, MALL_LIFT_Z + 0.82);
     ls.camera.updateMatrixWorld(true);
@@ -274,12 +310,14 @@ test('mall elevator buttons pass 3D raycast interaction and ride independently t
 
 test('mall includes floor-themed shops, M5F Grand Cinema Multiplex, and 30+ animated crowd visitors', () => {
   const world = new HotelWorld();
-  // Atrium void on M2F (7); Skybridges on M3F (9) & M4F (11); Cinema & lightwells on M5F (13)
-  assert.equal(world.isMallArea(-31, 20, 7), false);
-  assert.equal(world.isMallArea(-31, 20, 9), true);
-  assert.equal(world.isMallArea(-31, 20, 11), true);
+  // Atrium void on M2F (7); East/West escalator bridges on M3F (9) & M4F (11); Cinema & twin lightwells on M5F (13); open rear concourse around dual shafts
+  assert.equal(world.isMallArea(-31, 15, 7), false);
+  assert.equal(world.isMallArea(-24, 20, 9), true);
+  assert.equal(world.isMallArea(-38, 20, 11), true);
+  assert.equal(world.isMallArea(-28, 7.0, 5), true);
   assert.equal(world.isMallArea(-44.5, 25, 13), true); // M5F IMAX auditorium floor
-  assert.equal(world.isMallArea(-35, 20, 13), false); // Lightwell
+  assert.equal(world.isMallArea(-37.9, 20, 13), false); // West Lightwell
+  assert.equal(world.isMallArea(-24.1, 20, 13), false); // East Lightwell
 
   withMockCanvas(() => {
     const scene = new THREE.Scene();
@@ -370,7 +408,7 @@ test('experiential mall attractions span spiral slide, kinetic show, arcade bowl
 
   // Stay rewards, mode cycling, spiral slide descent & first-person viewmodel item tracking
   const stay = new HotelStay();
-  const p = { floor: 13, x: -38.2, z: 25.0, yaw: 0, pitch: 0, zone: 'lobby', worldY: 28 };
+  const p = { floor: 13, x: -37.2, z: 14.9, yaw: 0, pitch: 0, zone: 'lobby', worldY: 28 };
   const slideRes = stay.interactMall('mallSpiralSlide', { floorIndex: 13 }, p);
   assert.equal(slideRes.ok, true);
   assert.equal(p.floor, 5);

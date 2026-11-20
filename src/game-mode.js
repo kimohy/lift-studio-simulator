@@ -4,7 +4,7 @@ import { Escalators } from './escalator.js';
 import { GuestRoom } from './guest-room.js';
 import { HotelNPCSystem } from './hotel-npcs.js';
 import { FAST_TRAVEL_SPOTS, MALL_FAST_TRAVEL_SPOTS, HotelStay } from './hotel-stay.js';
-import { HotelWorld, MALL_LIFT_X, MALL_LIFT_Z } from './hotel-world.js';
+import { HotelWorld, MALL_LIFT_X, MALL_LIFT_2_X, MALL_LIFT_Z } from './hotel-world.js';
 import { WalkingPlayer } from './player.js';
 import { RooftopPool } from './rooftop-pool.js';
 import { ServiceRobot } from './service-robot.js';
@@ -567,8 +567,8 @@ export class GameMode {
     Object.assign(this.player, {
       floor: f,
       zone: 'lobby',
-      x: MALL_LIFT_X,
-      z: 9.6,
+      x: -28.0,
+      z: 12.6,
       yaw: Math.PI,
       pitch: -0.05,
       worldY: (f - 5) * 3.5,
@@ -1084,7 +1084,7 @@ export class GameMode {
       const u = Math.max(0, Math.min(1, this.slideRide.t / this.slideRide.duration));
       const ang = u * Math.PI * 2 * 3.0;
       const curY = this.slideRide.startY * (1 - u) + 1.5;
-      this.view.camera.position.set(-38.2 + Math.cos(ang) * 1.95, curY, 25.0 + Math.sin(ang) * 1.95);
+      this.view.camera.position.set(-37.2 + Math.cos(ang) * 1.8, curY, 14.9 + Math.sin(ang) * 1.8);
       this.view.camera.rotation.order = 'YXZ';
       this.view.camera.rotation.set(-0.24, -ang, 0.06);
       this.view.camera.updateMatrixWorld();
@@ -1122,6 +1122,17 @@ export class GameMode {
       return (
         this.player.zone === 'mallCabin' ||
         (this.player.inMallDoorway() &&
+          this.mallController.aligned() &&
+          this.mallController.floor === this.player.floor)
+      );
+    }
+    if (
+      data.action === 'cabinAccessible' &&
+      (data.mall || this.player.zone === 'mallCabin' || this.player.inMallDoorway?.())
+    ) {
+      return (
+        this.player.zone === 'mallCabin' ||
+        (this.player.inMallDoorway?.() &&
           this.mallController.aligned() &&
           this.mallController.floor === this.player.floor)
       );
@@ -1503,8 +1514,17 @@ export class GameMode {
     }
   }
 
-  interactCabin(action) {
+  interactCabin(action, targetCtrl = null) {
     if (!this.active) return;
+    if (
+      action === 'cabinAccessible' &&
+      (targetCtrl === this.mallController || this.player.zone === 'mallCabin' || this.player.inMallDoorway?.())
+    ) {
+      this.stepInsideMallCabinIfInDoorway?.();
+      this.message(this.mallController.toggleAccessibleMode().message);
+      this.messageUntil = performance.now() + 4500;
+      return;
+    }
     this.stepInsideCabinIfInDoorway();
     if (action === 'cabinLight') {
       this.message(this.controller.cycleCabinLight().message);
@@ -1663,8 +1683,10 @@ export class GameMode {
                     : `${k}층 선택/취소`;
         return `🔢 10키 [${k}] · ${desc}`;
       }
-      case 'cabinAccessible':
-        return `♿ 장애인 배려 모드 (${this.controller.accessibleMode ? '켜짐' : '꺼짐'})`;
+      case 'cabinAccessible': {
+        const ctrl = d.mall || this.player.zone === 'mallCabin' ? this.mallController : this.controller;
+        return `♿ 장애인용 조작반 · 배려 모드 (${ctrl?.accessibleMode ? '켜짐' : '꺼짐'})`;
+      }
       case 'cabinLight':
         return `💡 무드 조명 (${this.controller.cabinLightMode.label})`;
       case 'cabinFan':
@@ -1738,10 +1760,7 @@ export class GameMode {
     const p = this.player;
     const c = this.controller;
     const mc = this.mallController;
-    const inMall =
-      p.zone === 'mallCabin' ||
-      p.x <= -12.0 ||
-      (p.x <= -10.8 && p.z >= 5.2 && p.z <= 7.6);
+    const inMall = p.zone === 'mallCabin' || p.x <= -12.0;
     const mcCode = mc ? (mc.floor < 5 ? FLOORS[mc.floor] : mallFloorMeta(mc.floor).mallCode) : 'M1F';
     const pMallCode = p.floor < 5 ? FLOORS[p.floor] : mallFloorMeta(p.floor).mallCode;
     $('player-location').textContent =
@@ -1869,10 +1888,7 @@ export class GameMode {
     const p = this.player;
     const c = this.controller;
     const mc = this.mallController;
-    const inMall =
-      p.zone === 'mallCabin' ||
-      (p.x <= -14.0 && p.z < 36.2) ||
-      (p.x <= -10.8 && p.z >= 5.2 && p.z <= 7.6);
+    const inMall = p.zone === 'mallCabin' || (p.x <= -14.0 && p.z < 36.2);
     const f = p.zone === 'cabin' ? c.floor : p.zone === 'mallCabin' ? mc.floor : p.floor;
     if ($('minimap-caption')) {
       const capUsage = inMall && f <= MALL_MAX_FLOOR ? mallFloorMeta(f, FLOORS[f]).ko : floorUsage(f).ko;
@@ -1899,38 +1915,38 @@ export class GameMode {
       ctx.fillStyle = f < 5 ? '#151f26' : '#142a33';
       ctx.fillRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
       ctx.strokeRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
-      // Central Atrium Void & Floating Skybridge (M2F=7, M3F=9, M4F=11) or Twin Lightwells (M5F Cinema=13)
+      // Wide Central Atrium Void & East/West Escalator Bridges (M2F=7, M3F=9, M4F=11) or Twin Lightwells (M5F Cinema=13)
       if (f === 7 || f === 9 || f === 11) {
         ctx.fillStyle = '#0b141a';
-        ctx.fillRect(mapX(-41), mapZ(12), 20 * 2.9, 16 * 3.1);
-        ctx.strokeRect(mapX(-41), mapZ(12), 20 * 2.9, 16 * 3.1);
-        if (f === 9 || f === 11) {
-          ctx.fillStyle = '#2c5b63';
-          ctx.fillRect(mapX(-41), mapZ(18.6), 20 * 2.9, 2.8 * 3.1);
-        }
+        ctx.fillRect(mapX(-40), mapZ(12.8), 18 * 2.9, 14.4 * 3.1);
+        ctx.strokeRect(mapX(-40), mapZ(12.8), 18 * 2.9, 14.4 * 3.1);
+        ctx.fillStyle = '#2c5b63';
+        ctx.fillRect(mapX(-40), mapZ(17.2), 4.2 * 2.9, 7.4 * 3.1);
+        ctx.fillRect(mapX(-26.2), mapZ(17.2), 4.2 * 2.9, 7.4 * 3.1);
       } else if (f === 13) {
         ctx.fillStyle = '#2a1622';
         ctx.fillRect(mapX(-50), mapZ(13), 10.5 * 2.9, 22 * 3.1);
         ctx.fillStyle = '#1b412e';
         ctx.fillRect(mapX(-32), mapZ(26), 17 * 2.9, 9 * 3.1);
         ctx.fillStyle = '#0b141a';
-        ctx.fillRect(mapX(-38.5), mapZ(16), 7 * 2.9, 8 * 3.1);
-        ctx.fillRect(mapX(-24.5), mapZ(16), 6 * 2.9, 8 * 3.1);
+        ctx.fillRect(mapX(-39.8), mapZ(18.4), 3.8 * 2.9, 5.0 * 3.1);
+        ctx.fillRect(mapX(-26.0), mapZ(18.4), 3.8 * 2.9, 5.0 * 3.1);
       } else if (f === 5) {
-        // M1F Open Lobby Link, Waterfall & Starfield Library
+        // M1F Open Lobby Link, Waterfall & Flush West-Wall Starfield Library
         ctx.fillStyle = '#295763';
         ctx.fillRect(mapX(-14.2), mapZ(10.2), 4.2 * 2.9, 11.6 * 3.1);
         ctx.fillStyle = '#2a6b84';
         ctx.fillRect(mapX(-22.9), mapZ(30.3), 8.0 * 2.9, 3.8 * 3.1);
         ctx.fillStyle = '#735035';
-        ctx.fillRect(mapX(-47.8), mapZ(13.8), 2.4 * 2.9, 12.4 * 3.1);
+        ctx.fillRect(mapX(-49.8), mapZ(13.7), 2.1 * 2.9, 12.6 * 3.1);
       }
-      // Escalator side bridge link to Hotel
-      ctx.fillStyle = '#2f5866';
-      ctx.fillRect(mapX(-14.2), mapZ(5.2), 4.2 * 2.9, 2.4 * 3.1);
-      // Mall Panoramic Elevator
+      // Central Atrium Escalator Core
+      ctx.fillStyle = '#244f5c';
+      ctx.fillRect(mapX(-35.8), mapZ(17.2), 9.6 * 2.9, 7.4 * 3.1);
+      // Dual Mall Panoramic Elevators (Car A & Car B) in North-Central Atrium Promenade
       ctx.fillStyle = mc.floor === f ? '#d4b26f' : '#2a3e4a';
-      ctx.fillRect(mapX(MALL_LIFT_X - 1.25), mapZ(MALL_LIFT_Z - 1.1), 2.5 * 2.9, 2.25 * 3.1);
+      ctx.fillRect(mapX(MALL_LIFT_X - 1.18), mapZ(MALL_LIFT_Z - 1.06), 2.36 * 2.9, 2.18 * 3.1);
+      ctx.fillRect(mapX(MALL_LIFT_2_X - 1.18), mapZ(MALL_LIFT_Z - 1.06), 2.36 * 2.9, 2.18 * 3.1);
       // Mall Crowd dots on active floor
       for (const mp of this.view?.mallScene?.mallPeople ?? []) {
         if (mp.floor === f) {

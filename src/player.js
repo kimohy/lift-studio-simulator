@@ -1,4 +1,6 @@
-import { MALL_LIFT_X, MALL_LIFT_Z, MALL_MAX_FLOOR } from './hotel-world.js';
+import { MALL_LIFT_2_X, MALL_LIFT_X, MALL_LIFT_Z, MALL_MAX_FLOOR } from './hotel-world.js';
+
+const MALL_LIFT_XS = [MALL_LIFT_X, MALL_LIFT_2_X];
 
 export class WalkingPlayer {
   constructor(stairs = null, world = null, escalators = null, room = null, pool = null, mallController = null) {
@@ -16,6 +18,7 @@ export class WalkingPlayer {
     this.z = 2.65;
     this.floor = 5;
     this.zone = 'lobby';
+    this.activeMallCar = 'A';
     this.yaw = 0;
     this.pitch = -0.12;
     this.speed = 2;
@@ -61,7 +64,11 @@ export class WalkingPlayer {
   }
 
   inMallDoorway() {
-    return Math.abs(this.x - MALL_LIFT_X) < 0.5 && this.z > MALL_LIFT_Z + 0.8 && this.z < MALL_LIFT_Z + 1.62;
+    return (
+      MALL_LIFT_XS.some((lx) => Math.abs(this.x - lx) < 0.5) &&
+      this.z > MALL_LIFT_Z + 0.8 &&
+      this.z < MALL_LIFT_Z + 1.62
+    );
   }
 
   blocksDoor(c) {
@@ -85,15 +92,21 @@ export class WalkingPlayer {
     const mc = mallC ?? this.mallController;
     const mallAligned = Boolean(mc && mc.aligned() && mc.floor === this.floor);
     const inMallCabinBox =
-      Math.abs(x - MALL_LIFT_X) <= 1.0 && z >= MALL_LIFT_Z - 0.85 && z <= MALL_LIFT_Z + 0.85;
+      MALL_LIFT_XS.some((lx) => Math.abs(x - lx) <= 1.0) &&
+      z >= MALL_LIFT_Z - 0.85 &&
+      z <= MALL_LIFT_Z + 0.85;
     const inMallDoorBox =
-      Math.abs(x - MALL_LIFT_X) <= 0.45 && z > MALL_LIFT_Z + 0.85 && z <= MALL_LIFT_Z + 1.62;
+      MALL_LIFT_XS.some((lx) => Math.abs(x - lx) <= 0.45) &&
+      z > MALL_LIFT_Z + 0.85 &&
+      z <= MALL_LIFT_Z + 1.62;
 
     if (this.zone === 'mallCabin') {
       if (inMallCabinBox) return true;
       if (inMallDoorBox) return Boolean(mallAligned && mc.door >= 0.95);
       if (this.world && this.world.isMallArea(x, z, this.floor)) {
-        return Boolean(mallAligned && mc.door >= 0.95 && this.world.surfaceAt(x, z, this.groundY(c, mc), this.floor) !== null);
+        return Boolean(
+          mallAligned && mc.door >= 0.95 && this.world.surfaceAt(x, z, this.groundY(c, mc), this.floor) !== null
+        );
       }
       return false;
     }
@@ -115,20 +128,23 @@ export class WalkingPlayer {
       return false;
     }
     if (this.zone === 'escalator') {
-      if (x < -10.8) {
-        return (
-          Math.abs(this.escalatorY - (this.floor - 5) * 3.5) <= 0.025 &&
-          Boolean(this.world?.isMallArea?.(x, z, this.floor)) &&
-          this.world.surfaceAt(x, z, this.groundY(c, mc), this.floor) !== null
-        );
+      if (this.escalators && this.escalators.contains(x, z)) {
+        return this.escalators.surfaceAt(x, z, this.groundY(c, mc)) !== null;
       }
-      if (x < -2.28) {
-        return this.escalators ? this.escalators.surfaceAt(x, z, this.groundY(c, mc)) !== null : false;
-      }
-      if (Math.abs(this.escalatorY - (this.floor - 5) * 3.5) > 0.025) {
+      // Side walls at z = 17.2 and z = 24.6 enclose the escalator lanes; exit cleanly via East/West landings
+      if (x > -35.8 && x < -26.2) {
         return false;
       }
+      return (
+        Math.abs(this.escalatorY - (this.floor - 5) * 3.5) <= 0.025 &&
+        Boolean(this.world?.isMallArea?.(x, z, this.floor)) &&
+        this.world.surfaceAt(x, z, this.groundY(c, mc), this.floor) !== null
+      );
     } else if (this.escalators && this.zone !== 'cabin' && this.escalators.contains(x, z)) {
+      // Prevent walking laterally through North/South escalator balustrades into the middle of flights
+      if (x > -35.8 && x < -26.2 && (this.z < 17.2 || this.z > 24.6)) {
+        return false;
+      }
       return this.escalators.surfaceAt(x, z, this.groundY(c, mc)) !== null;
     }
     const aligned = c.aligned() && c.floor === this.floor;
@@ -179,10 +195,13 @@ export class WalkingPlayer {
       if (this.canOccupy(this.x, nz, c, mc)) this.z = nz;
 
       const inMallCabinBox =
-        Math.abs(this.x - MALL_LIFT_X) <= 1.0 && this.z >= MALL_LIFT_Z - 0.85 && this.z <= MALL_LIFT_Z + 0.85;
+        MALL_LIFT_XS.some((lx) => Math.abs(this.x - lx) <= 1.0) &&
+        this.z >= MALL_LIFT_Z - 0.85 &&
+        this.z <= MALL_LIFT_Z + 0.85;
 
       if (inMallCabinBox) {
         this.zone = 'mallCabin';
+        this.activeMallCar = Math.abs(this.x - MALL_LIFT_2_X) < Math.abs(this.x - MALL_LIFT_X) ? 'B' : 'A';
       } else if (this.zone === 'mallCabin' && this.z < MALL_LIFT_Z + 1.6) {
         // Walking through Mall elevator doorway — stay coupled to mallCabin until clear on the landing
       } else if (this.room && this.room.contains(this.x, this.z, this.floor) && this.zone !== 'cabin') {
@@ -201,7 +220,11 @@ export class WalkingPlayer {
         const height = this.world.surfaceAt(this.x, this.z, this.groundY(c, mc), this.floor);
         if (height !== null) {
           this.worldY = height;
-          const cap = this.world.isMallArea(this.x, this.z, Math.round(height / 3.5) + 5) ? MALL_MAX_FLOOR : 5;
+          const cap = this.world.isMallArea(this.x, this.z, Math.round(height / 3.5) + 5)
+            ? MALL_MAX_FLOOR
+            : this.floor >= 6
+              ? 14
+              : 5;
           this.floor = Math.max(0, Math.min(cap, Math.round(height / 3.5) + 5));
           this.zone = this.world.isRamp(this.x, this.z, height) ? 'ramp' : 'lobby';
         }

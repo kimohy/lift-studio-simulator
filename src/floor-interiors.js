@@ -126,6 +126,22 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
 
   // Guest room doors only on 2F–9F (floors 6..13). 10F (floor 14) is the Rooftop Infinity Pool & Sky Bar.
   if (usage.kind === 'guest') {
+    // Repurposed West Wing (formerly escalators): Executive Lounge Alcove (x ∈ [-6.8, -2.54], z ∈ [1.35, 3.68])
+    box(`West_lounge_floor_${FLOORS[floor]}`, [4.26, 0.12, 2.33], [-4.67, -0.06, 2.515], materials.wood);
+    box(`West_lounge_ceiling_${FLOORS[floor]}`, [4.26, 0.12, 2.33], [-4.67, 3.16, 2.515], materials.guest);
+    box(`West_lounge_north_${FLOORS[floor]}`, [4.26, 3.2, 0.12], [-4.67, 1.6, 1.35], materials.guest);
+    box(`West_lounge_south_${FLOORS[floor]}`, [4.26, 3.2, 0.12], [-4.67, 1.6, 3.68], materials.guest);
+    box(`West_lounge_west_${FLOORS[floor]}`, [0.12, 3.2, 2.33], [-6.8, 1.6, 2.515], materials.guest);
+    box(`West_lounge_light_${FLOORS[floor]}`, [2.2, 0.025, 0.24], [-4.67, 3.09, 2.515], materials.yellow);
+    box(`West_lounge_bench_${FLOORS[floor]}`, [0.75, 0.46, 1.65], [-6.1, 0.23, 2.515], materials.wood);
+    sign(
+      `West_lounge_sign_${FLOORS[floor]}`,
+      [`${FLOORS[floor]}F · 이그제큐티브 라운지`, 'EXECUTIVE LOUNGE ALCOVE'],
+      [-6.72, 2.15, 2.515],
+      1.7,
+      0.46,
+      Math.PI / 2
+    );
     if (floor === 14) return;
     const doorPositions = [-1.38, 1.38];
     for (const [i, x] of doorPositions.entries()) {

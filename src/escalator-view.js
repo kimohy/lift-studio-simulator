@@ -6,22 +6,27 @@ import { hotelSignTexture } from './hotel-sign.js';
 export class EscalatorView {
   constructor(scene, pickables = null) {
     this.root = new THREE.Group();
-    this.root.name = 'Hotel_escalators';
+    this.root.name = 'Mall_atrium_escalators';
     scene.add(this.root);
     this.flights = [];
     this.signs = [];
     this.pickables = pickables;
 
-    const steel = new THREE.MeshStandardMaterial({ color: 0x879594, metalness: 0.8, roughness: 0.28 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x1d272b, roughness: 0.6 });
-    const stone = new THREE.MeshStandardMaterial({ color: 0xbdb8a9, roughness: 0.8 });
-    const glass = new THREE.MeshStandardMaterial({
-      color: 0x99bcb6,
+    const steel = new THREE.MeshStandardMaterial({ color: 0x8d9ca0, metalness: 0.82, roughness: 0.26 });
+    const champagne = new THREE.MeshStandardMaterial({ color: 0xc4ab82, metalness: 0.76, roughness: 0.3 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x1d272b, roughness: 0.55 });
+    const stone = new THREE.MeshStandardMaterial({ color: 0xe6dfd3, roughness: 0.4 });
+    const concrete = new THREE.MeshStandardMaterial({ color: 0x8b918e, roughness: 0.9 });
+    const glass = new THREE.MeshPhysicalMaterial({
+      color: 0xbfe8f2,
       transparent: true,
-      opacity: 0.5,
-      roughness: 0.2,
+      opacity: 0.34,
+      roughness: 0.08,
+      metalness: 0.12,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     });
-    const tread = new THREE.MeshStandardMaterial({ color: 0x647276, metalness: 0.7, roughness: 0.35 });
+    const tread = new THREE.MeshStandardMaterial({ color: 0x5c6a70, metalness: 0.72, roughness: 0.35 });
     const yellow = new THREE.MeshBasicMaterial({ color: 0xe9cb72 });
     const emeraldLed = new THREE.MeshStandardMaterial({
       color: 0x55ffaa,
@@ -50,10 +55,10 @@ export class EscalatorView {
     const sign = (g, lines, pos, rot) => {
       const tex = hotelSignTexture(lines);
       const o = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.2, 0.36),
+        new THREE.PlaneGeometry(1.25, 0.38),
         new THREE.MeshBasicMaterial({
           map: tex,
-          side: THREE.FrontSide,
+          side: THREE.DoubleSide,
           polygonOffset: true,
           polygonOffsetFactor: -1,
           polygonOffsetUnits: -1,
@@ -75,62 +80,79 @@ export class EscalatorView {
       g.position.y = (f - 5) * 3.5;
       this.root.add(g);
 
-      box(g, 'Entry_platform', [1.2, 0.14, 6.6], [-3.4, -0.07, 4.65], stone);
-      box(g, 'Entry_bridge', [0.52, 0.14, 0.7], [-2.54, -0.07, 2.35], stone);
-      box(g, 'Exit_platform', [0.8, 0.14, 6.6], [-10.4, -0.07, 4.65], stone);
-      box(g, 'Return_corridor', [6.8, 0.14, 2.65], [-7.4, -0.07, 6.625], stone);
-      box(g, 'Escalator_back_wall', [8.4, 3.56, 0.2], [-6.7, 1.75, 8.0], stone);
-      box(g, 'Escalator_front_wall', [8.4, 3.56, 0.16], [-6.7, 1.75, 1.32], stone);
-      const hasMallBridge = f <= 4 || (f >= 5 && f <= 13 && f % 2 === 1);
-      if (hasMallBridge) {
-        box(g, 'Escalator_outer_wall', [0.16, 3.56, 3.98], [-10.88, 1.75, 3.21], stone);
-        box(g, 'Escalator_outer_wall_rear', [0.16, 3.56, 0.5], [-10.88, 1.75, 7.85], stone);
-        box(g, 'Escalator_mall_portal_lintel', [0.16, 1.03, 2.4], [-10.88, 3.015, 6.4], stone);
-        box(g, 'Escalator_mall_bridge_pad', [0.75, 0.14, 2.4], [-11.05, -0.07, 6.4], stone);
+      const isParking = f < 5;
+      const deckMat = isParking ? concrete : stone;
+      const barrierMat = isParking ? concrete : glass;
+      const wallH = isParking ? 3.56 : 1.85;
+      const wallY = wallH / 2;
+
+      // Central Mall Atrium Escalator Landings (East x∈[-28,-26.2], West x∈[-35.8,-34], South crossover z∈[22.25,24.6])
+      box(g, 'Entry_platform', [1.8, 0.16, 7.4], [-27.1, -0.08, 20.9], deckMat);
+      box(g, 'Exit_platform', [1.8, 0.16, 7.4], [-34.9, -0.08, 20.9], deckMat);
+      box(g, 'Return_corridor', [6.0, 0.16, 2.35], [-31.0, -0.08, 23.425], deckMat);
+
+      if (!isParking) {
+        box(g, 'Escalator_soffit_led_E', [1.6, 0.05, 7.0], [-27.1, -0.18, 20.9], emeraldLed);
+        box(g, 'Escalator_soffit_led_W', [1.6, 0.05, 7.0], [-34.9, -0.18, 20.9], emeraldLed);
+      }
+
+      // North & South side balustrades (open panoramic glass in Atrium, full concrete in basement)
+      box(g, 'Escalator_back_wall', [9.6, wallH, 0.12], [-31.0, wallY, 24.66], barrierMat);
+      box(g, 'Escalator_front_wall', [9.6, wallH, 0.12], [-31.0, wallY, 17.14], barrierMat);
+      if (!isParking) {
+        box(g, 'Escalator_rail_top_S', [9.6, 0.06, 0.14], [-31.0, wallH, 24.66], champagne);
+        box(g, 'Escalator_rail_top_N', [9.6, 0.06, 0.14], [-31.0, wallH, 17.14], champagne);
+      }
+
+      const hasMallFloor = f <= 4 || (f >= 5 && f <= 13 && f % 2 === 1);
+      if (hasMallFloor) {
+        // Connect East & West Gallery Wings on M2F (7), M3F (9), M4F (11) straight to the central escalators
+        if (f === 7 || f === 9 || f === 11) {
+          box(g, 'Escalator_gallery_bridge_E', [4.2, 0.2, 7.4], [-24.1, -0.1, 20.9], stone);
+          box(g, 'Escalator_gallery_bridge_W', [4.2, 0.2, 7.4], [-37.9, -0.1, 20.9], stone);
+          for (const bx of [-24.1, -37.9]) {
+            box(g, 'Escalator_bridge_rail_N', [4.2, 1.15, 0.08], [bx, 0.575, 17.24], glass);
+            box(g, 'Escalator_bridge_rail_S', [4.2, 1.15, 0.08], [bx, 0.575, 24.56], glass);
+            box(g, 'Escalator_bridge_handrail_N', [4.2, 0.05, 0.1], [bx, 1.16, 17.24], champagne);
+            box(g, 'Escalator_bridge_handrail_S', [4.2, 0.05, 0.1], [bx, 1.16, 24.56], champagne);
+          }
+        }
       } else {
-        box(g, 'Escalator_outer_wall', [0.16, 3.56, 6.88], [-10.88, 1.75, 4.66], stone);
+        // Mezzanine transfer floors (6, 8, 10, 12, 14): enclose East & West ends safely with glass barriers
+        box(g, 'Escalator_outer_wall', [0.14, 2.2, 7.4], [-35.88, 1.1, 20.9], barrierMat);
+        box(g, 'Escalator_inner_wall', [0.14, 2.2, 7.4], [-26.12, 1.1, 20.9], barrierMat);
+        box(g, 'Escalator_outer_rail', [0.16, 0.06, 7.4], [-35.88, 2.2, 20.9], champagne);
+        box(g, 'Escalator_inner_rail', [0.16, 0.06, 7.4], [-26.12, 2.2, 20.9], champagne);
       }
 
-      for (const [z, d] of [
-        [1.625, 0.75],
-        [5.35, 5.3],
-      ]) {
-        box(g, 'Escalator_inner_wall', [0.3, 3.56, d], [-2.65, 1.75, z], stone);
-      }
-      box(g, 'Escalator_door_lintel', [0.3, 1.1, 0.7], [-2.65, 2.95, 2.35], stone);
+      if (f === 0) box(g, 'Escalator_shaft_bottom_cap', [9.8, 0.2, 7.6], [-31.0, -0.2, 20.9], concrete);
+      if (f === 14) box(g, 'Escalator_shaft_top_cap', [9.8, 0.16, 7.6], [-31.0, 3.4, 20.9], glass);
 
-      if (f === 0) box(g, 'Escalator_shaft_bottom_cap', [8.4, 0.2, 6.9], [-6.7, -0.2, 4.65], stone);
-      if (f === 14) box(g, 'Escalator_shaft_top_cap', [8.4, 0.2, 6.9], [-6.7, 3.4, 4.65], stone);
+      // Floor & Direction Signage on Landing Posts
+      const floorTag = f < 5 ? `${FLOORS[f]} 주차장` : hasMallFloor ? `M${(f - 3) / 2}F` : `${FLOORS[f]}F 메자닌`;
+      sign(g, [`${floorTag} · 중앙 에스컬레이터`, 'CENTRAL ATRIUM ESCALATOR'], [-26.46, 2.35, 17.55], 0);
+      sign(g, [`${floorTag} · 중앙 에스컬레이터`, 'CENTRAL ATRIUM ESCALATOR'], [-35.78, 2.35, 24.25], Math.PI);
 
-      sign(g, [`${FLOORS[f]}F · 에스컬레이터`, 'ESCALATOR'], [-2.46, 2.65, 2.35], Math.PI / 2);
-      if (hasMallBridge) {
-        const mallTag = f < 5 ? `${FLOORS[f]} 지하주차장` : `M${(f - 3) / 2}F 그랜드 몰`;
-        sign(g, [`← ${mallTag} 연결통로`, 'TO GRAND ATRIUM MALL'], [-10.78, 2.68, 6.35], Math.PI / 2);
-      } else {
-        sign(g, ['엘리베이터 · 복도 →', 'ELEVATOR & LOBBY'], [-10.78, 1.85, 6.35], Math.PI / 2);
-      }
-
-      // Direction information belongs on the fixed landing walls, clear of the moving flights.
       for (const [x, rot, east] of [
-        [-2.81, -Math.PI / 2, true],
-        [-10.78, Math.PI / 2, false],
+        [-26.81, -Math.PI / 2, true],
+        [-35.19, Math.PI / 2, false],
       ]) {
         const up = escalatorLayout(f);
         const upLane =
-          up.start === (east ? -4 : -10) ? (up.upZ < 3 ? '앞쪽' : '뒤쪽') : '맞은편';
+          up.start === (east ? -28 : -34) ? (up.upZ < 20 ? '북측' : '남측') : '맞은편';
         const lower = f > 0 ? escalatorLayout(f - 1) : null;
         const downLane = lower
-          ? lower.start === (east ? -4 : -10)
-            ? lower.downZ < 3
-              ? '앞쪽'
-              : '뒤쪽'
+          ? lower.start === (east ? -28 : -34)
+            ? lower.downZ < 20
+              ? '북측'
+              : '남측'
             : '맞은편'
           : null;
         const routes = [
-          f < 14 ? `↑ ${FLOORS[f + 1]}F (${upLane})` : '최상층 · 10F',
+          f < 14 ? `↑ ${FLOORS[f + 1]}F (${upLane})` : '최상층 · 전망대',
           f > 0 ? `↓ ${FLOORS[f - 1]}F (${downLane})` : '최하층 · B5',
         ];
-        sign(g, routes, [x, 1.85, 3.4], rot);
+        sign(g, routes, [x, 1.95, 23.15], rot);
       }
 
       const floorLayout = escalatorLayout(f);
@@ -140,23 +162,23 @@ export class EscalatorView {
       ]) {
         const layout = direction === 1 ? floorLayout : { start: floorLayout.end, end: floorLayout.start };
         if (f === 14) {
-          box(g, 'Top_terminal_barrier', [0.12, 0.95, 1.65], [layout.start, 0.5, z], steel);
+          box(g, 'Top_terminal_barrier', [0.12, 1.05, 1.65], [layout.start, 0.525, z], champagne);
           continue;
         }
         const slope = Math.sign(layout.start - layout.end) * Math.atan2(3.5, 6);
         const length = Math.hypot(3.5, 6);
-        const base = box(g, 'Escalator_truss', [length, 0.24, 1.6], [-7, 1.6, z], steel);
+        const base = box(g, 'Escalator_truss', [length, 0.24, 1.6], [-31.0, 1.6, z], steel);
         base.rotation.z = -slope;
 
         for (const side of [-0.85, 0.85]) {
-          const bal = box(g, 'Escalator_glass_balustrade', [length, 0.78, 0.08], [-7, 2.15, z + side], glass);
+          const bal = box(g, 'Escalator_glass_balustrade', [length, 0.78, 0.08], [-31.0, 2.15, z + side], glass);
           bal.rotation.z = -slope;
-          const rail = box(g, 'Escalator_handrail', [length, 0.1, 0.13], [-7, 2.6, z + side], black);
+          const rail = box(g, 'Escalator_handrail', [length, 0.1, 0.13], [-31.0, 2.6, z + side], black);
           rail.rotation.z = -slope;
-          const skirtLed = box(g, 'Escalator_skirt_led', [length, 0.024, 0.02], [-7, 1.76, z + side * 0.96], emeraldLed);
+          const skirtLed = box(g, 'Escalator_skirt_led', [length, 0.024, 0.02], [-31.0, 1.76, z + side * 0.96], emeraldLed);
           skirtLed.rotation.z = -slope;
         }
-        for (const x of [-4, -10]) {
+        for (const x of [-28, -34]) {
           box(g, 'Escalator_comb_plate', [0.36, 0.035, 1.48], [x, x === layout.start ? 0.016 : 3.516, z], yellow);
           box(g, 'Escalator_comb_light', [0.38, 0.014, 1.44], [x, (x === layout.start ? 0.016 : 3.516) - 0.014, z], emeraldLed);
         }
@@ -175,7 +197,7 @@ export class EscalatorView {
         edgeMesh.name = 'Step_safety_edges';
         for (const mesh of [stepMesh, edgeMesh]) {
           mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-          mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(-7, 1.75, z), 4.5);
+          mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(-31.0, 1.75, z), 4.5);
           g.add(mesh);
         }
         this.flights.push({ floor: f, z, direction, group: g, stepMesh, edgeMesh, layout });
@@ -205,7 +227,8 @@ export class EscalatorView {
   updateVisibility(floor, active) {
     this.root.visible = active;
     for (const g of this.root.children) {
-      g.visible = Math.abs(g.userData.floorIndex - floor) <= 1;
+      const f = g.userData.floorIndex;
+      g.visible = floor >= 5 ? f >= 5 : Math.abs(f - floor) <= 1;
     }
   }
 }

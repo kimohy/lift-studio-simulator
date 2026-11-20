@@ -342,13 +342,13 @@ function act(action, floor, direction, data) {
     updateUI();
     return;
   }
-  const targetCtrl = data?.targetCtrl || (data?.fromSidebar ? getActiveController() : controller);
+  const targetCtrl = data?.targetCtrl || (data?.mall ? mallController : data?.fromSidebar ? getActiveController() : controller);
   if (['cabinLight', 'cabinFan', 'cabinMusic', 'cabinIntercom', 'cabinVip', 'cabinAccessible', 'cabinMirror'].includes(action)) {
     if (action === 'cabinIntercom') sfx.playIntercom();
     else if (action === 'cabinVip' || action === 'cabinAccessible') sfx.playKeycard(true);
     else if (action !== 'cabinMusic') sfx.playButton();
-    if (game?.active && targetCtrl === controller) {
-      game.interactCabin(action);
+    if (game?.active && (targetCtrl === controller || (action === 'cabinAccessible' && targetCtrl === mallController))) {
+      game.interactCabin(action, targetCtrl);
       if (action === 'cabinMusic') sfx.playMusic(controller.cabinMusicTrack.id);
     } else if (action === 'cabinLight') {
       say(targetCtrl.cycleCabinLight().message);
@@ -1056,10 +1056,7 @@ function frame(now) {
   announcer.observe(controller);
   game?.update(dt);
   if (game?.active && game.player) {
-    const inMallNow =
-      game.player.zone === 'mallCabin' ||
-      game.player.x <= -12.5 ||
-      (game.player.x <= -10.8 && game.player.z >= 5.2 && game.player.z <= 7.6);
+    const inMallNow = game.player.zone === 'mallCabin' || game.player.x <= -12.5;
     const wing = inMallNow ? 'mall' : 'hotel';
     if (wing !== lastAutoWing) {
       lastAutoWing = wing;

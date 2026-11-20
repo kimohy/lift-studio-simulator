@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildStylizedHuman } from './character-builder.js';
 import { hotelSignTexture } from './hotel-sign.js';
 import { POOL_FLOOR } from './rooftop-pool.js';
 
@@ -459,34 +460,22 @@ export class RooftopPoolView {
   }
 
   buildBartender(parent, pos, barData) {
-    const root = new THREE.Group();
-    root.name = 'Pool_bartender_leo';
-    root.position.set(...pos);
-    root.userData = { ...barData, dynamic: true };
-    parent.add(root);
-
-    const skin = new THREE.MeshStandardMaterial({ color: 0xd8ad8e, roughness: 0.7 });
-    const shirt = new THREE.MeshStandardMaterial({ color: 0x1e6b7b, roughness: 0.75 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x20282c, roughness: 0.8 });
-
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.62, 0.24), shirt);
-    torso.position.y = 1.12;
-    torso.userData = { ...barData, dynamic: true };
-    root.add(torso);
-    this.pickables.push(torso);
-
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), skin);
-    head.position.y = 1.58;
-    head.userData = { ...barData, dynamic: true };
-    root.add(head);
-    this.pickables.push(head);
-
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.148, 16, 12), dark);
-    hair.position.set(0, 1.63, -0.02);
-    hair.scale.set(1, 0.75, 1.05);
-    root.add(hair);
-
-    return { root, head };
+    const rig = buildStylizedHuman({
+      name: 'Pool_bartender_leo',
+      coatColor: 0x1e6b7b,
+      trouserColor: 0x20282c,
+      skinColor: 0xd8ad8e,
+      hairColor: 0x1a1615,
+      accentColor: 0xc8ab73,
+      apron: true,
+      apronColor: 0x172b34,
+      facingDir: 1,
+      pickableData: { ...barData, dynamic: true },
+      pickables: this.pickables,
+    });
+    rig.root.position.set(...pos);
+    parent.add(rig.root);
+    return { root: rig.root, head: rig.head };
   }
 
   buildSwimmers(parent) {

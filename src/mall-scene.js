@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { mallFloorMeta, MALL_VALID_FLOORS } from './building.js';
+import { buildStylizedHuman } from './character-builder.js';
 import { FLOORS, PITCH } from './controller.js';
 import { MALL_CINEMA_MOVIES } from './hotel-stay.js';
-import { MALL_LIFT_X, MALL_LIFT_Z } from './hotel-world.js';
+import { MALL_LIFT_2_X, MALL_LIFT_X, MALL_LIFT_Z } from './hotel-world.js';
 import { hotelSignTexture } from './hotel-sign.js';
 
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const unitCyl = new THREE.CylinderGeometry(1, 1, 1, 14);
 const unitSphere = new THREE.SphereGeometry(1, 12, 10);
-const unitCapsule = new THREE.CapsuleGeometry(1, 1, 4, 8);
 const up = new THREE.Vector3(0, 1, 0);
+
+const SHAFT_CUTOUT = { minX: -31.0, maxX: -25.0, minZ: 8.85, maxZ: 11.15 };
 
 export const MALL_STORY_H = PITCH * 2; // 7.0m per double-height Mall story (2 Hotel floors)
 export const MALL_ROOF_Y = 5 * MALL_STORY_H; // 35.0m above ground (= Hotel 10F height)
@@ -60,6 +62,8 @@ export class MallScene {
     this.mallLandingDisplays = {};
     this.mallHallButtons = [];
     this.mallCarButtons = [];
+    this.mallAccessibleButtons = [];
+    this.mallCarUnits = [];
     this.mallPeople = [];
     this.mallCars = [];
     this.ropeMeshes = [];
@@ -113,6 +117,15 @@ export class MallScene {
         depthWrite: false,
         side: THREE.DoubleSide,
       }),
+      crystalGlass: new THREE.MeshPhysicalMaterial({
+        color: 0xd9f4fa,
+        metalness: 0.04,
+        roughness: 0.04,
+        transparent: true,
+        opacity: 0.16,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
       skylightGlass: new THREE.MeshPhysicalMaterial({
         color: 0xdaf1f7,
         metalness: 0.08,
@@ -157,7 +170,6 @@ export class MallScene {
       this.root.add(g);
       this.floors.push(g);
 
-      this.buildEscalatorLink(g, f);
       if (f < 5) this.buildParking(g, f);
       else if (f === 5) this.buildAtriumM1F(g);
       else if (f < 13) this.buildGalleryFloor(g, f);
@@ -292,27 +304,33 @@ export class MallScene {
     return mesh;
   }
 
-  buildEscalatorLink(g, f) {
-    const isParking = f < 5;
-    const floorMat = isParking ? this.m.concrete : this.m.terrazzo;
-    const trimMat = isParking ? this.m.charcoal : this.m.champagne;
-    const bridgeH = isParking ? 3.36 : 3.45;
-    const tag = isParking ? `${FLOORS[f]} 주차장` : mallFloorMeta(f, FLOORS[f]).mallCode;
-    this.box(g, 'Mall_escalator_bridge_floor', [3.7, 0.16, 2.5], [-12.6, -0.08, 6.4], floorMat);
-    this.box(g, 'Mall_escalator_bridge_ceiling', [3.7, 0.14, 2.5], [-12.6, bridgeH, 6.4], floorMat);
-    this.box(g, 'Mall_bridge_glass_front', [3.5, 2.75, 0.06], [-12.6, 1.4, 5.18], this.m.glass);
-    this.box(g, 'Mall_bridge_glass_back', [3.5, 2.75, 0.06], [-12.6, 1.4, 7.62], this.m.glass);
-    this.box(g, 'Mall_bridge_led_soffit', [3.4, 0.04, 0.12], [-12.6, bridgeH - 0.12, 6.4], this.m.warmLed);
-    this.box(g, 'Mall_bridge_frame_front', [3.6, 0.12, 0.14], [-12.6, 2.8, 5.18], trimMat);
-    this.box(g, 'Mall_bridge_frame_back', [3.6, 0.12, 0.14], [-12.6, 2.8, 7.62], trimMat);
-    this.sign(
-      g,
-      `Mall_link_sign_${FLOORS[f]}`,
-      [`${tag} · 그랜드 몰 연결 브리지`, 'MALL ATRIUM  ↔  HOTEL ESCALATOR'],
-      [-14.1, 2.75, 6.4],
-      [2.1, 0.44],
-      Math.PI / 2
-    );
+  slabWithCutouts(group, name, minX, maxX, minZ, maxZ, y, thickness, material, cutouts = [SHAFT_CUTOUT]) {
+    let rects = [{ minX, maxX, minZ, maxZ }];
+    for (const c of cutouts) {
+      const next = [];
+      for (const r of rects) {
+        if (r.maxX <= c.minX || r.minX >= c.maxX || r.maxZ <= c.minZ || r.minZ >= c.maxZ) {
+          next.push(r);
+          continue;
+        }
+        if (r.minX < c.minX) next.push({ minX: r.minX, maxX: c.minX, minZ: r.minZ, maxZ: r.maxZ });
+        if (r.maxX > c.maxX) next.push({ minX: c.maxX, maxX: r.maxX, minZ: r.minZ, maxZ: r.maxZ });
+        const ix0 = Math.max(r.minX, c.minX);
+        const ix1 = Math.min(r.maxX, c.maxX);
+        if (ix1 - ix0 > 0.01) {
+          if (r.minZ < c.minZ) next.push({ minX: ix0, maxX: ix1, minZ: r.minZ, maxZ: c.minZ });
+          if (r.maxZ > c.maxZ) next.push({ minX: ix0, maxX: ix1, minZ: c.maxZ, maxZ: r.maxZ });
+        }
+      }
+      rects = next;
+    }
+    for (const r of rects) {
+      const w = r.maxX - r.minX;
+      const d = r.maxZ - r.minZ;
+      if (w > 0.01 && d > 0.01) {
+        this.box(group, name, [w, thickness, d], [(r.minX + r.maxX) / 2, y, (r.minZ + r.maxZ) / 2], material);
+      }
+    }
   }
 
   car(group, x, z, color, f, modelName = '몰 방문객 차량') {
@@ -358,26 +376,27 @@ export class MallScene {
   }
 
   buildParking(g, f) {
-    // Unified B5-B1 underground garage matching HotelScene's z ∈ [8, 36] grid, columns (z=10,18,26,34),
-    // red sprinkler pipes (z=11,19,27,34), and unbroken East-West cross-aisle at z = 21.8!
+    // Unified B5-B1 underground garage matching HotelScene's z ∈ [8, 36] grid, columns,
+    // unbroken East-West cross-aisle at z = 21.8, and clean cutouts for Dual Elevators & Central Escalator!
     const m = this.m;
-    this.box(g, 'Mall_garage_floor', [36, 0.18, 28], [-32, -0.09, 22], m.concrete);
-    this.box(g, 'Mall_garage_ceiling', [36, 0.16, 28], [-32, 3.34, 22], m.concrete);
-    // North lift/escalator vestibule alcove (x ∈ [-32, -14], z ∈ [4, 8])
-    this.box(g, 'Mall_garage_lift_vest_floor', [18, 0.18, 4], [-23, -0.09, 6], m.concrete);
-    this.box(g, 'Mall_garage_lift_vest_ceil', [18, 0.16, 4], [-23, 3.34, 6], m.concrete);
-    this.box(g, 'Mall_garage_vest_west', [0.2, 3.4, 4], [-32, 1.7, 6], m.concrete);
-    this.box(g, 'Mall_garage_vest_north', [18, 3.4, 0.2], [-23, 1.7, 4], m.concrete);
+    const ESC_CUTOUT = { minX: -35.8, maxX: -26.2, minZ: 17.2, maxZ: 24.6 };
+    const garageCutouts = [SHAFT_CUTOUT, ESC_CUTOUT];
+    this.slabWithCutouts(g, 'Mall_garage_floor', -50, -14, 8, 36, -0.09, 0.18, m.concrete, garageCutouts);
+    this.slabWithCutouts(g, 'Mall_garage_ceiling', -50, -14, 8, 36, 3.34, 0.16, m.concrete, garageCutouts);
+    // North lift promenade behind Dual Elevators (x ∈ [-34, -14], z ∈ [4, 8])
+    this.slabWithCutouts(g, 'Mall_garage_lift_vest_floor', -34, -14, 4, 8, -0.09, 0.18, m.concrete, [SHAFT_CUTOUT]);
+    this.slabWithCutouts(g, 'Mall_garage_lift_vest_ceil', -34, -14, 4, 8, 3.34, 0.16, m.concrete, [SHAFT_CUTOUT]);
+    this.box(g, 'Mall_garage_vest_west', [0.2, 3.4, 4], [-34, 1.7, 6], m.concrete);
+    this.box(g, 'Mall_garage_vest_north', [20, 3.4, 0.2], [-24, 1.7, 4], m.concrete);
 
     // Outer perimeter walls (West x=-50, South z=36, North z=8 left of vestibule)
     this.box(g, 'Mall_garage_west_wall', [0.22, 3.4, 28], [-50, 1.7, 22], m.concrete);
     this.box(g, 'Mall_garage_south_wall', [36, 3.4, 0.2], [-32, 1.7, 36], m.concrete);
-    this.box(g, 'Mall_garage_north_wall_w', [18, 3.4, 0.2], [-41, 1.7, 8], m.concrete);
+    this.box(g, 'Mall_garage_north_wall_w', [16, 3.4, 0.2], [-42, 1.7, 8], m.concrete);
 
-    // East wall segments along x = -14.08 leaving escalator bridge (z=5.2..7.6) & BOTH Hotel portals open cleanly
+    // East wall segments along x = -14.08 leaving BOTH Hotel portals (z=16 & z=22.2) open cleanly
     for (const [z, d] of [
-      [4.6, 1.2],
-      [11.05, 6.9],
+      [9.25, 10.5],
       [18.25, 1.5],
       [30.7, 10.6],
     ]) {
@@ -390,44 +409,50 @@ export class MallScene {
       this.box(g, 'Mall_hotel_portal_arch', [0.28, 0.12, d], [-14.08, 2.7, z], m.cyanLed);
     }
 
-    // Continuous Asphalt Drive Aisles matching Hotel z=21.8 and z=16.0 + West/East North-South loops
-    this.box(g, 'Mall_main_drive_aisle', [33, 0.012, 5.2], [-30.5, 0.015, 21.8], m.asphalt);
-    this.box(g, 'Mall_north_drive_aisle', [33, 0.012, 3.0], [-30.5, 0.015, 16.0], m.asphalt);
+    // Continuous Asphalt Drive Aisles matching Hotel z=21.8 and z=16.0 + West/East loops
+    this.box(g, 'Mall_main_drive_aisle_E', [11.0, 0.012, 5.2], [-19.5, 0.015, 21.8], m.asphalt);
+    this.box(g, 'Mall_main_drive_aisle_W', [11.0, 0.012, 5.2], [-42.5, 0.015, 21.8], m.asphalt);
+    this.box(g, 'Mall_north_drive_aisle', [33, 0.012, 3.0], [-30.5, 0.015, 15.4], m.asphalt);
     this.box(g, 'Mall_west_loop_aisle', [4.8, 0.012, 23], [-45.5, 0.015, 22], m.asphalt);
-    this.box(g, 'Mall_lift_bay_aisle', [5.0, 0.012, 14], [-28.0, 0.015, 14.5], m.asphalt);
+    this.box(g, 'Mall_lift_bay_aisle', [6.8, 0.012, 6.2], [-28.0, 0.015, 14.2], m.asphalt);
     for (let x = -45; x <= -15; x += 2.8) {
-      this.box(g, 'Mall_aisle_dash', [1.4, 0.009, 0.09], [x, 0.026, 21.8], m.yellow);
-      this.box(g, 'Mall_aisle_dash_n', [1.4, 0.009, 0.08], [x, 0.026, 16.0], m.yellow);
+      if (x < -36.2 || x > -25.8) {
+        this.box(g, 'Mall_aisle_dash', [1.4, 0.009, 0.09], [x, 0.026, 21.8], m.yellow);
+      }
+      this.box(g, 'Mall_aisle_dash_n', [1.4, 0.009, 0.08], [x, 0.026, 15.4], m.yellow);
     }
-    for (const x of [-25.3, -30.7]) {
-      this.box(g, 'Mall_ped_marking', [0.055, 0.009, 13], [x, 0.028, 15.0], m.yellow);
+    for (const x of [-24.5, -31.5]) {
+      this.box(g, 'Mall_ped_marking', [0.055, 0.009, 5.5], [x, 0.028, 14.2], m.yellow);
     }
 
     // Standard Parking Stall Grids aligned cleanly clear of drive aisles
     for (let x = -42.5; x <= -16.5; x += 2.8) {
       this.box(g, 'Mall_stall_mark_S', [0.05, 0.008, 4.9], [x, 0.023, 28.4], m.white);
       if (x < -31.5 || x > -24.5) {
-        this.box(g, 'Mall_stall_mark_N', [0.05, 0.008, 4.8], [x, 0.023, 11.4], m.white);
+        this.box(g, 'Mall_stall_mark_N', [0.05, 0.008, 3.8], [x, 0.023, 11.0], m.white);
       }
     }
     this.box(g, 'Mall_stall_end_S', [26.5, 0.009, 0.05], [-29.5, 0.023, 30.9], m.white);
 
-    // Consistent Column Grid matching Hotel Parking (z = 10, 18, 26, 34)
+    // Consistent Column Grid matching Hotel Parking (skipping central escalator bay)
     for (const x of [-42, -33, -24, -16.5]) {
       for (const z of [10, 18, 26, 34]) {
+        if (x === -33 && z === 18) continue;
         this.box(g, 'Mall_column', [0.52, 3.3, 0.52], [x, 1.65, z], m.concrete, f);
         this.box(g, 'Mall_col_wrap', [0.56, 0.55, 0.56], [x, 0.35, z], m.yellow);
         this.box(g, 'Mall_col_band', [0.57, 0.13, 0.57], [x, 0.35, z], m.black);
       }
     }
 
-    // Consistent Ceiling Sprinkler Mains, Conduits, & LED Luminaires matching Hotel Parking
-    for (const z of [11, 19, 27, 34]) {
+    // Consistent Ceiling Sprinkler Mains, Conduits, & LED Luminaires (kept clear of shafts & escalators)
+    for (const z of [8.2, 27, 34]) {
       for (const x of [-43, -34, -25, -18]) {
+        if (z < 9 && x < -34) continue;
         this.box(g, 'Mall_garage_LED', [2.3, 0.04, 0.14], [x, 3.2, z], m.warmLed);
       }
-      this.rail(g, [-49, 2.98, z], [-14.2, 2.98, z], m.red, 0.045);
-      this.rail(g, [-49, 3.1, z + 0.22], [-14.2, 3.1, z + 0.22], m.metal, 0.025);
+      const xStart = z < 9 ? -33.5 : -49;
+      this.rail(g, [xStart, 2.98, z], [-14.2, 2.98, z], m.red, 0.045);
+      this.rail(g, [xStart, 3.1, z + 0.22], [-14.2, 3.1, z + 0.22], m.metal, 0.025);
     }
 
     // EV Superchargers cleanly mounted along West concrete wall outside west loop aisle
@@ -448,8 +473,8 @@ export class MallScene {
       [-35.5, 28.4],
       [-24.3, 28.4],
       [-18.7, 28.4],
-      [-41.1, 11.4],
-      [-18.7, 11.4],
+      [-41.1, 11.0],
+      [-18.7, 11.0],
     ].entries()) {
       this.car(g, x, z, palette[(i + f) % palette.length], f, models[(i + f) % models.length]);
     }
@@ -465,9 +490,9 @@ export class MallScene {
     this.sign(
       g,
       `Mall_parking_lift_sign_${f}`,
-      [`${FLOORS[f]} · 몰 전망 엘리베이터`, 'MALL PANORAMIC ELEVATOR  M1F~M5F'],
-      [MALL_LIFT_X, 2.75, 8.6],
-      [3.6, 0.58],
+      [`${FLOORS[f]} · 몰 듀얼 전망 엘리베이터`, 'MALL DUAL PANORAMIC ELEVATORS  M1F~M5F'],
+      [-28.0, 2.75, 11.55],
+      [4.2, 0.58],
       0
     );
 
@@ -475,12 +500,12 @@ export class MallScene {
       // B1 Hypercar Showroom & Test-Drive Cockpit Pod (clear north-west bay)
       const podMat = new THREE.MeshStandardMaterial({ color: 0xd93829, roughness: 0.22, metalness: 0.65 });
       const info = { action: 'mallSupercarDrive', floorIndex: 4, label: 'B1 하이퍼카 시승 체험존' };
-      const plinth = this.box(g, 'Mall_supercar_testdrive', [2.8, 0.14, 5.0], [-35.8, 0.07, 11.8], m.charcoal, f, info);
+      const plinth = this.box(g, 'Mall_supercar_testdrive', [2.8, 0.14, 5.0], [-36.2, 0.07, 11.4], m.charcoal, f, info);
       plinth.userData.dynamic = true;
-      this.box(g, 'Mall_supercar_rim', [2.9, 0.04, 5.1], [-35.8, 0.15, 11.8], m.cyanLed);
-      this.box(g, 'Mall_supercar_body', [1.85, 0.44, 4.2], [-35.8, 0.44, 11.8], podMat, null, info);
-      this.box(g, 'Mall_supercar_cockpit', [1.42, 0.38, 1.85], [-35.8, 0.82, 11.9], m.glass, null, info);
-      this.sign(g, 'Mall_supercar_sign', ['B1 HYPERCAR DRIVE EXPERIENCE', '클릭 시 운전석 시승 체험 🏎️'], [-35.8, 2.4, 9.4], [3.6, 0.62], 0);
+      this.box(g, 'Mall_supercar_rim', [2.9, 0.04, 5.1], [-36.2, 0.15, 11.4], m.cyanLed);
+      this.box(g, 'Mall_supercar_body', [1.85, 0.44, 4.2], [-36.2, 0.44, 11.4], podMat, null, info);
+      this.box(g, 'Mall_supercar_cockpit', [1.42, 0.38, 1.85], [-36.2, 0.82, 11.5], m.glass, null, info);
+      this.sign(g, 'Mall_supercar_sign', ['B1 HYPERCAR DRIVE EXPERIENCE', '클릭 시 운전석 시승 체험 🏎️'], [-36.2, 2.4, 8.9], [3.6, 0.62], 0);
     }
   }
 
@@ -561,31 +586,29 @@ export class MallScene {
   }
 
   buildAtriumM1F(g) {
-    // M1F (floor 5, 7.0m high: y = 0..7.0m) - Luxury Boutiques + Waterfall Garden + Direct Open Hotel Lobby Connection
+    // M1F (floor 5, 7.0m high: y = 0..7.0m) - Flush Luxury Boutiques + Wide Corridors + Waterfall Garden + Direct Open Hotel Lobby Connection
     const m = this.m;
-    this.box(g, 'Mall_M1F_floor', [35.8, 0.18, 32], [-32.1, -0.09, 20], m.terrazzo);
+    const ESC_CUTOUT = { minX: -35.8, maxX: -26.2, minZ: 17.2, maxZ: 24.6 };
+    this.slabWithCutouts(g, 'Mall_M1F_floor', -50, -14.2, 4, 36, -0.09, 0.18, m.terrazzo, [SHAFT_CUTOUT, ESC_CUTOUT]);
     this.box(g, 'Mall_M1F_north_wall', [36, MALL_STORY_H, 0.24], [-32, MALL_STORY_H / 2, 4], m.travertine);
     this.box(g, 'Mall_M1F_west_wall', [0.24, MALL_STORY_H, 32], [-50, MALL_STORY_H / 2, 20], m.travertine);
 
-    // East boundary along x = -14.1:
-    // - Open Escalator Link (z=5.2..7.6)
-    // - Wide-open 12m Hotel Lobby Portal (z=10.0..22.0, y=0..4.2m -> overhead arch 4.2..7.0m)
-    this.box(g, 'Mall_M1F_east_wall_nw', [0.24, MALL_STORY_H, 1.2], [-14.1, MALL_STORY_H / 2, 4.6], m.travertine);
-    this.box(g, 'Mall_M1F_east_wall_mid', [0.24, MALL_STORY_H, 2.4], [-14.1, MALL_STORY_H / 2, 8.8], m.travertine);
+    // East boundary along x = -14.1: closed north of portal (z=4..10) & south (z=22..36), wide-open 12m Hotel Lobby Portal (z=10..22)
+    this.box(g, 'Mall_M1F_east_wall_n', [0.24, MALL_STORY_H, 6.0], [-14.1, MALL_STORY_H / 2, 7.0], m.travertine);
     this.box(g, 'Mall_M1F_east_wall_s', [0.24, MALL_STORY_H, 14.0], [-14.1, MALL_STORY_H / 2, 29.0], m.travertine);
     this.box(g, 'Mall_M1F_lobby_arch', [0.28, 3.6, 12.0], [-14.1, 5.2, 16.0], m.travertine);
     this.box(g, 'Mall_M1F_lobby_arch_trim', [0.34, 0.14, 12.0], [-14.1, 3.42, 16.0], m.champagne);
 
-    // Floor Slab Ceiling Rings (y = 7.0m = M2F floor!) leaving giant atrium void x ∈ [-41,-21], z ∈ [12,28]
-    this.box(g, 'Mall_M1F_ceil_N', [36, 0.22, 8], [-32, MALL_STORY_H - 0.11, 8], m.white);
-    this.box(g, 'Mall_M1F_ceil_S', [36, 0.22, 8], [-32, MALL_STORY_H - 0.11, 32], m.white);
-    this.box(g, 'Mall_M1F_ceil_W', [9, 0.22, 16], [-45.5, MALL_STORY_H - 0.11, 20], m.white);
-    this.box(g, 'Mall_M1F_ceil_E', [7, 0.22, 16], [-17.5, MALL_STORY_H - 0.11, 20], m.white);
+    // Floor Slab Ceiling Rings (y = 7.0m = M2F floor!) leaving giant atrium void x ∈ [-40,-22], z ∈ [12.8,27.2] & Dual Lift shaft cutout
+    this.slabWithCutouts(g, 'Mall_M1F_ceil_N', -50, -14, 4, 12.8, MALL_STORY_H - 0.11, 0.22, m.white, [SHAFT_CUTOUT]);
+    this.box(g, 'Mall_M1F_ceil_S', [36, 0.22, 8.8], [-32, MALL_STORY_H - 0.11, 31.6], m.white);
+    this.box(g, 'Mall_M1F_ceil_W', [10, 0.22, 14.4], [-45, MALL_STORY_H - 0.11, 20], m.white);
+    this.box(g, 'Mall_M1F_ceil_E', [8, 0.22, 14.4], [-18, MALL_STORY_H - 0.11, 20], m.white);
 
-    // 4 M1F Flagship Luxury Stores & Roastery Cafe
+    // 3 M1F Flagship Luxury Stores (flush to outer walls with zero rear dead space) & Roastery Cafe
     this.buildStorefront(g, 5, {
       x: -44.2,
-      z: 7.0,
+      z: 6.12,
       w: 8.4,
       d: 4.0,
       rotY: 0,
@@ -597,7 +620,7 @@ export class MallScene {
     });
     this.buildStorefront(g, 5, {
       x: -18.5,
-      z: 7.4,
+      z: 6.02,
       w: 6.4,
       d: 3.8,
       rotY: 0,
@@ -609,7 +632,7 @@ export class MallScene {
     });
     this.buildStorefront(g, 5, {
       x: -43.5,
-      z: 32.8,
+      z: 33.88,
       w: 9.0,
       d: 4.0,
       rotY: Math.PI,
@@ -620,18 +643,18 @@ export class MallScene {
       productColor: 0x70c7b4,
     });
 
-    // Roastery Cafe Island (moved south/east of central lobby portal so walkway stays wide open)
-    this.cyl(g, 'Mall_roastery_island', 2.2, 2.4, 1.05, [-18.2, 0.525, 25.0], m.champagne, 5, {
+    // Roastery Cafe Island (south/east of central lobby portal so walkway stays wide open)
+    this.cyl(g, 'Mall_roastery_island', 2.2, 2.4, 1.05, [-18.4, 0.525, 25.0], m.champagne, 5, {
       action: 'mallCafe',
       floorIndex: 5,
       label: '더 현대 로스터리 · 시그니처 카페',
     });
-    this.cyl(g, 'Mall_roastery_top', 2.45, 2.45, 0.1, [-18.2, 1.08, 25.0], m.terrazzo);
-    this.box(g, 'Mall_roastery_canopy', [3.8, 0.14, 3.8], [-18.2, 3.2, 25.0], m.warmWood);
-    this.box(g, 'Mall_roastery_light', [3.4, 0.05, 3.4], [-18.2, 3.1, 25.0], m.warmLed);
-    this.sign(g, 'Mall_roastery_sign', ['THE HYUNDAI ROASTERY', 'M1F 시그니처 카페'], [-18.2, 3.55, 23.08], [3.4, 0.65], Math.PI);
+    this.cyl(g, 'Mall_roastery_top', 2.45, 2.45, 0.1, [-18.4, 1.08, 25.0], m.terrazzo);
+    this.box(g, 'Mall_roastery_canopy', [3.8, 0.14, 3.8], [-18.4, 3.2, 25.0], m.warmWood);
+    this.box(g, 'Mall_roastery_light', [3.4, 0.05, 3.4], [-18.4, 3.1, 25.0], m.warmLed);
+    this.sign(g, 'Mall_roastery_sign', ['THE HYUNDAI ROASTERY', 'M1F 시그니처 카페'], [-18.4, 3.55, 23.08], [3.4, 0.65], Math.PI);
 
-    // 14m Waterfall Garden & Reflecting Pool (South-East Quadrant, z = 31.8)
+    // 14m Waterfall Garden & Reflecting Pool (South-East Quadrant, z = 32.2)
     this.box(g, 'Mall_waterfall_pool_rim', [8.0, 0.28, 3.8], [-19.0, 0.14, 32.2], m.travertine, 5, {
       action: 'mallWaterfall',
       floorIndex: 5,
@@ -639,7 +662,6 @@ export class MallScene {
     });
     const poolWater = this.box(g, 'Mall_waterfall_pool', [7.4, 0.12, 3.2], [-19.0, 0.24, 32.2], m.water);
     poolWater.userData.dynamic = true;
-    // Musical Fountain Jets inside Waterfall Reflecting Pool
     for (let j = 0; j < 6; j++) {
       const jet = new THREE.Mesh(unitCyl, m.cyanLed);
       jet.name = `Mall_fountain_jet_${j}`;
@@ -656,10 +678,10 @@ export class MallScene {
       label: '워터폴 뮤지컬 레이저 분수쇼 ⛲',
     });
 
-    // Atrium Grand Piano Live Busking Stage (open M1F court)
+    // Atrium Grand Piano Live Busking Stage (open M1F South Atrium Court, clear of Central Escalators)
     const pianoGroup = new THREE.Group();
     pianoGroup.name = 'Mall_grand_piano';
-    pianoGroup.position.set(-29.5, 0, 17.5);
+    pianoGroup.position.set(-31.0, 0, 28.5);
     g.add(pianoGroup);
     const pianoInfo = { action: 'mallPiano', floorIndex: 5, label: '아트리움 그랜드 피아노 연주 🎹' };
     this.box(pianoGroup, 'Piano_body', [1.8, 0.32, 1.4], [0, 0.86, 0], m.black, 5, pianoInfo);
@@ -674,15 +696,15 @@ export class MallScene {
     ]) {
       this.rail(pianoGroup, [lx, 0, lz], [lx, 0.72, lz], m.champagne, 0.045);
     }
-    this.world.addObstacle(5, -30.5, -28.5, 16.5, 19.0);
+    this.world.addObstacle(5, -32.0, -30.0, 27.5, 30.0);
 
-    // Kinetic Light Show & Spiral Slide Arrival Pad on M1F
-    this.box(g, 'Mall_kinetic_console_1F', [0.75, 1.05, 0.55], [-29.5, 0.525, 14.0], m.charcoal, 5, {
+    // Kinetic Light Show Console on M1F (clear of Dual Elevators & Central Escalators)
+    this.box(g, 'Mall_kinetic_console_1F', [0.75, 1.05, 0.55], [-24.2, 0.525, 15.6], m.charcoal, 5, {
       action: 'mallKineticShow',
       floorIndex: 5,
       label: '오픈 아트리움 키네틱 고래 라이트쇼 🐋',
     });
-    this.box(g, 'Mall_kinetic_gem_1F', [0.42, 0.16, 0.42], [-29.5, 1.12, 14.0], m.cyanLed, null, {
+    this.box(g, 'Mall_kinetic_gem_1F', [0.42, 0.16, 0.42], [-24.2, 1.12, 15.6], m.cyanLed, null, {
       action: 'mallKineticShow',
       floorIndex: 5,
       label: '키네틱 라이트쇼 트리거',
@@ -695,10 +717,10 @@ export class MallScene {
       });
     }
 
-    // Central Court Indoor Trees (5m tall under 7m ceiling)
+    // Central Court Indoor Trees (framing South Atrium Court clear of escalators)
     for (const [px, pz] of [
-      [-26.0, 20.0],
-      [-34.0, 23.5],
+      [-23.5, 26.8],
+      [-38.5, 26.8],
     ]) {
       this.cyl(g, 'Mall_M1F_planter', 1.3, 1.15, 0.45, [px, 0.225, pz], m.travertine, 5);
       this.cyl(g, 'Mall_M1F_turf', 1.2, 1.2, 0.12, [px, 0.44, pz], m.turf);
@@ -706,19 +728,19 @@ export class MallScene {
       this.sph(g, 'Mall_M1F_tree', 1.7, [px, 5.0, pz], m.leaf, [1.15, 1.1, 1.15]);
     }
 
-    // Concierge Welcome Desk
-    this.box(g, 'Mall_concierge_desk', [3.6, 1.02, 1.0], [-32.5, 0.51, 10.6], m.champagne, 5, {
+    // Concierge Welcome Desk (positioned West of Dual Elevators along North Atrium Promenade)
+    this.box(g, 'Mall_concierge_desk', [3.2, 1.02, 1.0], [-34.2, 0.51, 10.2], m.champagne, 5, {
       action: 'mallConcierge',
       floorIndex: 5,
       label: '그랜드 아트리움 몰 컨시어지 데스크',
     });
-    this.box(g, 'Mall_concierge_top', [3.75, 0.08, 1.12], [-32.5, 1.05, 10.6], m.terrazzo);
+    this.box(g, 'Mall_concierge_top', [3.35, 0.08, 1.12], [-34.2, 1.05, 10.2], m.terrazzo);
 
     this.sign(
       g,
       'Mall_M1F_directory_sign',
-      ['THE GRAND ATRIUM MALL · M1F (7M)', '명품관 · 14m 워터폴 가든 · M5F 그랜드 시네마 직행'],
-      [-28.0, 5.4, 11.8],
+      ['THE GRAND ATRIUM MALL · M1F (7M)', '명품관 · 중앙 에스컬레이터 · 듀얼 전망 엘리베이터'],
+      [-28.0, 5.4, 12.6],
       [6.0, 0.92],
       0
     );
@@ -729,65 +751,69 @@ export class MallScene {
     const m = this.m;
     const meta = mallFloorMeta(f, FLOORS[f]);
 
-    // Four perimeter slabs around Central Atrium Void (x ∈ [-41, -21], z ∈ [12, 28])
-    this.box(g, 'Mall_gallery_N', [36, 0.2, 8], [-32, -0.1, 8], m.terrazzo);
-    this.box(g, 'Mall_gallery_S', [36, 0.2, 8], [-32, -0.1, 32], m.terrazzo);
-    this.box(g, 'Mall_gallery_W', [9, 0.2, 16], [-45.5, -0.1, 20], m.terrazzo);
-    this.box(g, 'Mall_gallery_E', [7, 0.2, 16], [-17.5, -0.1, 20], m.terrazzo);
+    // Four wide perimeter slabs around Central Atrium Void (x ∈ [-40, -22], z ∈ [12.8, 27.2]) + Dual Lift shaft cutout
+    this.slabWithCutouts(g, 'Mall_gallery_N', -50, -14, 4, 12.8, -0.1, 0.2, m.terrazzo, [SHAFT_CUTOUT]);
+    this.box(g, 'Mall_gallery_S', [36, 0.2, 8.8], [-32, -0.1, 31.6], m.terrazzo);
+    this.box(g, 'Mall_gallery_W', [10, 0.2, 14.4], [-45, -0.1, 20], m.terrazzo);
+    this.box(g, 'Mall_gallery_E', [8, 0.2, 14.4], [-18, -0.1, 20], m.terrazzo);
 
-    // 7.0m perimeter walls
+    // 7.0m perimeter walls (East wall fully closed since escalators relocated to Mall Center)
     this.box(g, 'Mall_gallery_north_wall', [36, MALL_STORY_H, 0.22], [-32, MALL_STORY_H / 2, 4], m.travertine);
     this.box(g, 'Mall_gallery_west_wall', [0.22, MALL_STORY_H, 32], [-50, MALL_STORY_H / 2, 20], m.travertine);
-    this.box(g, 'Mall_gallery_east_wall_n', [0.22, MALL_STORY_H, 1.2], [-14.1, MALL_STORY_H / 2, 4.6], m.travertine);
-    this.box(g, 'Mall_gallery_east_wall_s', [0.22, MALL_STORY_H, 28.4], [-14.1, MALL_STORY_H / 2, 21.8], m.travertine);
+    this.box(g, 'Mall_gallery_east_wall', [0.22, MALL_STORY_H, 32], [-14.1, MALL_STORY_H / 2, 20], m.travertine);
 
-    // Inner atrium glass balustrades + glowing cove fascia
-    this.box(g, 'Mall_void_rail_N', [20, 1.15, 0.08], [-31, 0.575, 12.02], m.glass);
-    this.box(g, 'Mall_void_fascia_N', [20.2, 0.34, 0.2], [-31, -0.08, 12.04], m.warmWood);
-    this.box(g, 'Mall_void_led_N', [20.0, 0.06, 0.1], [-31, -0.26, 12.08], m.warmLed);
+    // Inner atrium glass balustrades + glowing cove fascia (leaving East/West escalator bridge entries z∈[17.2,24.6] open)
+    this.box(g, 'Mall_void_rail_N', [18, 1.15, 0.08], [-31, 0.575, 12.82], m.glass);
+    this.box(g, 'Mall_void_fascia_N', [18.2, 0.34, 0.2], [-31, -0.08, 12.84], m.warmWood);
+    this.box(g, 'Mall_void_led_N', [18.0, 0.06, 0.1], [-31, -0.26, 12.88], m.warmLed);
 
-    this.box(g, 'Mall_void_rail_S', [20, 1.15, 0.08], [-31, 0.575, 27.98], m.glass);
-    this.box(g, 'Mall_void_fascia_S', [20.2, 0.34, 0.2], [-31, -0.08, 27.96], m.warmWood);
-    this.box(g, 'Mall_void_led_S', [20.0, 0.06, 0.1], [-31, -0.26, 27.92], m.warmLed);
+    this.box(g, 'Mall_void_rail_S', [18, 1.15, 0.08], [-31, 0.575, 27.18], m.glass);
+    this.box(g, 'Mall_void_fascia_S', [18.2, 0.34, 0.2], [-31, -0.08, 27.16], m.warmWood);
+    this.box(g, 'Mall_void_led_S', [18.0, 0.06, 0.1], [-31, -0.26, 27.12], m.warmLed);
 
-    this.box(g, 'Mall_void_rail_W', [0.08, 1.15, 16], [-41.02, 0.575, 20], m.glass);
-    this.box(g, 'Mall_void_fascia_W', [0.2, 0.34, 16], [-41.04, -0.08, 20], m.warmWood);
-    this.box(g, 'Mall_void_rail_E', [0.08, 1.15, 16], [-20.98, 0.575, 20], m.glass);
-    this.box(g, 'Mall_void_fascia_E', [0.2, 0.34, 16], [-20.96, -0.08, 20], m.warmWood);
+    for (const [cz, d] of [
+      [15.0, 4.4],
+      [25.9, 2.6],
+    ]) {
+      this.box(g, 'Mall_void_rail_W', [0.08, 1.15, d], [-40.02, 0.575, cz], m.glass);
+      this.box(g, 'Mall_void_fascia_W', [0.2, 0.34, d], [-40.04, -0.08, cz], m.warmWood);
+      this.box(g, 'Mall_void_rail_E', [0.08, 1.15, d], [-21.98, 0.575, cz], m.glass);
+      this.box(g, 'Mall_void_fascia_E', [0.2, 0.34, d], [-21.96, -0.08, cz], m.warmWood);
+    }
 
-    // Walkable Floating Atrium Skybridges on M3F (floor 9) & M4F (floor 11)
+    // Interactive Skybridge marker pads on M3F (9) & M4F (11) Central Escalator Bridges
     if (f === 9 || f === 11) {
-      this.box(g, `Mall_${meta.mallCode}_skybridge_deck`, [20.4, 0.22, 2.8], [-31, -0.11, 20], m.terrazzo, null, {
+      this.box(g, `Mall_${meta.mallCode}_skybridge_marker_E`, [3.6, 0.04, 2.2], [-24.1, 0.02, 23.4], m.warmLed, null, {
         action: 'mallSkybridge',
         floorIndex: f,
         label: `${meta.mallCode} 플로팅 아트리움 스카이브리지`,
       });
-      this.box(g, `Mall_${meta.mallCode}_skybridge_soffit`, [20.2, 0.08, 2.6], [-31, -0.24, 20], m.warmLed);
-      this.box(g, `Mall_${meta.mallCode}_skybridge_rail_N`, [20.2, 1.15, 0.06], [-31, 0.575, 18.62], m.glass);
-      this.box(g, `Mall_${meta.mallCode}_skybridge_rail_S`, [20.2, 1.15, 0.06], [-31, 0.575, 21.38], m.glass);
-      this.rail(g, [-41.1, 1.15, 18.62], [-20.9, 1.15, 18.62], m.champagne, 0.035);
-      this.rail(g, [-41.1, 1.15, 21.38], [-20.9, 1.15, 21.38], m.champagne, 0.035);
+      this.box(g, `Mall_${meta.mallCode}_skybridge_marker_W`, [3.6, 0.04, 2.2], [-37.9, 0.02, 23.4], m.warmLed, null, {
+        action: 'mallSkybridge',
+        floorIndex: f,
+        label: `${meta.mallCode} 플로팅 아트리움 스카이브리지`,
+      });
     }
 
-    // Themed Flagship Stores per Double-Height Floor (4 Stores on every floor)
+    // Themed Flagship Stores per Double-Height Floor — all pushed flush against outer walls for wide walkways!
     const storesByFloor = {
       7: [
-        { x: -18.2, z: 16.5, w: 7.2, d: 3.4, rotY: -Math.PI / 2, brandEn: 'GENTLE MONSTER', brandKo: 'M2F 젠틀몬스터 아트 쇼룸', action: 'mallShop', accentMat: m.charcoal, productColor: 0xe69f54 },
-        { x: -18.2, z: 25.0, w: 6.4, d: 3.4, rotY: -Math.PI / 2, brandEn: 'NIKE RISE SEOUL', brandKo: 'M2F 나이키 서울 플래그십', action: 'mallShop', accentMat: m.darkOak, productColor: 0xd9483b },
-        { x: -38.5, z: 6.6, w: 7.6, d: 3.6, rotY: 0, brandEn: 'ADER ERROR', brandKo: 'M2F 아더에러 컨템포러리', action: 'mallShop', accentMat: m.steel, productColor: 0x3b6fd9 },
-        { x: -36.5, z: 33.0, w: 8.6, d: 3.8, rotY: Math.PI, brandEn: 'OLIVE YOUNG LUXE', brandKo: 'M2F 프리미엄 뷰티 라운지', action: 'mallShop', accentMat: m.champagne, productColor: 0x73c97b },
+        { x: -15.92, z: 16.5, w: 7.2, d: 3.4, rotY: -Math.PI / 2, brandEn: 'GENTLE MONSTER', brandKo: 'M2F 젠틀몬스터 아트 쇼룸', action: 'mallShop', accentMat: m.charcoal, productColor: 0xe69f54 },
+        { x: -15.92, z: 25.0, w: 6.4, d: 3.4, rotY: -Math.PI / 2, brandEn: 'NIKE RISE SEOUL', brandKo: 'M2F 나이키 서울 플래그십', action: 'mallShop', accentMat: m.darkOak, productColor: 0xd9483b },
+        { x: -38.5, z: 5.92, w: 7.6, d: 3.6, rotY: 0, brandEn: 'ADER ERROR', brandKo: 'M2F 아더에러 컨템포러리', action: 'mallShop', accentMat: m.steel, productColor: 0x3b6fd9 },
+        { x: -36.5, z: 33.98, w: 8.6, d: 3.8, rotY: Math.PI, brandEn: 'OLIVE YOUNG LUXE', brandKo: 'M2F 프리미엄 뷰티 라운지', action: 'mallShop', accentMat: m.champagne, productColor: 0x73c97b },
       ],
       9: [
-        { x: -18.2, z: 15.5, w: 7.2, d: 3.4, rotY: -Math.PI / 2, brandEn: 'APPLE GRAND ATRIUM', brandKo: 'M3F 애플 플래그십 스토어', action: 'mallShop', accentMat: m.warmWood, productColor: 0xc2ccd6 },
-        { x: -18.2, z: 25.2, w: 6.4, d: 3.4, rotY: -Math.PI / 2, brandEn: 'GALAXY AI STUDIO', brandKo: 'M3F 삼성 갤럭시 스튜디오', action: 'mallShop', accentMat: m.charcoal, productColor: 0x4fb8ff },
-        { x: -46.8, z: 20.0, w: 8.4, d: 3.6, rotY: Math.PI / 2, brandEn: 'SONY PLAYSTATION', brandKo: 'M3F 소니 & 플레이스테이션 존', action: 'mallShop', accentMat: m.charcoal, productColor: 0x5c7cfa },
-        { x: -36.5, z: 33.0, w: 8.6, d: 3.8, rotY: Math.PI, brandEn: 'LEGO & ART TOY', brandKo: 'M3F 레고 브랜드 스토어', action: 'mallShop', accentMat: m.vermilion, productColor: 0xf2c94c },
+        { x: -15.92, z: 15.5, w: 7.2, d: 3.4, rotY: -Math.PI / 2, brandEn: 'APPLE GRAND ATRIUM', brandKo: 'M3F 애플 플래그십 스토어', action: 'mallShop', accentMat: m.warmWood, productColor: 0xc2ccd6 },
+        { x: -15.92, z: 25.2, w: 6.4, d: 3.4, rotY: -Math.PI / 2, brandEn: 'GALAXY AI STUDIO', brandKo: 'M3F 삼성 갤럭시 스튜디오', action: 'mallShop', accentMat: m.charcoal, productColor: 0x4fb8ff },
+        { x: -48.08, z: 20.0, w: 8.4, d: 3.6, rotY: Math.PI / 2, brandEn: 'SONY PLAYSTATION', brandKo: 'M3F 소니 & 플레이스테이션 존', action: 'mallShop', accentMat: m.charcoal, productColor: 0x5c7cfa },
+        { x: -36.5, z: 33.98, w: 8.6, d: 3.8, rotY: Math.PI, brandEn: 'LEGO & ART TOY', brandKo: 'M3F 레고 브랜드 스토어', action: 'mallShop', accentMat: m.vermilion, productColor: 0xf2c94c },
       ],
       11: [
-        { x: -18.2, z: 15.5, w: 7.2, d: 3.4, rotY: -Math.PI / 2, brandEn: 'GORDON RAMSAY BURGER', brandKo: 'M4F 고든램지 시그니처 다이닝', action: 'mallFood', accentMat: m.darkOak, productColor: 0xe6843c },
-        { x: -18.2, z: 25.2, w: 6.4, d: 3.4, rotY: -Math.PI / 2, brandEn: 'SUSHI SORA OMAKASE', brandKo: 'M4F 스시 소라 오마카세', action: 'mallFood', accentMat: m.warmWood, productColor: 0xf2b591 },
-        { x: -46.8, z: 20.0, w: 8.4, d: 3.6, rotY: Math.PI / 2, brandEn: 'OSTERIA TRUFFLE', brandKo: 'M4F 오스테리아 이탈리안', action: 'mallFood', accentMat: m.champagne, productColor: 0xc44b4b },
-        { x: -36.5, z: 33.0, w: 8.6, d: 3.8, rotY: Math.PI, brandEn: 'KYOTO MATCHA LAB', brandKo: 'M4F 교토 말차 디저트 랩', action: 'mallFood', accentMat: m.leaf, productColor: 0x62b56c },
+        { x: -15.92, z: 15.5, w: 7.2, d: 3.4, rotY: -Math.PI / 2, brandEn: 'GORDON RAMSAY BURGER', brandKo: 'M4F 고든램지 시그니처 다이닝', action: 'mallFood', accentMat: m.darkOak, productColor: 0xe6843c },
+        { x: -15.92, z: 25.2, w: 6.4, d: 3.4, rotY: -Math.PI / 2, brandEn: 'SUSHI SORA OMAKASE', brandKo: 'M4F 스시 소라 오마카세', action: 'mallFood', accentMat: m.warmWood, productColor: 0xf2b591 },
+        { x: -48.08, z: 20.0, w: 8.4, d: 3.6, rotY: Math.PI / 2, brandEn: 'OSTERIA TRUFFLE', brandKo: 'M4F 오스테리아 이탈리안', action: 'mallFood', accentMat: m.champagne, productColor: 0xc44b4b },
+        { x: -36.5, z: 33.98, w: 8.6, d: 3.8, rotY: Math.PI, brandEn: 'KYOTO MATCHA LAB', brandKo: 'M4F 교토 말차 디저트 랩', action: 'mallFood', accentMat: m.leaf, productColor: 0x62b56c },
       ],
     };
     for (const storeSpec of storesByFloor[f] || []) {
@@ -796,19 +822,17 @@ export class MallScene {
 
     // On M2F (floor 7): 4-Cut Photo Booth, LP Vinyl DJ Booth, and Starfield Reading Desk
     if (f === 7) {
-      // Self 4-Cut Photo Studio Booth (x=-24.2, z=8.0)
       const pbInfo = { action: 'mallPhotoBooth', floorIndex: f, label: '인생네컷 셀프 포토부스 촬영 📸' };
-      this.box(g, 'Mall_photo_booth', [2.2, 2.6, 1.7], [-24.2, 1.3, 8.0], m.vermilion, f, pbInfo);
-      this.box(g, 'Mall_photo_ring', [0.9, 0.9, 0.12], [-24.2, 1.65, 8.88], m.warmLed, null, pbInfo);
-      this.sign(g, 'Mall_photo_sign', ['PHOTO 4-CUT STUDIO', '클릭 시 플래시 촬영 📸'], [-24.2, 2.85, 8.88], [2.2, 0.45], 0);
+      this.box(g, 'Mall_photo_booth', [2.2, 2.6, 1.7], [-22.2, 1.3, 5.0], m.vermilion, f, pbInfo);
+      this.box(g, 'Mall_photo_ring', [0.9, 0.9, 0.12], [-22.2, 1.65, 5.88], m.warmLed, null, pbInfo);
+      this.sign(g, 'Mall_photo_sign', ['PHOTO 4-CUT STUDIO', '클릭 시 플래시 촬영 📸'], [-22.2, 2.85, 5.88], [2.2, 0.45], 0);
 
-      // LP Vinyl DJ Booth (x=-31.5, z=31.2)
       const djInfo = { action: 'mallDjBooth', floorIndex: f, label: 'LP 바이닐 DJ 턴테이블 🎧' };
-      this.box(g, 'Mall_dj_booth', [3.2, 1.08, 1.2], [-31.5, 0.54, 31.2], m.darkOak, f, djInfo);
+      this.box(g, 'Mall_dj_booth', [3.2, 1.08, 1.2], [-29.5, 0.54, 30.8], m.darkOak, f, djInfo);
       for (const ox of [-0.7, 0.7]) {
         const vinyl = new THREE.Mesh(unitCyl, m.black);
         vinyl.scale.set(0.36, 0.03, 0.36);
-        vinyl.position.set(-31.5 + ox, 1.11, 31.2);
+        vinyl.position.set(-29.5 + ox, 1.11, 30.8);
         vinyl.userData.dynamic = true;
         this.markInteractive(vinyl, djInfo);
         g.add(vinyl);
@@ -817,13 +841,12 @@ export class MallScene {
       for (let b = 0; b < 7; b++) {
         const eq = new THREE.Mesh(unitBox, m.cyanLed);
         eq.scale.set(0.22, 0.45, 0.08);
-        eq.position.set(-32.4 + b * 0.3, 1.3, 30.55);
+        eq.position.set(-30.4 + b * 0.3, 1.3, 30.15);
         eq.userData = { dynamic: true, phase: b * 0.7 };
         g.add(eq);
         this.djEqBars.push(eq);
       }
 
-      // Starfield Library Reading Desk overlooking Atrium (x=-43.5, z=20.0)
       const libDeskInfo = { action: 'mallLibrarySeat', floorIndex: f, seatX: -43.5, seatZ: 20.0, seatYaw: Math.PI / 2, label: '별마당 도서관 열람석 착석 📖' };
       this.box(g, 'Mall_library_desk', [1.2, 0.76, 3.6], [-43.5, 0.38, 20.0], m.warmWood, f, libDeskInfo);
       this.box(g, 'Mall_library_lamp', [0.35, 0.35, 0.35], [-43.5, 0.94, 20.0], m.warmLed, null, libDeskInfo);
@@ -831,25 +854,24 @@ export class MallScene {
 
     // On M3F (floor 9): Neon Bowling, Claw/Gacha Arcade, Rhythm Stage, teamLab Light Room & AI Robot Dog
     if (f === 9) {
-      // 1. Neon Mini Bowling Lane along North Gallery (x ∈ [-46.5, -36.5], z = 7.4)
       const bowlInfo = { action: 'mallBowling', floorIndex: f, label: '네온 미니 볼링 스트라이크 도전 🎳' };
-      this.box(g, 'Mall_bowling_lane', [9.0, 0.14, 1.8], [-42.0, 0.07, 7.4], m.warmWood, null, bowlInfo);
-      this.box(g, 'Mall_bowling_neon_L', [9.0, 0.08, 0.1], [-42.0, 0.15, 6.5], m.cyanLed, null, bowlInfo);
-      this.box(g, 'Mall_bowling_neon_R', [9.0, 0.08, 0.1], [-42.0, 0.15, 8.3], m.cyanLed, null, bowlInfo);
+      this.box(g, 'Mall_bowling_lane', [9.0, 0.14, 1.8], [-42.0, 0.07, 6.2], m.warmWood, null, bowlInfo);
+      this.box(g, 'Mall_bowling_neon_L', [9.0, 0.08, 0.1], [-42.0, 0.15, 5.3], m.cyanLed, null, bowlInfo);
+      this.box(g, 'Mall_bowling_neon_R', [9.0, 0.08, 0.1], [-42.0, 0.15, 7.1], m.cyanLed, null, bowlInfo);
       const ball = new THREE.Mesh(unitSphere, m.vermilion);
       ball.scale.setScalar(0.2);
-      ball.position.set(-38.0, 0.32, 7.4);
+      ball.position.set(-38.0, 0.32, 6.2);
       ball.userData.dynamic = true;
       this.markInteractive(ball, bowlInfo);
       g.add(ball);
       this.bowlingBall = ball;
       for (const [px, pz] of [
-        [-45.6, 7.4],
-        [-46.0, 7.15],
-        [-46.0, 7.65],
-        [-46.4, 6.95],
-        [-46.4, 7.4],
-        [-46.4, 7.85],
+        [-45.6, 6.2],
+        [-46.0, 5.95],
+        [-46.0, 6.45],
+        [-46.4, 5.75],
+        [-46.4, 6.2],
+        [-46.4, 6.65],
       ]) {
         const pin = new THREE.Mesh(unitCyl, m.white);
         pin.scale.set(0.08, 0.48, 0.08);
@@ -859,22 +881,20 @@ export class MallScene {
         g.add(pin);
         this.bowlingPins.push(pin);
       }
-      this.box(g, 'Mall_bowling_backstop', [0.5, 2.2, 2.1], [-46.8, 1.1, 7.4], m.charcoal, f, bowlInfo);
+      this.box(g, 'Mall_bowling_backstop', [0.5, 2.2, 2.1], [-46.8, 1.1, 6.2], m.charcoal, f, bowlInfo);
 
-      // 2. Claw Machine & Gacha Wall (x = -20.5, z = 7.4)
       const arcInfo = { action: 'mallArcade', floorIndex: f, label: '인형뽑기 & 캡슐 가챠폰 뽑기 🕹️' };
-      this.box(g, 'Mall_arcade_claw', [3.0, 2.2, 1.1], [-20.5, 1.1, 7.4], m.charcoal, f, arcInfo);
-      this.box(g, 'Mall_arcade_glass', [2.6, 1.1, 1.15], [-20.5, 1.45, 7.4], m.glass, null, arcInfo);
+      this.box(g, 'Mall_arcade_claw', [3.0, 2.2, 1.1], [-21.2, 1.1, 4.9], m.charcoal, f, arcInfo);
+      this.box(g, 'Mall_arcade_glass', [2.6, 1.1, 1.15], [-21.2, 1.45, 4.9], m.glass, null, arcInfo);
       for (const [cx, clr] of [
-        [-21.2, 0xf28b82],
-        [-20.5, 0xfbbc04],
-        [-19.8, 0x81c995],
+        [-21.9, 0xf28b82],
+        [-21.2, 0xfbbc04],
+        [-20.5, 0x81c995],
       ]) {
         const capMat = new THREE.MeshStandardMaterial({ color: clr, roughness: 0.25 });
-        this.sph(g, 'Mall_gacha_capsule', 0.22, [cx, 1.15, 7.4], capMat, [1, 1, 1], arcInfo);
+        this.sph(g, 'Mall_gacha_capsule', 0.22, [cx, 1.15, 4.9], capMat, [1, 1, 1], arcInfo);
       }
 
-      // 3. Walkable 3x3 Neon Rhythm Dance Stage (x = -27.5, z = 31.0)
       const rhythmInfo = { action: 'mallRhythmFloor', floorIndex: f, label: '네온 리듬 댄스 스테이지 밟기 💃' };
       for (let rx = 0; rx < 3; rx++) {
         for (let rz = 0; rz < 3; rz++) {
@@ -895,12 +915,11 @@ export class MallScene {
         }
       }
 
-      // 4. teamLab-Style Infinity Light Interactive Room (x = -45.5, z = 30.2)
       const tlInfo = { action: 'mallTeamLab', floorIndex: f, label: '인피니티 라이트 미디어아트 룸 체험 🌌' };
-      this.box(g, 'Mall_teamlab_room', [7.2, 4.6, 5.4], [-45.5, 2.3, 30.2], m.black);
-      this.sign(g, 'Mall_teamlab_sign', ['INFINITE LIGHT GARDEN · teamLab', '디지털 미디어아트 체험관'], [-41.85, 3.6, 30.2], [3.6, 0.72], Math.PI / 2);
+      this.box(g, 'Mall_teamlab_room', [7.2, 4.6, 5.4], [-46.2, 2.3, 30.2], m.black);
+      this.sign(g, 'Mall_teamlab_sign', ['INFINITE LIGHT GARDEN · teamLab', '디지털 미디어아트 체험관'], [-42.55, 3.6, 30.2], [3.6, 0.72], Math.PI / 2);
       for (let i = 0; i < 6; i++) {
-        const px = -47.6 + (i % 3) * 2.0;
+        const px = -48.2 + (i % 3) * 2.0;
         const pz = 28.8 + Math.floor(i / 3) * 2.6;
         const pMat = new THREE.MeshStandardMaterial({
           color: 0xffffff,
@@ -919,17 +938,15 @@ export class MallScene {
         this.teamLabPillars.push(pil);
       }
 
-      // 5. Kinetic Light Show Trigger Console on Skybridge West Entrance
-      this.box(g, 'Mall_kinetic_console_3F', [0.7, 1.05, 0.55], [-21.8, 0.525, 20.0], m.charcoal, f, {
+      this.box(g, 'Mall_kinetic_console_3F', [0.7, 1.05, 0.55], [-23.2, 0.525, 18.0], m.charcoal, f, {
         action: 'mallKineticShow',
         floorIndex: f,
         label: '아트리움 공중 키네틱 쇼 제어 🐋',
       });
 
-      // 6. AI Robot Dog (SPOT-M) patrolling M3F Skybridge (z = 20.0)
       const dog = new THREE.Group();
       dog.name = 'Mall_robot_dog';
-      dog.position.set(-31.0, 0, 20.0);
+      dog.position.set(-31.0, 0, 12.0);
       dog.userData.dynamic = true;
       const dogInfo = { action: 'mallRobotDog', floorIndex: f, label: 'AI 로봇강아지 SPOT-M 하이파이브 🐕' };
       const dogBody = new THREE.Mesh(unitBox, m.yellow);
@@ -961,24 +978,22 @@ export class MallScene {
 
     // On M4F (floor 11): Rotating Conveyor Belt Sushi, Live Teppanyaki Flames, Matcha Bar, & Slide Portal
     if (f === 11) {
-      // 1. Rotating Conveyor Belt Sushi (Kaitenzushi) at x=-20.5, z=8.0
       const sushiInfo = { action: 'mallSushiBelt', floorIndex: f, label: '회전초밥 오마카세 한 접시 맛보기 🍣' };
-      this.box(g, 'Mall_sushi_belt', [5.2, 0.85, 2.0], [-20.5, 0.425, 8.0], m.darkOak, f, sushiInfo);
-      this.box(g, 'Mall_sushi_track', [4.8, 0.06, 1.5], [-20.5, 0.88, 8.0], m.charcoal, null, sushiInfo);
+      this.box(g, 'Mall_sushi_belt', [5.2, 0.85, 2.0], [-21.2, 0.425, 5.8], m.darkOak, f, sushiInfo);
+      this.box(g, 'Mall_sushi_track', [4.8, 0.06, 1.5], [-21.2, 0.88, 5.8], m.charcoal, null, sushiInfo);
       for (let i = 0; i < 8; i++) {
         const plateMat = new THREE.MeshStandardMaterial({ color: i % 2 ? 0xe6843c : 0x57b887, roughness: 0.3 });
         const plate = new THREE.Mesh(unitCyl, plateMat);
         plate.name = `Mall_sushi_plate_${i}`;
         plate.scale.set(0.24, 0.06, 0.24);
-        plate.userData = { dynamic: true, idx: i, cx: -20.5, cz: 8.0 };
+        plate.userData = { dynamic: true, idx: i, cx: -21.2, cz: 5.8 };
         this.markInteractive(plate, sushiInfo);
         g.add(plate);
         this.sushiPlates.push(plate);
       }
 
-      // 2. Open Kitchen Live Teppanyaki Grill (x=-35.5, z=8.0)
       const teppInfo = { action: 'mallTeppanyaki', floorIndex: f, label: '테판야키 라이브 플람베 불꽃쇼 🔥' };
-      this.box(g, 'Mall_teppanyaki_grill', [3.8, 0.92, 1.4], [-35.5, 0.46, 8.0], m.steel, f, teppInfo);
+      this.box(g, 'Mall_teppanyaki_grill', [3.8, 0.92, 1.4], [-37.5, 0.46, 5.4], m.steel, f, teppInfo);
       for (let k = 0; k < 3; k++) {
         const fMat = new THREE.MeshStandardMaterial({
           color: 0xff7b29,
@@ -990,30 +1005,28 @@ export class MallScene {
         const flame = new THREE.Mesh(unitSphere, fMat);
         flame.name = `Mall_teppanyaki_flame_${k}`;
         flame.scale.set(0.22, 0.38, 0.22);
-        flame.position.set(-36.4 + k * 0.9, 1.15, 8.0);
+        flame.position.set(-38.4 + k * 0.9, 1.15, 5.4);
         flame.userData = { dynamic: true, baseY: 1.15, phase: k * 1.1 };
         this.markInteractive(flame, teppInfo);
         g.add(flame);
         this.teppanFlames.push(flame);
       }
 
-      // 3. Kyoto Matcha Gelato Tasting Kiosk (x=-45.5, z=30.8) & Atrium Terrace Dining Table
-      this.box(g, 'Mall_matcha_bar', [2.6, 1.0, 1.0], [-45.5, 0.5, 30.8], m.leaf, f, {
+      this.box(g, 'Mall_matcha_bar', [2.6, 1.0, 1.0], [-46.2, 0.5, 31.0], m.leaf, f, {
         action: 'mallMatchaCone',
         floorIndex: f,
         label: '교토 프리미엄 말차 젤라또 수령 🍵',
       });
-      this.cyl(g, 'Mall_dining_table_terrace', 0.85, 0.85, 0.78, [-31.0, 0.39, 10.6], m.terrazzo, f, {
+      this.cyl(g, 'Mall_dining_table_terrace', 0.85, 0.85, 0.78, [-31.0, 0.39, 12.0], m.terrazzo, f, {
         action: 'mallDiningSeat',
         floorIndex: f,
         seatX: -31.0,
-        seatZ: 9.6,
+        seatZ: 11.4,
         seatYaw: Math.PI,
         label: 'M4F 아트리움 테라스 테이블 착석 🍽️',
       });
 
-      // 4. Spiral Slide Boarding Deck Portal at M4F South-West Void Rim (-38.2, 27.6)
-      this.box(g, 'Mall_slide_gate_M4F', [1.4, 1.6, 0.9], [-38.2, 0.8, 27.6], m.cyanLed, null, {
+      this.box(g, 'Mall_slide_gate_M4F', [1.4, 1.6, 0.9], [-37.2, 0.8, 12.2], m.cyanLed, null, {
         action: 'mallSpiralSlide',
         floorIndex: f,
         label: '35m 투명 나선형 슬라이드 탑승 (M4F→M1F) 🛝',
@@ -1038,7 +1051,7 @@ export class MallScene {
       g,
       `Mall_${meta.mallCode}_sign`,
       [meta.ko, meta.en],
-      [-28.0, 5.4, 11.8],
+      [-28.0, 5.4, 12.6],
       [5.4, 0.85],
       0
     );
@@ -1048,23 +1061,27 @@ export class MallScene {
     // M5F (floorIndex = 13, y = 28.0..35.0m, 7m height) - Top-Floor GRAND CINEMA MULTIPLEX (IMAX) + Sounds Forest Observatory
     const m = this.m;
     const f = 13;
-    // Full deck minus twin atrium lightwells: [-38.5, -31.5] x [16, 24] & [-24.5, -18.5] x [16, 24]
-    this.box(g, 'Mall_M5F_north', [36, 0.2, 12], [-32, -0.1, 10], m.terrazzo);
-    this.box(g, 'Mall_M5F_south', [36, 0.2, 12], [-32, -0.1, 30], m.terrazzo);
-    this.box(g, 'Mall_M5F_west_strip', [11.5, 0.2, 8], [-44.25, -0.1, 20], m.darkOak);
-    this.box(g, 'Mall_M5F_center_strip', [7.0, 0.2, 8], [-28.0, -0.1, 20], m.terrazzo);
-    this.box(g, 'Mall_M5F_east_strip', [4.5, 0.2, 8], [-16.25, -0.1, 20], m.terrazzo);
+    // Full deck minus twin atrium lightwells ([-39.8,-36.0]x[18.4,23.4], [-26.0,-22.2]x[18.4,23.4]), Dual Lift shaft, & Central Escalators
+    this.slabWithCutouts(g, 'Mall_M5F_north', -50, -14, 4, 16.2, -0.1, 0.2, m.terrazzo, [SHAFT_CUTOUT]);
+    this.box(g, 'Mall_M5F_south', [36, 0.2, 11.4], [-32, -0.1, 30.3], m.terrazzo);
+    this.box(g, 'Mall_M5F_west_strip', [10.2, 0.2, 8.4], [-44.9, -0.1, 20.4], m.darkOak);
+    this.box(g, 'Mall_M5F_east_strip', [8.1, 0.2, 8.4], [-18.15, -0.1, 20.4], m.terrazzo);
+    // Lightwell perimeter bridges connecting north/south concourses to Central Escalator landings
+    this.box(g, 'Mall_M5F_bridge_NW', [4.0, 0.2, 2.2], [-37.8, -0.1, 17.3], m.terrazzo);
+    this.box(g, 'Mall_M5F_bridge_SW', [4.0, 0.2, 1.2], [-37.8, -0.1, 24.0], m.terrazzo);
+    this.box(g, 'Mall_M5F_bridge_NE', [4.0, 0.2, 2.2], [-24.2, -0.1, 17.3], m.terrazzo);
+    this.box(g, 'Mall_M5F_bridge_SE', [4.0, 0.2, 1.2], [-24.2, -0.1, 24.0], m.terrazzo);
+    this.box(g, 'Mall_M5F_esc_apron_N', [9.6, 0.2, 1.0], [-31.0, -0.1, 16.7], m.terrazzo);
 
-    // Outer walls (7m tall up to skylights at y=35m)
+    // Outer walls (East wall fully closed cleanly)
     this.box(g, 'Mall_M5F_north_wall', [36, MALL_STORY_H, 0.22], [-32, MALL_STORY_H / 2, 4], m.travertine);
     this.box(g, 'Mall_M5F_west_wall', [0.22, MALL_STORY_H, 32], [-50, MALL_STORY_H / 2, 20], m.charcoal);
-    this.box(g, 'Mall_M5F_east_wall_n', [0.22, MALL_STORY_H, 1.2], [-14.1, MALL_STORY_H / 2, 4.6], m.travertine);
-    this.box(g, 'Mall_M5F_east_wall_s', [0.22, MALL_STORY_H, 28.4], [-14.1, MALL_STORY_H / 2, 21.8], m.glass);
+    this.box(g, 'Mall_M5F_east_wall', [0.22, MALL_STORY_H, 32], [-14.1, MALL_STORY_H / 2, 20], m.glass);
 
     // Twin Atrium Lightwell Railings
     for (const [cx, w, cz, d] of [
-      [-35.0, 7.0, 20.0, 8.0],
-      [-21.5, 6.0, 20.0, 8.0],
+      [-37.9, 3.8, 20.9, 5.0],
+      [-24.1, 3.8, 20.9, 5.0],
     ]) {
       this.box(g, 'Mall_lightwell_rail_N', [w, 1.15, 0.08], [cx, 0.575, cz - d / 2], m.glass);
       this.box(g, 'Mall_lightwell_rail_S', [w, 1.15, 0.08], [cx, 0.575, cz + d / 2], m.glass);
@@ -1134,10 +1151,10 @@ export class MallScene {
       this.box(g, 'Cinema_riser', [8.4, (2 - rowIdx) * 0.22 + 0.05, 1.8], [-44.6, ((2 - rowIdx) * 0.22) / 2, sz], m.charcoal);
     }
 
-    // 2. Ticket Box Office & Popcorn Concession Bar along North-East & North-West Promenade
+    // 2. Ticket Box Office & Popcorn Concession Bar flush against North Outer Wall (z = 4.0)
     this.buildStorefront(g, f, {
       x: -18.5,
-      z: 9.2,
+      z: 5.82,
       w: 6.4,
       d: 3.4,
       rotY: 0,
@@ -1149,7 +1166,7 @@ export class MallScene {
     });
     this.buildStorefront(g, f, {
       x: -38.5,
-      z: 8.6,
+      z: 5.82,
       w: 7.4,
       d: 3.4,
       rotY: 0,
@@ -1205,7 +1222,7 @@ export class MallScene {
       label: '상영작 전환',
     });
 
-    this.box(g, 'Mall_slide_gate_M5F', [1.4, 1.6, 0.9], [-38.2, 0.8, 25.0], m.cyanLed, null, {
+    this.box(g, 'Mall_slide_gate_M5F', [1.4, 1.6, 0.9], [-37.2, 0.8, 12.2], m.cyanLed, null, {
       action: 'mallSpiralSlide',
       floorIndex: f,
       label: '35m 투명 나선형 슬라이드 탑승 (M5F→M1F 활강) 🛝',
@@ -1230,17 +1247,17 @@ export class MallScene {
     g.add(campFlame);
     this.campfireFlame = campFlame;
 
-    // Central Wishing Fountain (between twin lightwells at -28, 20)
+    // Central Wishing Fountain (North-Central Promenade at -28, 14.5)
     const wishInfo = { action: 'mallWishingWell', floorIndex: f, label: '행운의 소원 분수 동전 던지기 🪙' };
-    this.cyl(g, 'Mall_wishing_fountain', 1.45, 1.55, 0.56, [-28.0, 0.28, 20.0], m.travertine, f, wishInfo);
-    const wishWater = this.cyl(g, 'Mall_wishing_water', 1.28, 1.28, 0.1, [-28.0, 0.56, 20.0], m.water, null, wishInfo);
+    this.cyl(g, 'Mall_wishing_fountain', 1.45, 1.55, 0.56, [-28.0, 0.28, 14.5], m.travertine, f, wishInfo);
+    const wishWater = this.cyl(g, 'Mall_wishing_water', 1.28, 1.28, 0.1, [-28.0, 0.56, 14.5], m.water, null, wishInfo);
     wishWater.userData.dynamic = true;
 
     this.sign(
       g,
       'Mall_M5F_banner',
       ['M5F GRAND CINEMA · IMAX MULTIPLEX & SOUNDS FOREST', '시네마 매표소 · 4DX 상영관 · 모닥불 정원 · 35m 슬라이드'],
-      [-28.0, 5.4, 11.8],
+      [-28.0, 5.4, 12.6],
       [6.4, 0.92],
       0
     );
@@ -1250,9 +1267,9 @@ export class MallScene {
     // 35m Giant Transparent Glass Spiral Slide descending from M5F (28m) & M4F (21m) to M1F (0.2m)
     const slide = new THREE.Group();
     slide.name = 'Mall_spiral_slide';
-    const cx = -38.2;
-    const cz = 25.0;
-    const r = 1.95;
+    const cx = -37.2;
+    const cz = 14.9;
+    const r = 1.8;
     const turns = 3.2;
     const totalSegs = 28;
     const topY = 28.0;
@@ -1268,7 +1285,7 @@ export class MallScene {
         this.rail(slide, p0, p1, this.m.champagne, 0.08);
       }
     }
-    this.box(slide, 'Mall_slide_finish_pad', [2.6, 0.25, 2.2], [-36.2, 0.125, 25.0], this.m.cyanLed, null, {
+    this.box(slide, 'Mall_slide_finish_pad', [2.6, 0.25, 2.2], [-35.2, 0.125, 14.9], this.m.cyanLed, null, {
       action: 'mallKineticShow',
       floorIndex: 5,
       label: '35m 스파이럴 슬라이드 도착 패드',
@@ -1304,25 +1321,25 @@ export class MallScene {
   }
 
   buildAtriumLibrarySpine() {
-    // 14m Towering Starfield Atrium Library spanning M1F (y=0) to M3F floor slab (y=14.0m) along x = -47.8, z ∈ [13.5, 26.5]
+    // 14m Towering Starfield Atrium Library spanning M1F (y=0) to M3F floor slab (y=14.0m) flush against West wall x = -50.0
     const lib = new THREE.Group();
     lib.name = 'Mall_Starfield_Atrium_Library';
     const m = this.m;
 
-    this.box(lib, 'Mall_library_backdrop', [0.35, 14.0, 12.6], [-47.8, 7.0, 20.0], m.darkOak);
-    this.box(lib, 'Mall_library_reading_plinth', [1.8, 0.52, 10.6], [-46.7, 0.26, 20.0], m.warmWood, 5, {
+    this.box(lib, 'Mall_library_backdrop', [0.35, 14.0, 12.6], [-49.75, 7.0, 20.0], m.darkOak);
+    this.box(lib, 'Mall_library_reading_plinth', [1.8, 0.52, 10.6], [-48.6, 0.26, 20.0], m.warmWood, 5, {
       action: 'mallLibrary',
       label: '14m 별마당 아트리움 서가 · 북라운지',
     });
 
     for (let tier = 0; tier < 16; tier++) {
       const y = 0.85 + tier * 0.82;
-      this.box(lib, 'Mall_library_shelf', [0.85, 0.06, 12.0], [-47.35, y, 20.0], m.warmWood);
-      this.box(lib, 'Mall_library_led', [0.12, 0.04, 11.8], [-46.96, y + 0.05, 20.0], m.warmLed);
+      this.box(lib, 'Mall_library_shelf', [0.85, 0.06, 12.0], [-49.3, y, 20.0], m.warmWood);
+      this.box(lib, 'Mall_library_led', [0.12, 0.04, 11.8], [-48.91, y + 0.05, 20.0], m.warmLed);
       for (let slot = 0; slot < 8; slot++) {
         const z = 14.8 + slot * 1.48;
         const bMat = m.bookColors[(tier + slot) % m.bookColors.length];
-        this.box(lib, 'Mall_library_books', [0.52, 0.56, 1.18], [-47.35, y + 0.31, z], bMat, null, {
+        this.box(lib, 'Mall_library_books', [0.52, 0.56, 1.18], [-49.3, y + 0.31, z], bMat, null, {
           action: 'mallLibrary',
           label: '별마당 아트리움 컬처 서가',
         });
@@ -1330,10 +1347,10 @@ export class MallScene {
     }
 
     for (const z of [13.7, 17.8, 22.2, 26.3]) {
-      this.box(lib, 'Mall_library_rib', [0.95, 14.0, 0.24], [-47.3, 7.0, z], m.champagne);
+      this.box(lib, 'Mall_library_rib', [0.95, 14.0, 0.24], [-49.25, 7.0, z], m.champagne);
     }
 
-    this.sign(lib, 'Mall_library_emblem', ['STARFIELD ATRIUM LIBRARY · 14M', 'CULTURE BOOK LOUNGE (M1F - M2F)'], [-46.8, 10.8, 20.0], [4.6, 0.8], Math.PI / 2);
+    this.sign(lib, 'Mall_library_emblem', ['STARFIELD ATRIUM LIBRARY · 14M', 'CULTURE BOOK LOUNGE (M1F - M2F)'], [-48.7, 10.8, 20.0], [4.6, 0.8], Math.PI / 2);
     this.root.add(lib);
   }
 
@@ -1530,240 +1547,360 @@ export class MallScene {
   }
 
   buildPanoramicElevator() {
-    // Independent Mall Panoramic Glass Elevator at (MALL_LIFT_X = -28.0, MALL_LIFT_Z = 6.2)
-    // Serves B5..B1 (0..4) + double-height M1F..M5F (5, 7, 9, 11, 13) up to 35m height!
+    // Open-Concept Dual Transparent Panoramic Glass Elevators in North-Central Atrium Promenade
+    // Car A (East, x = MALL_LIFT_X = -26.4) & Car B (West, x = MALL_LIFT_2_X = -29.6), both at z = MALL_LIFT_Z = 10.0
+    // Surrounded by 360-degree walkable promenade & crystal-clear glass shafts across B5..B1 and M1F..M5F.
     const g = this.elevatorGroup;
     const m = this.m;
-    const bx = MALL_LIFT_X;
     const bz = MALL_LIFT_Z;
     const shaftBot = -5 * PITCH - 0.5; // -18.0
     const shaftTop = MALL_ROOF_Y + 0.6; // 35.6
     const shaftH = shaftTop - shaftBot;
     const shaftMidY = (shaftTop + shaftBot) / 2;
-
-    for (const [ox, oz] of [
-      [-1.25, -1.1],
-      [1.25, -1.1],
-      [-1.25, 1.15],
-      [1.25, 1.15],
-    ]) {
-      this.box(g, 'Mall_shaft_mullion', [0.1, shaftH, 0.1], [bx + ox, shaftMidY, bz + oz], m.charcoal);
-    }
-    this.box(g, 'Mall_shaft_glass_N', [2.5, shaftH, 0.05], [bx, shaftMidY, bz - 1.1], m.glass);
-    this.box(g, 'Mall_shaft_glass_W', [0.05, shaftH, 2.25], [bx - 1.25, shaftMidY, bz], m.glass);
-    this.box(g, 'Mall_shaft_glass_E', [0.05, shaftH, 2.25], [bx + 1.25, shaftMidY, bz], m.glass);
-
-    // Front shaft upper glass curtain on double-height mall stories (y = 3.5..7.0 above each portal)
-    for (const f of MALL_VALID_FLOORS) {
-      const fy = (f - 5) * PITCH;
-      const meta = mallFloorMeta(f, FLOORS[f]);
-      const pierH = f < 5 ? PITCH : MALL_STORY_H;
-
-      this.box(g, 'Mall_landing_pier_L', [0.68, pierH, 0.12], [bx - 0.91, fy + pierH / 2, bz + 1.15], m.champagne);
-      this.box(g, 'Mall_landing_pier_R', [0.68, pierH, 0.12], [bx + 0.91, pierH, bz + 1.15].map((v, i) => (i === 1 ? fy + pierH / 2 : v)), m.champagne);
-      this.box(g, 'Mall_landing_header', [1.14, 1.05, 0.14], [bx, fy + 3.0, bz + 1.15], m.champagne);
-      if (f >= 5) {
-        this.box(g, 'Mall_landing_upper_glass', [1.14, MALL_STORY_H - PITCH, 0.05], [bx, fy + 5.25, bz + 1.15], m.glass);
-      }
-
-      // Center-parting landing doors
-      const doorGroup = new THREE.Group();
-      doorGroup.name = `Mall_landing_door_${meta.mallCode}`;
-      doorGroup.position.set(bx, fy, bz + 1.12);
-      const lDoor = new THREE.Mesh(unitBox, m.glass);
-      lDoor.scale.set(0.57, 2.45, 0.045);
-      lDoor.position.set(-0.285, 1.225, 0);
-      lDoor.userData.dynamic = true;
-      const rDoor = new THREE.Mesh(unitBox, m.glass);
-      rDoor.scale.set(0.57, 2.45, 0.045);
-      rDoor.position.set(0.285, 1.225, 0);
-      rDoor.userData.dynamic = true;
-      doorGroup.add(lDoor, rDoor);
-      g.add(doorGroup);
-      this.mallLandingDoors[f] = { left: lDoor, right: rDoor };
-
-      // Live landing floor indicator above doorway
-      const disp = safeCanvasTexture(256, 96, (ctx, w, h) => {
-        ctx.fillStyle = '#0e1720';
-        ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = '#f2c879';
-        ctx.font = 'bold 42px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('M1F', w / 2, 60);
-      });
-      if (disp) {
-        const dMat = new THREE.MeshStandardMaterial({
-          map: disp.tex,
-          emissiveMap: disp.tex,
-          emissive: 0xffffff,
-          emissiveIntensity: 0.72,
-        });
-        const dMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.34), dMat);
-        dMesh.name = `Mall_landing_display_${meta.mallCode}`;
-        dMesh.position.set(bx, fy + 2.82, bz + 1.24);
-        dMesh.userData.dynamic = true;
-        g.add(dMesh);
-        this.mallLandingDisplays[f] = { ...disp, lastKey: '' };
-      }
-
-      // Large, effortless-to-click Hall Call Plate on front-right jamb (x = bx + 0.88, z = bz + 1.26)
-      const plate = this.box(g, `Mall_hall_plate_${meta.mallCode}`, [0.3, 0.56, 0.06], [bx + 0.88, fy + 1.18, bz + 1.22], m.charcoal);
-      plate.userData.dynamic = true;
-      if (f < 13) {
-        const upBtn = this.makeCopButton(
-          g,
-          [bx + 0.88, fy + 1.32, bz + 1.27],
-          [0.16, 0.16, 0.05],
-          {
-            action: 'mallHall',
-            floorIndex: f,
-            direction: 1,
-            label: `${meta.mallCode} 상행 호출`,
-          },
-          '▲'
-        );
-        this.mallHallButtons.push(upBtn);
-      }
-      if (f > 0) {
-        const dnBtn = this.makeCopButton(
-          g,
-          [bx + 0.88, fy + 1.06, bz + 1.27],
-          [0.16, 0.16, 0.05],
-          {
-            action: 'mallHall',
-            floorIndex: f,
-            direction: -1,
-            label: `${meta.mallCode} 하행 호출`,
-          },
-          '▼'
-        );
-        this.mallHallButtons.push(dnBtn);
-      }
-    }
-
-    // Counterweight + 2 Hoist Ropes
-    const cw = new THREE.Group();
-    cw.name = 'Mall_counterweight';
-    cw.position.set(bx, 0, bz - 0.96);
-    cw.userData.dynamic = true;
-    const cwBody = new THREE.Mesh(unitBox, m.charcoal);
-    cwBody.scale.set(1.1, 2.2, 0.14);
-    cw.add(cwBody);
-    g.add(cw);
-    this.mallWeight = cw;
-
-    for (const rx of [bx - 0.25, bx + 0.25]) {
-      const rope = new THREE.Mesh(unitCyl, m.steel);
-      rope.name = 'Mall_hoist_rope';
-      rope.userData.dynamic = true;
-      g.add(rope);
-      this.ropeMeshes.push({ mesh: rope, x: rx, z: bz });
-    }
     this.shaftTopY = shaftTop - 0.4;
 
-    // Moving Panoramic Glass Cabin
-    const car = new THREE.Group();
-    car.name = 'Mall_panoramic_cabin';
-    car.position.set(bx, 0, bz);
-    car.userData.dynamic = true;
-
-    this.box(car, 'Mall_car_floor', [2.15, 0.12, 1.85], [0, -0.06, 0], m.terrazzo);
-    this.box(car, 'Mall_car_ceiling', [2.15, 0.14, 1.85], [0, 2.52, 0], m.warmWood);
-    this.box(car, 'Mall_car_ceiling_led', [1.7, 0.04, 1.4], [0, 2.43, 0], m.warmLed);
-    this.box(car, 'Mall_car_glass_back', [2.1, 2.44, 0.04], [0, 1.22, -0.9], m.glass);
-    this.box(car, 'Mall_car_glass_L', [0.04, 2.44, 1.8], [-1.05, 1.22, 0], m.glass);
-    this.box(car, 'Mall_car_glass_R', [0.04, 2.44, 1.8], [1.05, 1.22, 0], m.glass);
-    this.rail(car, [-0.96, 0.92, -0.78], [0.96, 0.92, -0.78], m.champagne, 0.025);
-    this.rail(car, [-0.96, 0.92, -0.78], [-0.96, 0.92, 0.78], m.champagne, 0.025);
-    this.rail(car, [0.96, 0.92, -0.78], [0.96, 0.92, 0.78], m.champagne, 0.025);
-
-    const carDoorL = new THREE.Mesh(unitBox, m.glass);
-    carDoorL.scale.set(0.55, 2.4, 0.04);
-    carDoorL.position.set(-0.275, 1.2, 0.92);
-    carDoorL.userData.dynamic = true;
-    const carDoorR = new THREE.Mesh(unitBox, m.glass);
-    carDoorR.scale.set(0.55, 2.4, 0.04);
-    carDoorR.position.set(0.275, 1.2, 0.92);
-    carDoorR.userData.dynamic = true;
-    car.add(carDoorL, carDoorR);
-    this.mallCarDoors = { left: carDoorL, right: carDoorR };
-
-    this.box(car, 'Mall_car_jamb_L', [0.54, 2.44, 0.08], [-0.78, 1.22, 0.92], m.champagne);
-    this.box(car, 'Mall_car_jamb_R', [0.54, 2.44, 0.08], [0.78, 1.22, 0.92], m.champagne);
-
-    // Interior COP Panel on Right Jamb AND Side-Wall Handrail Console (so buttons are effortless to click from any direction!)
-    const copPlateR = this.box(car, 'Mall_car_cop_plate_R', [0.42, 1.38, 0.05], [0.78, 1.28, 0.86], m.charcoal);
-    copPlateR.userData.dynamic = true;
-    const copPlateSide = this.box(car, 'Mall_car_cop_plate_side', [0.05, 1.38, 0.44], [0.99, 1.28, 0.18], m.charcoal);
-    copPlateSide.userData.dynamic = true;
-    for (const [idx, f] of MALL_VALID_FLOORS.entries()) {
-      const col = idx % 2;
-      const row = Math.floor(idx / 2);
-      const bxOff = 0.69 + col * 0.17;
-      const byOff = 0.92 + row * 0.15;
-      const code = f < 5 ? FLOORS[f] : mallFloorMeta(f).mallCode;
-      const btn = this.makeCopButton(
-        car,
-        [bxOff, byOff, 0.82],
-        [0.13, 0.105, 0.04],
-        {
-          action: 'mallCar',
-          floorIndex: f,
-          label: `몰 ${code}층 선택`,
-        },
-        code
-      );
-      this.mallCarButtons.push(btn);
-
-      // Accessible side-wall mirrored COP button facing inward (-X)
-      const sideBtn = this.makeCopButton(
-        car,
-        [0.95, byOff, 0.09 + col * 0.18],
-        [0.04, 0.105, 0.14],
-        {
-          action: 'mallCar',
-          floorIndex: f,
-          label: `몰 ${code}층 선택`,
-        },
-        code
-      );
-      this.mallCarButtons.push(sideBtn);
-    }
-    for (const [bxOff, action, keyLabel, title] of [
-      [0.64, 'mallOpen', '◀▶', '문 열림'],
-      [0.78, 'mallClose', '▶◀', '문 닫힘'],
-      [0.92, 'mallAlarm', '🚨', '비상 호출'],
-    ]) {
-      const b = this.makeCopButton(car, [bxOff, 0.74, 0.82], [0.11, 0.095, 0.04], { action, label: title }, keyLabel);
-      this.mallCarButtons.push(b);
+    // Sleek steel perimeter trim collars around the floor slab cutout ([-31.0, -25.0] x [8.85, 11.15])
+    for (const f of MALL_VALID_FLOORS) {
+      const fy = (f - 5) * PITCH;
+      this.box(g, 'Mall_shaft_collar_N', [6.04, 0.14, 0.06], [-28.0, fy - 0.07, 8.85], m.champagne);
+      this.box(g, 'Mall_shaft_collar_S', [6.04, 0.14, 0.06], [-28.0, fy - 0.07, 11.15], m.champagne);
+      this.box(g, 'Mall_shaft_collar_W', [0.06, 0.14, 2.34], [-31.0, fy - 0.07, bz], m.champagne);
+      this.box(g, 'Mall_shaft_collar_E', [0.06, 0.14, 2.34], [-25.0, fy - 0.07, bz], m.champagne);
     }
 
-    const copDisp = safeCanvasTexture(256, 128, (ctx, w, h) => {
-      ctx.fillStyle = '#0f1722';
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = '#f2c879';
-      ctx.font = 'bold 48px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('M1F', w / 2, 72);
-    });
-    if (copDisp) {
-      const sMat = new THREE.MeshStandardMaterial({
-        map: copDisp.tex,
-        emissiveMap: copDisp.tex,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.75,
+    const carXs = [MALL_LIFT_X, MALL_LIFT_2_X];
+    this.mallCarUnits = [];
+    this.mallCars = [];
+    this.ropeMeshes = [];
+
+    for (const [carIdx, bx] of carXs.entries()) {
+      const unitTag = carIdx === 0 ? '' : '_2';
+
+      // Slim panoramic structural steel mullions + 360° crystal-clear shaft glazing
+      for (const [ox, oz] of [
+        [-1.18, -1.06],
+        [1.18, -1.06],
+        [-1.18, 1.12],
+        [1.18, 1.12],
+      ]) {
+        this.box(g, `Mall_shaft_mullion${unitTag}`, [0.075, shaftH, 0.075], [bx + ox, shaftMidY, bz + oz], m.charcoal);
+      }
+      this.box(g, `Mall_shaft_glass_N${unitTag}`, [2.36, shaftH, 0.035], [bx, shaftMidY, bz - 1.06], m.crystalGlass);
+      this.box(g, `Mall_shaft_glass_W${unitTag}`, [0.035, shaftH, 2.18], [bx - 1.18, shaftMidY, bz + 0.03], m.crystalGlass);
+      this.box(g, `Mall_shaft_glass_E${unitTag}`, [0.035, shaftH, 2.18], [bx + 1.18, shaftMidY, bz + 0.03], m.crystalGlass);
+
+      const landingDoors = {};
+      const landingDisplays = {};
+
+      for (const f of MALL_VALID_FLOORS) {
+        const fy = (f - 5) * PITCH;
+        const meta = mallFloorMeta(f, FLOORS[f]);
+        const pierH = f < 5 ? PITCH : MALL_STORY_H;
+
+        // Compact lower portal piers + transparent upper glass curtain for open panoramic views
+        this.box(g, `Mall_landing_pier_L${unitTag}`, [0.56, 2.56, 0.09], [bx - 0.85, fy + 1.28, bz + 1.12], m.champagne);
+        this.box(g, `Mall_landing_pier_R${unitTag}`, [0.56, 2.56, 0.09], [bx + 0.85, fy + 1.28, bz + 1.12], m.champagne);
+        this.box(g, `Mall_landing_header${unitTag}`, [2.26, 0.42, 0.11], [bx, fy + 2.75, bz + 1.12], m.champagne);
+        if (pierH > 3.1) {
+          this.box(g, `Mall_landing_upper_glass${unitTag}`, [2.32, pierH - 3.0, 0.035], [bx, fy + 3.0 + (pierH - 3.0) / 2, bz + 1.12], m.crystalGlass);
+        }
+
+        // Center-parting transparent landing doors
+        const doorGroup = new THREE.Group();
+        doorGroup.name = `Mall_landing_door_${meta.mallCode}${unitTag}`;
+        doorGroup.position.set(bx, fy, bz + 1.1);
+        const lDoor = new THREE.Mesh(unitBox, m.crystalGlass);
+        lDoor.scale.set(0.57, 2.45, 0.04);
+        lDoor.position.set(-0.285, 1.225, 0);
+        lDoor.userData.dynamic = true;
+        const rDoor = new THREE.Mesh(unitBox, m.crystalGlass);
+        rDoor.scale.set(0.57, 2.45, 0.04);
+        rDoor.position.set(0.285, 1.225, 0);
+        rDoor.userData.dynamic = true;
+        doorGroup.add(lDoor, rDoor);
+        g.add(doorGroup);
+        landingDoors[f] = { left: lDoor, right: rDoor };
+
+        // Live landing floor indicator above doorway
+        const disp = safeCanvasTexture(256, 96, (ctx, w, h) => {
+          ctx.fillStyle = '#0e1720';
+          ctx.fillRect(0, 0, w, h);
+          ctx.fillStyle = '#f2c879';
+          ctx.font = 'bold 42px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(carIdx === 0 ? 'A · M1F' : 'B · M1F', w / 2, 60);
+        });
+        if (disp) {
+          const dMat = new THREE.MeshStandardMaterial({
+            map: disp.tex,
+            emissiveMap: disp.tex,
+            emissive: 0xffffff,
+            emissiveIntensity: 0.72,
+          });
+          const dMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.34), dMat);
+          dMesh.name = `Mall_landing_display_${meta.mallCode}${unitTag}`;
+          dMesh.position.set(bx, fy + 2.74, bz + 1.21);
+          dMesh.userData.dynamic = true;
+          g.add(dMesh);
+          landingDisplays[f] = { ...disp, lastKey: '', carTag: carIdx === 0 ? 'A' : 'B' };
+        }
+
+        // Effortless Hall Call Plate on front-right jamb
+        const plate = this.box(
+          g,
+          `Mall_hall_plate_${meta.mallCode}${unitTag}`,
+          [0.3, 0.56, 0.06],
+          [bx + 0.88, fy + 1.18, bz + 1.22],
+          m.charcoal
+        );
+        plate.userData.dynamic = true;
+        if (f < 13) {
+          const upBtn = this.makeCopButton(
+            g,
+            [bx + 0.88, fy + 1.32, bz + 1.27],
+            [0.16, 0.16, 0.05],
+            {
+              action: 'mallHall',
+              floorIndex: f,
+              direction: 1,
+              carIndex: carIdx,
+              label: `${meta.mallCode} 상행 호출 (${carIdx === 0 ? 'A호기' : 'B호기'})`,
+            },
+            '▲'
+          );
+          this.mallHallButtons.push(upBtn);
+        }
+        if (f > 0) {
+          const dnBtn = this.makeCopButton(
+            g,
+            [bx + 0.88, fy + 1.06, bz + 1.27],
+            [0.16, 0.16, 0.05],
+            {
+              action: 'mallHall',
+              floorIndex: f,
+              direction: -1,
+              carIndex: carIdx,
+              label: `${meta.mallCode} 하행 호출 (${carIdx === 0 ? 'A호기' : 'B호기'})`,
+            },
+            '▼'
+          );
+          this.mallHallButtons.push(dnBtn);
+        }
+      }
+
+      // Slim rear Counterweight + Twin Hoist Ropes
+      const cw = new THREE.Group();
+      cw.name = `Mall_counterweight${unitTag}`;
+      cw.position.set(bx, 0, bz - 0.94);
+      cw.userData.dynamic = true;
+      const cwBody = new THREE.Mesh(unitBox, m.charcoal);
+      cwBody.scale.set(0.92, 2.0, 0.11);
+      cw.add(cwBody);
+      g.add(cw);
+
+      const ropes = [];
+      for (const rx of [bx - 0.25, bx + 0.25]) {
+        const rope = new THREE.Mesh(unitCyl, m.steel);
+        rope.name = `Mall_hoist_rope${unitTag}`;
+        rope.userData.dynamic = true;
+        g.add(rope);
+        const rObj = { mesh: rope, x: rx, z: bz, carIdx };
+        ropes.push(rObj);
+        this.ropeMeshes.push(rObj);
+      }
+
+      // Ultra-Transparent Panoramic Glass Cabin
+      const car = new THREE.Group();
+      car.name = `Mall_panoramic_cabin${unitTag}`;
+      car.position.set(bx, 0, bz);
+      car.userData.dynamic = true;
+
+      this.box(car, `Mall_car_floor${unitTag}`, [2.12, 0.12, 1.84], [0, -0.06, 0], m.terrazzo);
+      // Skylight glass ceiling frame so upper atrium view shines straight into the cabin
+      this.box(car, `Mall_car_ceiling_frame_N${unitTag}`, [2.12, 0.12, 0.24], [0, 2.52, -0.8], m.champagne);
+      this.box(car, `Mall_car_ceiling_frame_S${unitTag}`, [2.12, 0.12, 0.24], [0, 2.52, 0.8], m.champagne);
+      this.box(car, `Mall_car_ceiling_frame_W${unitTag}`, [0.24, 0.12, 1.36], [-0.94, 2.52, 0], m.champagne);
+      this.box(car, `Mall_car_ceiling_frame_E${unitTag}`, [0.24, 0.12, 1.36], [0.94, 2.52, 0], m.champagne);
+      this.box(car, `Mall_car_ceiling_glass${unitTag}`, [1.64, 0.04, 1.36], [0, 2.52, 0], m.crystalGlass);
+      this.box(car, `Mall_car_ceiling_led${unitTag}`, [1.72, 0.03, 0.05], [0, 2.45, -0.66], m.warmLed);
+      this.box(car, `Mall_car_ceiling_led_S${unitTag}`, [1.72, 0.03, 0.05], [0, 2.45, 0.66], m.warmLed);
+
+      this.box(car, `Mall_car_glass_back${unitTag}`, [2.08, 2.44, 0.035], [0, 1.22, -0.9], m.crystalGlass);
+      this.box(car, `Mall_car_glass_L${unitTag}`, [0.035, 2.44, 1.8], [-1.04, 1.22, 0], m.crystalGlass);
+      this.box(car, `Mall_car_glass_R${unitTag}`, [0.035, 2.44, 1.8], [1.04, 1.22, 0], m.crystalGlass);
+      this.rail(car, [-0.95, 0.92, -0.78], [0.95, 0.92, -0.78], m.champagne, 0.024);
+      this.rail(car, [-0.95, 0.92, -0.78], [-0.95, 0.92, 0.78], m.champagne, 0.024);
+
+      const carDoorL = new THREE.Mesh(unitBox, m.crystalGlass);
+      carDoorL.scale.set(0.55, 2.4, 0.035);
+      carDoorL.position.set(-0.275, 1.2, 0.91);
+      carDoorL.userData.dynamic = true;
+      const carDoorR = new THREE.Mesh(unitBox, m.crystalGlass);
+      carDoorR.scale.set(0.55, 2.4, 0.035);
+      carDoorR.position.set(0.275, 1.2, 0.91);
+      carDoorR.userData.dynamic = true;
+      car.add(carDoorL, carDoorR);
+
+      this.box(car, `Mall_car_jamb_L${unitTag}`, [0.5, 2.44, 0.07], [-0.79, 1.22, 0.91], m.champagne);
+      this.box(car, `Mall_car_jamb_R${unitTag}`, [0.5, 2.44, 0.07], [0.79, 1.22, 0.91], m.champagne);
+
+      // 1) Main Front-Right Jamb Vertical COP
+      const copPlateR = this.box(car, `Mall_car_cop_plate_R${unitTag}`, [0.42, 1.38, 0.05], [0.78, 1.28, 0.86], m.charcoal);
+      copPlateR.userData.dynamic = true;
+      for (const [idx, f] of MALL_VALID_FLOORS.entries()) {
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const bxOff = 0.69 + col * 0.17;
+        const byOff = 0.92 + row * 0.15;
+        const code = f < 5 ? FLOORS[f] : mallFloorMeta(f).mallCode;
+        const btn = this.makeCopButton(
+          car,
+          [bxOff, byOff, 0.82],
+          [0.13, 0.105, 0.04],
+          {
+            action: 'mallCar',
+            floorIndex: f,
+            carIndex: carIdx,
+            label: `몰 ${code}층 선택`,
+          },
+          code
+        );
+        this.mallCarButtons.push(btn);
+      }
+      for (const [bxOff, action, keyLabel, title] of [
+        [0.64, 'mallOpen', '◀▶', '문 열림'],
+        [0.78, 'mallClose', '▶◀', '문 닫힘'],
+        [0.92, 'mallAlarm', '🚨', '비상 호출'],
+      ]) {
+        const b = this.makeCopButton(
+          car,
+          [bxOff, 0.74, 0.82],
+          [0.11, 0.095, 0.04],
+          { action, carIndex: carIdx, label: title },
+          keyLabel
+        );
+        this.mallCarButtons.push(b);
+      }
+
+      // 2) Right Side-Wall Horizontal Wheelchair-Accessible COP (장애인용 가로형 조작반, y = 0.94m)
+      const accBlueMat = new THREE.MeshStandardMaterial({
+        color: 0x1e5aa8,
+        emissive: 0x0a2548,
+        emissiveIntensity: 0.4,
+        roughness: 0.35,
+        metalness: 0.45,
       });
-      const sMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.18), sMat);
-      sMesh.name = 'Mall_car_cop_screen';
-      sMesh.position.set(0.78, 1.82, 0.82);
-      sMesh.rotation.y = Math.PI;
-      sMesh.userData.dynamic = true;
-      car.add(sMesh);
-      this.mallCopDisplay = { ...copDisp, lastKey: '' };
+      this.box(car, `Mall_car_cop_accessible_frame${unitTag}`, [0.032, 0.25, 1.36], [1.015, 0.94, -0.10], accBlueMat);
+      const copPlateAcc = this.box(
+        car,
+        `Mall_car_cop_plate_accessible${unitTag}`,
+        [0.04, 0.20, 1.28],
+        [1.005, 0.94, -0.10],
+        m.charcoal
+      );
+      copPlateAcc.userData.dynamic = true;
+
+      const accToggleBtn = this.makeCopButton(
+        car,
+        [0.975, 0.94, 0.43],
+        [0.045, 0.14, 0.14],
+        {
+          action: 'cabinAccessible',
+          mall: true,
+          carIndex: carIdx,
+          label: '장애인용 가로형 조작반 · 문 열림 연장 전환',
+        },
+        '♿'
+      );
+      this.mallAccessibleButtons.push(accToggleBtn);
+
+      for (const [idx, f] of MALL_VALID_FLOORS.entries()) {
+        // B5..B1 on lower row (idx < 5), M1F..M5F on upper row (idx >= 5)
+        const isUpper = idx >= 5;
+        const colIdx = idx % 5;
+        const bzOff = 0.26 - colIdx * 0.14;
+        const byOff = isUpper ? 0.99 : 0.89;
+        const code = f < 5 ? FLOORS[f] : mallFloorMeta(f).mallCode;
+        const accBtn = this.makeCopButton(
+          car,
+          [0.975, byOff, bzOff],
+          [0.042, 0.082, 0.115],
+          {
+            action: 'mallCar',
+            floorIndex: f,
+            carIndex: carIdx,
+            accessible: true,
+            label: `장애인 조작반 · 몰 ${code}층 선택`,
+          },
+          code
+        );
+        this.mallCarButtons.push(accBtn);
+      }
+
+      for (const [bzOff, action, keyLabel, title] of [
+        [-0.45, 'mallOpen', '◀▶', '장애인 조작반 · 문 열림'],
+        [-0.57, 'mallClose', '▶◀', '장애인 조작반 · 문 닫힘'],
+        [-0.69, 'mallAlarm', '🚨', '장애인 조작반 · 비상 호출'],
+      ]) {
+        const b = this.makeCopButton(
+          car,
+          [0.975, 0.94, bzOff],
+          [0.042, 0.12, 0.095],
+          { action, carIndex: carIdx, accessible: true, label: title },
+          keyLabel
+        );
+        this.mallCarButtons.push(b);
+      }
+
+      const copDisp = safeCanvasTexture(256, 128, (ctx, w, h) => {
+        ctx.fillStyle = '#0f1722';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#f2c879';
+        ctx.font = 'bold 48px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(carIdx === 0 ? 'A · M1F' : 'B · M1F', w / 2, 72);
+      });
+      let copDisplayObj = null;
+      if (copDisp) {
+        const sMat = new THREE.MeshStandardMaterial({
+          map: copDisp.tex,
+          emissiveMap: copDisp.tex,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.75,
+        });
+        const sMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.18), sMat);
+        sMesh.name = `Mall_car_cop_screen${unitTag}`;
+        sMesh.position.set(0.78, 1.82, 0.82);
+        sMesh.rotation.y = Math.PI;
+        sMesh.userData.dynamic = true;
+        car.add(sMesh);
+        copDisplayObj = { ...copDisp, lastKey: '', carTag: carIdx === 0 ? 'A' : 'B' };
+      }
+
+      g.add(car);
+      this.mallCars.push(car);
+      this.mallCarUnits.push({
+        idx: carIdx,
+        bx,
+        bz,
+        car,
+        carDoors: { left: carDoorL, right: carDoorR },
+        landingDoors,
+        landingDisplays,
+        copDisplay: copDisplayObj,
+        weight: cw,
+        ropes,
+      });
     }
 
-    g.add(car);
-    this.mallCar = car;
+    // Legacy single-car aliases bound to Car A for compatibility
+    const primary = this.mallCarUnits[0];
+    this.mallCar = primary.car;
+    this.mallCarDoors = primary.carDoors;
+    this.mallLandingDoors = primary.landingDoors;
+    this.mallLandingDisplays = primary.landingDisplays;
+    this.mallCopDisplay = primary.copDisplay;
+    this.mallWeight = primary.weight;
   }
 
   makeCopButton(group, pos, size, userData, textLabel = '') {
@@ -1808,57 +1945,50 @@ export class MallScene {
       // M1F (floor 5) — Bustling open Hotel↔Mall promenade, luxury stores, waterfall & concierge
       { id: 'crowd-1', name: '쇼핑객 지우', role: 'VIP 쇼퍼', floor: 5, x: -13.0, z: 14.5, toX: -20.5, toZ: 14.5, coat: 0xd4a46a, bag: 0x9e3229, quote: '호텔 1층 로비에서 바로 쇼핑몰 명품관으로 이어지니 동선이 정말 쾌적해요!' },
       { id: 'crowd-2', name: '방문객 민석', role: '건축 사진가', floor: 5, x: -24.0, z: 24.5, toX: -24.0, toZ: 13.0, coat: 0x2c4251, bag: null, quote: '7m 층고로 뚫린 5개 층 보이드와 워터폴 가든 스케일이 압도적이네요.' },
-      { id: 'crowd-3', name: '커플 유진', role: '몰 방문객', floor: 5, x: -29.0, z: 19.0, toX: -39.5, toZ: 19.0, coat: 0x733a4b, bag: 0xe6c87a, quote: '방금 샤넬이랑 에르메스 구경하고 별마당 서가 보러 가는 중이에요!' },
-      { id: 'crowd-4', name: '컨시어지 하은', role: '몰 컨시어지 매니저', floor: 5, x: -32.5, z: 9.7, toX: -32.5, toZ: 9.7, coat: 0xc4ab82, bag: null, quote: '어떠신가요? M1F 명품관부터 꼭대기 M5F IMAX 영화관까지 전망 엘리베이터로 연결됩니다.' },
-      { id: 'crowd-5', name: '쇼퍼 태현', role: '트렌드 헌터', floor: 5, x: -42.5, z: 16.0, toX: -42.5, toZ: 28.5, coat: 0x3b594a, bag: 0x243440, quote: '1층 로비와 에스컬레이터 측면 브리지 양쪽 다 편하게 넘어올 수 있어요.' },
-      { id: 'crowd-6', name: '바리스타 도윤', role: '로스터리 헤드 바리스타', floor: 5, x: -16.8, z: 23.0, toX: -20.0, toZ: 26.8, coat: 0x45352b, bag: null, quote: '워터폴 가든 앞에서 스페셜티 콜드브루 한 잔 즐겨보세요!' },
-      { id: 'crowd-7', name: '방문객 서아', role: '호텔 투숙객', floor: 5, x: -12.0, z: 18.0, toX: -16.5, toZ: 18.0, coat: 0x4a7382, bag: 0xd9a05b, quote: '호텔 체크인하고 바로 1층 연결 로비로 쇼핑하러 나왔어요.' },
+      { id: 'crowd-3', name: '커플 유진', role: '몰 방문객', floor: 5, x: -24.5, z: 26.8, toX: -39.5, toZ: 26.8, coat: 0x733a4b, bag: 0xe6c87a, quote: '방금 샤넬이랑 에르메스 구경하고 별마당 서가 보러 가는 중이에요!' },
+      { id: 'crowd-4', name: '컨시어지 하은', role: '몰 컨시어지 매니저', floor: 5, x: -32.2, z: 12.2, toX: -32.2, toZ: 12.2, coat: 0xc4ab82, bag: null, quote: '어떠신가요? M1F 명품관부터 꼭대기 M5F IMAX 영화관까지 듀얼 투명 전망 엘리베이터로 연결됩니다.' },
+      { id: 'crowd-5', name: '쇼퍼 태현', role: '트렌드 헌터', floor: 5, x: -42.5, z: 16.0, toX: -42.5, toZ: 28.5, coat: 0x3b594a, bag: 0x243440, quote: '매장 앞 복도가 탁 트이고 넓어져서 아이쇼핑하기 정말 좋네요.' },
+      { id: 'crowd-6', name: '바리스타 도윤', role: '로스터리 헤드 바리스타', floor: 5, x: -19.2, z: 23.0, toX: -20.8, toZ: 27.5, coat: 0x45352b, bag: null, quote: '워터폴 가든 앞에서 스페셜티 콜드브루 한 잔 즐겨보세요!' },
+      { id: 'crowd-7', name: '방문객 서아', role: '호텔 투숙객', floor: 5, x: -12.0, z: 18.0, toX: -19.2, toZ: 18.5, coat: 0x4a7382, bag: 0xd9a05b, quote: '호텔 체크인하고 바로 1층 연결 로비로 쇼핑하러 나왔어요.' },
       { id: 'crowd-8', name: '가족 방문객 수진', role: '야외 광장 방문객', floor: 5, x: -31.8, z: 38.0, toX: -31.8, toZ: 31.0, coat: 0xa64d64, bag: 0xf2e3c2, quote: '미디어 파사드 영상이 멋져서 사진 찍고 자동문으로 들어가는 길이에요.' },
 
       // M2F (floor 7) — Fashion, Gentle Monster, Nike, Starfield Library
       { id: 'crowd-9', name: '패셔니스타 나연', role: '젠틀몬스터 방문객', floor: 7, x: -20.5, z: 14.0, toX: -20.5, toZ: 26.5, coat: 0x1e242b, bag: 0xebe6dc, quote: 'M2F 젠틀몬스터랑 아더에러 매장이 7m 층고라 미술관 같아요!' },
       { id: 'crowd-10', name: '북러버 준호', role: '도서관 독서가', floor: 7, x: -43.5, z: 16.5, toX: -43.5, toZ: 24.5, coat: 0x5c4b3b, bag: null, quote: '14m 별마당 아트리움 서가를 2층 난간에서 내려다보니 정말 웅장해요.' },
-      { id: 'crowd-11', name: '쇼퍼 다은', role: '스니커즈 마니아', floor: 7, x: -37.0, z: 10.2, toX: -24.5, toZ: 10.2, coat: 0xd15849, bag: 0xe6843c, quote: '나이키 서울 한정판 득템했어요! 이제 3층 애플스토어 가려고요.' },
+      { id: 'crowd-11', name: '쇼퍼 다은', role: '스니커즈 마니아', floor: 7, x: -37.5, z: 12.0, toX: -23.5, toZ: 12.0, coat: 0xd15849, bag: 0xe6843c, quote: '나이키 서울 한정판 득템했어요! 이제 중앙 에스컬레이터 타고 3층 올라가려고요.' },
       { id: 'crowd-12', name: '뷰티 크리에이터 리나', role: '뷰티 에디터', floor: 7, x: -38.5, z: 29.8, toX: -25.0, toZ: 29.8, coat: 0x91678f, bag: 0x73c97b, quote: '올리브영 럭스 쇼룸 체험 코너가 정말 잘 돼 있네요.' },
-      { id: 'crowd-13', name: '산책객 성민', role: '몰 방문객', floor: 7, x: -16.5, z: 6.4, toX: -25.5, toZ: 10.0, coat: 0x3b4d5e, bag: null, quote: '호텔 3층 에스컬레이터에서 브리지를 건너면 바로 M2F예요!' },
+      { id: 'crowd-13', name: '산책객 성민', role: '몰 방문객', floor: 7, x: -19.8, z: 8.2, toX: -24.0, toZ: 11.8, coat: 0x3b4d5e, bag: null, quote: '북측 산책로를 돌아 듀얼 전망 엘리베이터 타기 정말 편하네요!' },
 
-      // M3F (floor 9) — Apple Store, Samsung, Sony, Lego + Floating Skybridge
-      { id: 'crowd-14', name: '스카이워커 현우', role: 'IT 리뷰어', floor: 9, x: -39.5, z: 20.0, toX: -22.5, toZ: 20.0, coat: 0x2f5e78, bag: 0xc2ccd6, quote: 'M3F 플로팅 스카이브리지 위에서 보는 중정 아트리움 뷰가 최고예요!' },
+      // M3F (floor 9) — Apple Store, Samsung, Sony, Lego + Skybridges beside Central Escalators
+      { id: 'crowd-14', name: '스카이워커 현우', role: 'IT 리뷰어', floor: 9, x: -39.5, z: 20.0, toX: -36.4, toZ: 23.8, coat: 0x2f5e78, bag: 0xc2ccd6, quote: '중앙 아트리움 에스컬레이터 옆 서측 브리지에서 보는 탁 트인 시야가 최고예요!' },
       { id: 'crowd-15', name: '게이머 지훈', role: '플레이스테이션 팬', floor: 9, x: -43.0, z: 17.5, toX: -43.0, toZ: 26.0, coat: 0x2b3240, bag: 0x5c7cfa, quote: '소니 라운지랑 애플 스토어 체험 부스가 한 층에 모여있어서 최고예요.' },
       { id: 'crowd-16', name: '테키 유나', role: '디자이너', floor: 9, x: -20.2, z: 12.5, toX: -20.2, toZ: 27.5, coat: 0x7d8a72, bag: null, quote: '삼성 갤럭시 AI 스튜디오에서 신제품 구경하고 왔어요.' },
       { id: 'crowd-17', name: '쇼퍼 민재', role: '레고 컬렉터', floor: 9, x: -39.0, z: 29.5, toX: -24.0, toZ: 29.5, coat: 0xd99e43, bag: 0xf2c94c, quote: '레고 스토어 대형 디오라마가 7m 천장까지 닿을 기세네요!' },
-      { id: 'crowd-18', name: '스카이워커 소희', role: '포토그래퍼', floor: 9, x: -24.0, z: 20.0, toX: -38.0, toZ: 20.0, coat: 0xa14f66, bag: 0xf0eee4, quote: '스카이브리지 정중앙에서 아래 1층 워터폴이랑 위쪽 IMAX 천창까지 다 보여요!' },
+      { id: 'crowd-18', name: '스카이워커 소희', role: '포토그래퍼', floor: 9, x: -24.0, z: 20.0, toX: -24.0, toZ: 25.0, coat: 0xa14f66, bag: 0xf0eee4, quote: '중앙 에스컬레이터랑 투명 듀얼 엘리베이터가 한눈에 들어와서 사진이 정말 잘 나와요!' },
 
       // M4F (floor 11) — Gourmet Street dining & Skybridge
       { id: 'crowd-19', name: '미식가 정우', role: '고든램지 다이너', floor: 11, x: -20.2, z: 14.0, toX: -20.2, toZ: 27.0, coat: 0x52392e, bag: null, quote: 'M4F 고메 스트리트에서 식사하고 위층 영화관 가는 코스가 완벽하네요.' },
       { id: 'crowd-20', name: '셰프 켄지', role: '오마카세 다이너', floor: 11, x: -42.5, z: 16.0, toX: -42.5, toZ: 25.5, coat: 0x2d4a43, bag: 0x62b56c, quote: '오스테리아 트러플 파스타랑 말차 라떼 디저트 조합이 환상적이에요.' },
-      { id: 'crowd-21', name: '산책객 보라', role: '스카이워크 이용객', floor: 11, x: -37.0, z: 20.0, toX: -25.0, toZ: 20.0, coat: 0x785b8a, bag: 0xd6b575, quote: '4층 스카이워크 건너면서 아래층 구경하는 재미가 있네요.' },
-      { id: 'crowd-22', name: '브런치객 하나', role: '방문객', floor: 11, x: -33.5, z: 10.0, toX: -23.0, toZ: 10.0, coat: 0xb87654, bag: null, quote: '여기 전망 엘리베이터 타고 한 층만 더 올라가면 M5F IMAX 영화관이에요!' },
+      { id: 'crowd-21', name: '산책객 보라', role: '스카이워크 이용객', floor: 11, x: -37.2, z: 18.2, toX: -37.2, toZ: 24.0, coat: 0x785b8a, bag: 0xd6b575, quote: '4층 에스컬레이터 랜딩에서 아래 1층 보이드 내려다보는 재미가 쏠쏠하네요.' },
+      { id: 'crowd-22', name: '브런치객 하나', role: '방문객', floor: 11, x: -33.5, z: 12.0, toX: -23.0, toZ: 12.0, coat: 0xb87654, bag: null, quote: '여기 투명 듀얼 엘리베이터 타고 한 층만 더 올라가면 M5F IMAX 영화관이에요!' },
 
       // M5F (floor 13) — Top-Floor Grand Cinema Multiplex (IMAX) & Sounds Forest
       { id: 'crowd-23', name: '씨네필 예린', role: 'IMAX 예매객', floor: 13, x: -23.5, z: 11.8, toX: -36.0, toZ: 11.8, coat: 0x8f2934, bag: 0xf4c45c, quote: '꼭대기층 M5F 전체가 IMAX 멀티플렉스랑 하늘정원이라 규모가 어마어마해요!' },
-      { id: 'crowd-24', name: '관객 승호', role: '팝콘 대기중', floor: 13, x: -39.0, z: 12.2, toX: -43.5, toZ: 18.0, coat: 0x263847, bag: 0xffe075, quote: '카라멜 팝콘 사서 바로 IMAX Laser 상영관으로 들어가고 있어요!' },
+      { id: 'crowd-24', name: '관객 승호', role: '팝콘 대기중', floor: 13, x: -39.0, z: 11.8, toX: -43.5, toZ: 16.5, coat: 0x263847, bag: 0xffe075, quote: '카라멜 팝콘 사서 바로 IMAX Laser 상영관으로 들어가고 있어요!' },
       { id: 'crowd-25', name: '관객 다혜', role: '영화 관람객', floor: 13, x: -46.0, z: 25.25, toX: -46.0, toZ: 25.25, coat: 0x3b4d59, bag: null, seat: true, quote: '대형 IMAX 스크린 화질이 진짜 선명하네요! 빈 좌석 클릭하면 같이 앉을 수 있어요.' },
       { id: 'crowd-26', name: '관객 준영', role: '영화 관람객', floor: 13, x: -43.2, z: 27.65, toX: -43.2, toZ: 27.65, coat: 0x5c363e, bag: null, seat: true, quote: '돌비 애트모스 사운드가 웅장하게 울리네요.' },
-      { id: 'crowd-27', name: '어셔 미소', role: '시네마 스태프', floor: 13, x: -40.8, z: 15.0, toX: -39.0, toZ: 15.0, coat: 0x911d24, bag: null, quote: 'GRAND CINEMA HALL 1 상영 중입니다. 앞쪽 매표소와 스낵바도 이용해 주세요!' },
+      { id: 'crowd-27', name: '어셔 미소', role: '시네마 스태프', floor: 13, x: -41.0, z: 15.2, toX: -39.6, toZ: 15.2, coat: 0x911d24, bag: null, quote: 'GRAND CINEMA HALL 1 상영 중입니다. 앞쪽 매표소와 스낵바도 이용해 주세요!' },
       { id: 'crowd-28', name: '자연애호가 유리', role: '사운즈 포레스트 방문객', floor: 13, x: -29.0, z: 25.5, toX: -17.5, toZ: 25.5, coat: 0x457352, bag: null, quote: '영화 보고 나와서 주홍빛 트러스 천창 아래 사운즈 포레스트 나무 사이를 산책 중이에요.' },
-      { id: 'crowd-29', name: '관광객 알렉스', role: '루프탑 가든 관람객', floor: 13, x: -28.0, z: 13.0, toX: -28.0, toZ: 24.5, coat: 0x334756, bag: 0x9fc2cf, quote: 'The glass skylight trusses 35 meters above look incredible!' },
+      { id: 'crowd-29', name: '관광객 알렉스', role: '루프탑 가든 관람객', floor: 13, x: -21.2, z: 14.0, toX: -21.2, toZ: 24.0, coat: 0x334756, bag: 0x9fc2cf, quote: 'The glass skylight trusses 35 meters above look incredible!' },
 
       // B1 (floor 4) — Unified Basement Parking EV Zone & Hotel Tunnel
       { id: 'crowd-30', name: '운전자 태오', role: 'EV 충전 고객', floor: 4, x: -46.5, z: 13.5, toX: -46.5, toZ: 26.5, coat: 0x2e4a59, bag: null, quote: '지하주차장이 호텔이랑 그대로 통하고 초급속 EV 충전기까지 있어서 너무 편해요!' },
-      { id: 'crowd-31', name: '주차안내원 철수', role: '발레 매니저', floor: 4, x: -16.0, z: 21.8, toX: -25.0, toZ: 21.8, coat: 0x222a30, bag: null, quote: '호텔 지하주차장 B1~B5 동선과 동일하게 이어져 차로 이동하기 수월합니다.' },
-      { id: 'crowd-32', name: '쇼핑객 수빈', role: '주차장 방문객', floor: 4, x: -28.0, z: 10.5, toX: -28.0, toZ: 19.5, coat: 0x734959, bag: 0xe6c87a, quote: '쇼핑 잔뜩 하고 B1에서 바로 몰 엘리베이터 타고 차 세워둔 곳으로 내려왔어요.' },
+      { id: 'crowd-31', name: '주차안내원 철수', role: '발레 매니저', floor: 4, x: -18.5, z: 21.8, toX: -24.5, toZ: 21.8, coat: 0x222a30, bag: null, quote: '호텔 지하주차장 B1~B5 동선과 동일하게 이어져 차로 이동하기 수월합니다.' },
+      { id: 'crowd-32', name: '쇼핑객 수빈', role: '주차장 방문객', floor: 4, x: -28.0, z: 12.2, toX: -22.5, toZ: 14.5, coat: 0x734959, bag: 0xe6c87a, quote: '쇼핑 잔뜩 하고 B1에서 바로 중앙 에스컬레이터나 듀얼 엘리베이터로 주차장 내려왔어요.' },
     ];
 
     for (const s of specs) {
-      const person = new THREE.Group();
-      person.name = `Mall_person_${s.id}`;
       const baseY = (s.floor - 5) * PITCH;
-      person.position.set(s.x, baseY, s.z);
-      person.userData.dynamic = true;
-
-      const coatMat = new THREE.MeshStandardMaterial({ color: s.coat, roughness: 0.78 });
-      const legMat = new THREE.MeshStandardMaterial({ color: 0x22292f, roughness: 0.85 });
       const info = {
         action: 'mallPerson',
         floorIndex: s.floor,
@@ -1869,62 +1999,22 @@ export class MallScene {
         label: `${s.name} (${s.role})`,
       };
 
-      const torso = new THREE.Mesh(unitCapsule, coatMat);
-      torso.scale.set(0.21, 0.36, 0.14);
-      torso.position.y = 1.08;
-      this.markInteractive(torso, info);
-      person.add(torso);
-
-      const head = new THREE.Mesh(unitSphere, this.m.skin);
-      head.scale.setScalar(0.13);
-      head.position.y = 1.56;
-      this.markInteractive(head, info);
-      person.add(head);
-
-      const hair = new THREE.Mesh(unitSphere, this.m.black);
-      hair.scale.set(0.138, 0.125, 0.14);
-      hair.position.set(0, 1.61, 0.01);
-      person.add(hair);
-
-      const legs = [];
-      for (const side of [-1, 1]) {
-        const legPivot = new THREE.Group();
-        legPivot.position.set(side * 0.095, 0.76, 0);
-        const legMesh = new THREE.Mesh(unitCapsule, legMat);
-        legMesh.scale.set(0.072, 0.42, 0.072);
-        legMesh.position.y = -0.32;
-        this.markInteractive(legMesh, info);
-        legPivot.add(legMesh);
-        person.add(legPivot);
-        legs.push(legPivot);
-      }
-
-      const arms = [];
-      for (const side of [-1, 1]) {
-        const armPivot = new THREE.Group();
-        armPivot.position.set(side * 0.25, 1.28, 0);
-        const armMesh = new THREE.Mesh(unitCapsule, coatMat);
-        armMesh.scale.set(0.06, 0.34, 0.06);
-        armMesh.position.y = -0.24;
-        this.markInteractive(armMesh, info);
-        armPivot.add(armMesh);
-        if (side > 0 && s.bag) {
-          const bagMat = new THREE.MeshStandardMaterial({ color: s.bag, roughness: 0.45 });
-          const bag = new THREE.Mesh(unitBox, bagMat);
-          bag.scale.set(0.18, 0.22, 0.12);
-          bag.position.set(0.04, -0.46, 0);
-          armPivot.add(bag);
-        }
-        person.add(armPivot);
-        arms.push(armPivot);
-      }
-
-      if (s.seat) {
-        // Adjust height & leg bend cleanly for seated IMAX moviegoers
-        person.position.y = baseY + 0.16;
-        person.rotation.y = Math.PI;
-        for (const l of legs) l.rotation.x = Math.PI / 2.2;
-      }
+      const { root: person, legs, arms } = buildStylizedHuman({
+        name: `Mall_person_${s.id}`,
+        coatColor: s.coat,
+        trouserColor: 0x22292f,
+        skinColor: 0xd7ae8e,
+        hairColor: 0x1c2226,
+        longHair: Boolean(s.bag),
+        bagColor: s.bag,
+        facingDir: 1,
+        seated: !!s.seat,
+        pickableData: info,
+        pickables: this.pickables,
+      });
+      person.userData.dynamic = true;
+      person.position.set(s.x, baseY + (s.seat ? 0.18 : 0), s.z);
+      if (s.seat) person.rotation.y = 0;
 
       this.crowdGroup.add(person);
       this.mallPeople.push({
@@ -1960,16 +2050,17 @@ export class MallScene {
   redrawIndicator(disp, mc, floorCode) {
     if (!disp?.ctx) return;
     const arrow = mc.direction > 0 ? '▲' : mc.direction < 0 ? '▼' : '●';
-    const key = `${floorCode}:${arrow}:${mc.alarm ? 'A' : ''}`;
+    const prefix = disp.carTag ? `${disp.carTag} ` : '';
+    const key = `${prefix}${floorCode}:${arrow}:${mc.alarm ? 'A' : ''}`;
     if (disp.lastKey === key) return;
     disp.lastKey = key;
     const { ctx, canvas, tex } = disp;
     ctx.fillStyle = mc.alarm ? '#3b1214' : '#0d1621';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = mc.alarm ? '#ff7c70' : '#f4cf82';
-    ctx.font = `bold ${Math.round(canvas.height * 0.45)}px sans-serif`;
+    ctx.font = `bold ${Math.round(canvas.height * 0.4)}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(`${arrow} ${floorCode}`, canvas.width / 2, Math.round(canvas.height * 0.66));
+    ctx.fillText(`${prefix}${arrow} ${floorCode}`, canvas.width / 2, Math.round(canvas.height * 0.66));
     tex.needsUpdate = true;
   }
 
@@ -2040,38 +2131,75 @@ export class MallScene {
 
   update(mc, time = 0, player = null) {
     if (!mc) return;
-    const carY = mc.position - 5 * PITCH; // floor 5 (M1F) -> y = 0, floor 13 (M5F) -> y = 28.0m
-    if (this.mallCar) this.mallCar.position.y = carY;
-    if (this.mallWeight) this.mallWeight.position.y = 14.0 - carY * 0.5;
+    const carAY = mc.position - 5 * PITCH; // floor 5 (M1F) -> y = 0, floor 13 (M5F) -> y = 28.0m
+    const floorCodeA = mc.floor < 5 ? FLOORS[mc.floor] : mallFloorMeta(mc.floor).mallCode;
 
-    const carRoofY = carY + 2.55;
-    const ropeLen = Math.max(0.4, (this.shaftTopY ?? 35.2) - carRoofY);
-    for (const r of this.ropeMeshes) {
-      r.mesh.scale.set(0.014, ropeLen, 0.014);
-      r.mesh.position.set(r.x, carRoofY + ropeLen / 2, r.z);
+    // Car B mirrors Car A whenever the player rides/approaches Car B or calls are active;
+    // otherwise Car B smoothly patrols M1F <-> M5F so the open atrium showcases dual panoramic cars in motion.
+    const nearCarB = Boolean(player && Math.abs(player.x - MALL_LIFT_2_X) < 3.6 && player.z >= 7.0 && player.z <= 15.5);
+    const hasActiveCalls = mc.car.size > 0 || mc.up.size > 0 || mc.down.size > 0 || (mc.door ?? 0) > 0.01;
+    const syncCarB = player?.zone === 'mallCabin' || nearCarB || hasActiveCalls;
+    const waveY = 14.0 + Math.sin(time * 0.28) * 14.0;
+    const targetBY = syncCarB ? carAY : waveY;
+    if (this._carBY === undefined || time === 0 || player?.zone === 'mallCabin' || (syncCarB && mc.aligned() && (mc.door ?? 0) > 0.01)) {
+      this._carBY = targetBY;
+    } else {
+      this._carBY += (targetBY - this._carBY) * (syncCarB ? 0.22 : 0.08);
     }
-
-    const openShift = (mc.door ?? 0) * 0.52;
-    if (this.mallCarDoors) {
-      this.mallCarDoors.left.position.x = -0.275 - openShift;
-      this.mallCarDoors.right.position.x = 0.275 + openShift;
-    }
-
-    const floorCode = mc.floor < 5 ? FLOORS[mc.floor] : mallFloorMeta(mc.floor).mallCode;
-    for (const f of MALL_VALID_FLOORS) {
-      const ld = this.mallLandingDoors[f];
-      const fOpen = mc.aligned() && mc.floor === f ? openShift : 0;
-      if (ld) {
-        ld.left.position.x = -0.285 - fOpen;
-        ld.right.position.x = 0.285 + fOpen;
-      }
-      if (this.mallLandingDisplays[f]) {
-        this.redrawIndicator(this.mallLandingDisplays[f], mc, floorCode);
+    const carBY = this._carBY;
+    let nearestFloorB = mc.floor;
+    let bestDiff = Infinity;
+    for (const mf of MALL_VALID_FLOORS) {
+      const diff = Math.abs(carBY - (mf - 5) * PITCH);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        nearestFloorB = mf;
       }
     }
+    const floorCodeB = nearestFloorB < 5 ? FLOORS[nearestFloorB] : mallFloorMeta(nearestFloorB).mallCode;
+    const carBState = syncCarB
+      ? mc
+      : { direction: Math.cos(time * 0.28) >= 0 ? 1 : -1, alarm: mc.alarm };
 
-    if (this.mallCopDisplay) {
-      this.redrawIndicator(this.mallCopDisplay, mc, floorCode);
+    for (const unit of this.mallCarUnits) {
+      const isA = unit.idx === 0;
+      const unitY = isA ? carAY : carBY;
+      const unitState = isA ? mc : carBState;
+      const unitCode = isA ? floorCodeA : floorCodeB;
+      const openShift = (isA || (syncCarB && Math.abs(carBY - carAY) < 0.08) ? mc.door ?? 0 : 0) * 0.52;
+      const activeFloor = isA ? mc.floor : nearestFloorB;
+      const isAligned = isA ? mc.aligned() : syncCarB && mc.aligned() && Math.abs(carBY - carAY) < 0.08;
+
+      if (unit.car) unit.car.position.y = unitY;
+      if (unit.weight) unit.weight.position.y = 14.0 - unitY * 0.5;
+
+      const carRoofY = unitY + 2.55;
+      const ropeLen = Math.max(0.4, (this.shaftTopY ?? 35.2) - carRoofY);
+      for (const r of unit.ropes) {
+        r.mesh.scale.set(0.014, ropeLen, 0.014);
+        r.mesh.position.set(r.x, carRoofY + ropeLen / 2, r.z);
+      }
+
+      if (unit.carDoors) {
+        unit.carDoors.left.position.x = -0.275 - openShift;
+        unit.carDoors.right.position.x = 0.275 + openShift;
+      }
+
+      for (const f of MALL_VALID_FLOORS) {
+        const ld = unit.landingDoors[f];
+        const fOpen = isAligned && activeFloor === f ? openShift : 0;
+        if (ld) {
+          ld.left.position.x = -0.285 - fOpen;
+          ld.right.position.x = 0.285 + fOpen;
+        }
+        if (unit.landingDisplays[f]) {
+          this.redrawIndicator(unit.landingDisplays[f], unitState, unitCode);
+        }
+      }
+
+      if (unit.copDisplay) {
+        this.redrawIndicator(unit.copDisplay, unitState, unitCode);
+      }
     }
 
     for (const btn of [...this.mallCarButtons, ...this.mallHallButtons]) {
@@ -2089,6 +2217,16 @@ export class MallScene {
         btn.material.color.setHex(lit ? (action === 'mallHall' ? 0x62d9cc : 0xe8b566) : 0xc8d2d9);
         btn.material.emissive.setHex(lit ? (action === 'mallHall' ? 0x3ecfb9 : 0xffaa3b) : 0x000000);
         btn.material.emissiveIntensity = lit ? 0.65 : 0;
+      }
+    }
+
+    const accActive = Boolean(mc.accessibleMode);
+    for (const btn of this.mallAccessibleButtons) {
+      if (btn.userData.lastAcc !== accActive) {
+        btn.userData.lastAcc = accActive;
+        btn.material.color.setHex(accActive ? 0x2b8cff : 0x1e5aa8);
+        btn.material.emissive.setHex(accActive ? 0x1b6fe0 : 0x091d36);
+        btn.material.emissiveIntensity = accActive ? 0.85 : 0.35;
       }
     }
 
@@ -2186,13 +2324,12 @@ export class MallScene {
     }
     if (this.robotDog) {
       const dx = Math.sin(time * 0.45) * 6.0;
-      this.robotDog.position.x = -30.5 + dx;
+      this.robotDog.position.set(
+        -30.5 + dx,
+        time < (this.robotDogTrickUntil ?? -1) ? Math.abs(Math.sin(time * 10)) * 0.35 : 0,
+        12.0
+      );
       this.robotDog.rotation.y = Math.cos(time * 0.45) >= 0 ? Math.PI / 2 : -Math.PI / 2;
-      if (time < (this.robotDogTrickUntil ?? -1)) {
-        this.robotDog.position.y = Math.abs(Math.sin(time * 10)) * 0.35;
-      } else {
-        this.robotDog.position.y = 0;
-      }
     }
 
     // Animate M4F Conveyor Belt Sushi Plates & Teppanyaki Flames

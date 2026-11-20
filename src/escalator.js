@@ -1,8 +1,8 @@
 export const ESCALATOR = {
-  start: -4,
-  end: -10,
-  up: [1.65, 3.05],
-  down: [3.75, 5.15],
+  start: -28,
+  end: -34,
+  up: [17.85, 19.25],
+  down: [20.75, 22.15],
   height: 3.5,
   speed: 0.45,
 };
@@ -10,10 +10,10 @@ export const ESCALATOR = {
 export function escalatorLayout(f) {
   const reverse = f % 2 === 1;
   return {
-    start: reverse ? -10 : -4,
-    end: reverse ? -4 : -10,
-    upZ: reverse ? 4.45 : 2.35,
-    downZ: reverse ? 2.35 : 4.45,
+    start: reverse ? -34 : -28,
+    end: reverse ? -28 : -34,
+    upZ: reverse ? 21.45 : 18.55,
+    downZ: reverse ? 18.55 : 21.45,
   };
 }
 
@@ -30,7 +30,7 @@ export class Escalators {
   }
 
   contains(x, z) {
-    return inRange(x, -10.8, -2.28) && inRange(z, 1.4, 7.85) && (x <= -2.8 || inRange(z, 2, 2.7));
+    return inRange(x, -35.8, -26.2) && inRange(z, 17.2, 24.6);
   }
 
   lane(z, f = 0) {
@@ -39,7 +39,7 @@ export class Escalators {
   }
 
   onFlight(x, z) {
-    return x < -4 && x > -10 && (inRange(z, ...ESCALATOR.up) || inRange(z, ...ESCALATOR.down));
+    return x < -28 - 1e-6 && x > -34 + 1e-6 && (inRange(z, ...ESCALATOR.up) || inRange(z, ...ESCALATOR.down));
   }
 
   surfaceAt(x, z, nearY) {
@@ -47,8 +47,8 @@ export class Escalators {
     const ys = [];
     for (let f = 0; f < 15; f++) {
       const base = (f - 5) * 3.5;
-      if (x >= -4 || x <= -10 || z >= 5.3) ys.push(base);
-      if (f < 14 && inRange(x, -10, -4) && this.lane(z, f)) {
+      if (x >= -28 - 1e-6 || x <= -34 + 1e-6 || z >= 22.25) ys.push(base);
+      if (f < 14 && inRange(x, -34, -28) && this.lane(z, f)) {
         const l = escalatorLayout(f);
         const start = this.lane(z, f) === 1 ? l.start : l.end;
         const end = this.lane(z, f) === 1 ? l.end : l.start;

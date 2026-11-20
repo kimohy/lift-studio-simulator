@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildStylizedHuman } from './character-builder.js';
 import { FLOORS } from './controller.js';
 import { hotelSignTexture } from './hotel-sign.js';
 
@@ -242,9 +243,38 @@ export class HotelScene {
       Math.PI / 2
     );
     this.box(g, 'Lobby_side_wall', [0.18, 3.4, 18], [11.6, 1.7, 17], m.wall);
-    for (const x of [-7.3, 7.3]) {
-      this.box(g, 'Lobby_service_wall', [9.4, 3.4, 0.18], [x, 1.7, 8], m.wall);
+    // East service wall stays solid; West service wall opens into the repurposed 1F VIP Art Gallery & Champagne Lounge!
+    this.box(g, 'Lobby_service_wall', [9.4, 3.4, 0.18], [7.3, 1.7, 8], m.wall);
+    this.box(g, 'Lobby_service_wall', [4.0, 3.4, 0.18], [-10.0, 1.7, 8], m.wall);
+    this.box(g, 'Lobby_service_wall', [3.0, 3.4, 0.18], [-4.1, 1.7, 8], m.wall);
+    this.box(g, 'Lobby_gallery_portal_lintel', [2.4, 1.0, 0.18], [-6.8, 2.9, 8], m.wall);
+    this.box(g, 'Lobby_gallery_portal_trim', [2.5, 0.08, 0.24], [-6.8, 2.42, 8], m.gold);
+    this.sign(
+      g,
+      'Lobby_gallery_sign',
+      ['VIP ART GALLERY & CHAMPAGNE LOUNGE', '현대미술 갤러리 · 엘리베이터 홀 직결'],
+      [-6.8, 2.92, 8.11],
+      [2.3, 0.45],
+      0
+    );
+
+    // Repurposed West Service Wing (formerly escalators): 1F VIP Art Gallery & Champagne Lounge (x∈[-11.5,-2.54], z∈[1.3,8.0])
+    this.box(g, 'Gallery_floor', [9.0, 0.16, 6.8], [-7.0, -0.08, 4.7], m.marble);
+    this.box(g, 'Gallery_ceiling', [9.0, 0.14, 6.8], [-7.0, 3.36, 4.7], m.wall);
+    this.box(g, 'Gallery_north_wall', [9.0, 3.4, 0.18], [-7.0, 1.7, 1.3], m.wall);
+    this.box(g, 'Gallery_west_wall', [0.18, 3.4, 6.8], [-11.5, 1.7, 4.7], m.wall);
+    this.box(g, 'Gallery_cove_led', [7.2, 0.03, 0.18], [-7.0, 3.26, 4.7], m.warm);
+    const artColors = [0x2f5e78, 0xc49250, 0x8d3b42];
+    for (const [idx, ax] of [-9.6, -7.0, -4.4].entries()) {
+      this.box(g, `Gallery_art_frame_${idx}`, [1.65, 1.22, 0.06], [ax, 1.75, 1.42], m.gold);
+      const artMat = new THREE.MeshStandardMaterial({ color: artColors[idx], roughness: 0.4 });
+      this.box(g, `Gallery_art_canvas_${idx}`, [1.48, 1.05, 0.07], [ax, 1.75, 1.43], artMat);
+      this.box(g, `Gallery_art_spot_${idx}`, [0.7, 0.04, 0.08], [ax, 2.52, 1.56], m.warm);
     }
+    this.box(g, 'Gallery_pedestal', [1.4, 1.0, 0.9], [-4.6, 0.5, 4.6], m.wood, 5);
+    this.box(g, 'Gallery_pedestal_top', [1.5, 0.07, 1.0], [-4.6, 1.03, 4.6], m.marble);
+    this.cylinder(g, 'Gallery_champagne_cooler', 0.14, 0.11, 0.24, [-4.6, 1.18, 4.6], m.gold);
+    this.box(g, 'Gallery_lounge_bench', [2.2, 0.46, 0.85], [-9.6, 0.23, 4.6], m.fabric, 5);
     for (const x of [-6.8, 6.6]) {
       this.box(g, 'Lobby_front_glazing', [x < 0 ? 10.6 : 10.2, 3.3, 0.06], [x, 1.65, 26], m.glass);
     }
@@ -452,78 +482,33 @@ export class HotelScene {
   }
 
   makeStaff(g, id, name, pos, color, dialogue, longHair = false, apron = false) {
-    const root = new THREE.Group();
-    root.name = `Staff_${id}`;
-    root.position.set(...pos);
-    g.add(root);
-
-    const uniform = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
-    const skin = new THREE.MeshStandardMaterial({ color: 0xcfa687, roughness: 0.83 });
-    const hair = new THREE.MeshStandardMaterial({ color: 0x292323, roughness: 0.95 });
-
-    const capsule = (parent, meshName, r, len, y, material) => {
-      const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 4, 8), material);
-      mesh.name = meshName;
-      mesh.position.y = y;
-      parent.add(mesh);
-      return mesh;
-    };
-
-    const torso = capsule(root, 'Uniform_jacket', 0.22, 0.37, 1.08, uniform);
-    torso.scale.z = 0.66;
-    for (const side of [-1, 1]) {
-      const leg = capsule(root, 'Uniform_trousers', 0.075, 0.48, 0.43, this.m.black);
-      leg.position.x = side * 0.1;
-      this.box(root, 'Staff_shoe', [0.14, 0.1, 0.28], [side * 0.1, 0.08, -0.045], this.m.black);
-    }
-    this.cylinder(root, 'Staff_neck', 0.065, 0.065, 0.13, [0, 1.46, 0], skin);
-
-    const head = new THREE.Group();
-    head.position.y = 1.62;
-    root.add(head);
-    this.sphere(head, 'Staff_face', 0.155, [0, 0, 0], skin, [0.92, 1.12, 0.91]);
-    this.sphere(head, 'Staff_hair', 0.16, [0, 0.095, 0.03], hair, [1, 0.57, 1]);
-    if (longHair) {
-      this.sphere(head, 'Hair_bun', 0.085, [0, 0.055, 0.145], hair);
-      this.sphere(head, 'Hair_back', 0.13, [0, -0.045, 0.092], hair, [1, 1.2, 0.5]);
-    }
-    for (const x of [-0.052, 0.052]) {
-      this.sphere(head, 'Staff_eye', 0.011, [x, 0.026, -0.139], this.m.black, [1, 0.7, 0.5]);
-    }
-    this.sphere(head, 'Staff_nose', 0.021, [0, -0.015, -0.148], skin, [0.7, 1, 0.8]);
-    this.box(head, 'Staff_smile', [0.055, 0.007, 0.005], [0, -0.066, -0.138], hair);
-    this.box(root, 'Staff_shirt', [0.15, 0.36, 0.018], [0, 1.16, -0.149], this.m.white);
-    this.box(root, 'Staff_tie', [0.038, 0.23, 0.023], [0, 1.15, -0.17], apron ? this.m.fabric : this.m.gold);
-    if (apron) {
-      this.box(root, 'Barista_apron', [0.34, 0.52, 0.04], [0, 0.99, -0.19], this.m.fabric);
-    }
-
-    const arms = [];
-    const elbows = [];
-    for (const side of [-1, 1]) {
-      const pivot = new THREE.Group();
-      pivot.position.set(side * 0.26, 1.36, 0);
-      root.add(pivot);
-      capsule(pivot, 'Staff_sleeve', 0.056, 0.22, -0.17, uniform);
-      const elbow = new THREE.Group();
-      elbow.position.y = -0.34;
-      pivot.add(elbow);
-      capsule(elbow, 'Staff_forearm', 0.047, 0.2, -0.14, uniform);
-      this.sphere(elbow, 'Staff_hand', 0.061, [0, -0.32, 0], skin, [0.85, 1, 0.65]);
-      pivot.rotation.z = side * 0.08;
-      arms.push(pivot);
-      elbows.push(elbow);
-    }
-
     const data = { action: 'staff', floorIndex: 5, staffId: id, staffName: name, dialogue };
-    root.traverse((o) => {
-      if (o.isMesh) {
-        o.userData = { ...data };
-        this.pickables.push(o);
-      }
+    const rig = buildStylizedHuman({
+      name: `Staff_${id}`,
+      coatColor: color,
+      trouserColor: 0x202a2c,
+      skinColor: 0xcfa687,
+      hairColor: 0x292323,
+      accentColor: apron ? 0x436467 : 0xbfa16a,
+      longHair,
+      apron,
+      apronColor: 0x436467,
+      facingDir: -1,
+      pickableData: data,
+      pickables: this.pickables,
     });
+    rig.root.position.set(...pos);
+    g.add(rig.root);
     this.world.addObstacle(5, pos[0] - 0.3, pos[0] + 0.3, pos[2] - 0.25, pos[2] + 0.25);
-    this.staff.push({ root, head, arms, elbows, id, phase: this.staff.length * 1.5, waveUntil: 0 });
+    this.staff.push({
+      root: rig.root,
+      head: rig.head,
+      arms: rig.arms,
+      elbows: rig.elbows,
+      id,
+      phase: this.staff.length * 1.5,
+      waveUntil: 0,
+    });
   }
 
   car(g, x, z, color, floor = 0, rotation = 0) {
@@ -618,13 +603,29 @@ export class HotelScene {
       this.box(g, 'Garage_mall_portal_lintel', [0.22, 0.68, depth], [-14, 3.06, z], m.concrete);
     }
     this.box(g, 'Garage_outer_wall', [0.18, 3.4, 28], [10.8, 1.7, 22], m.concrete);
-    for (const [x, width] of [
-      [-8.27, 11.46],
-      [6.67, 8.26],
-    ]) {
-      this.box(g, 'Garage_front_wall', [width, 3.4, 0.14], [x, 1.7, 8], m.concrete);
-    }
+    // Split west Garage_front_wall along z=8.0 to connect into the repurposed VIP Valet Waiting Lounge
+    this.box(g, 'Garage_front_wall', [6.1, 3.4, 0.14], [-10.95, 1.7, 8], m.concrete);
+    this.box(g, 'Garage_front_wall', [3.16, 3.4, 0.14], [-4.12, 1.7, 8], m.concrete);
+    this.box(g, 'Garage_valet_lintel', [2.2, 1.0, 0.14], [-6.8, 2.9, 8], m.concrete);
+    this.box(g, 'Garage_front_wall', [8.26, 3.4, 0.14], [6.67, 1.7, 8], m.concrete);
     this.box(g, 'Garage_back_wall', [24.8, 3.4, 0.14], [-1.6, 1.7, 36], m.concrete);
+
+    // Repurposed West Wing (formerly escalators): B5..B1 VIP Valet Waiting Lounge (x∈[-10.8,-2.54], z∈[1.3,8.0])
+    this.box(g, 'Valet_lounge_floor', [8.3, 0.16, 6.8], [-6.65, -0.08, 4.7], m.concrete);
+    this.box(g, 'Valet_lounge_carpet', [7.2, 0.02, 4.4], [-6.7, 0.01, 4.7], m.fabric);
+    this.box(g, 'Valet_lounge_ceiling', [8.3, 0.14, 6.8], [-6.65, 3.34, 4.7], m.concrete);
+    this.box(g, 'Valet_lounge_north_wall', [8.3, 3.4, 0.16], [-6.65, 1.7, 1.3], m.concrete);
+    this.box(g, 'Valet_lounge_west_wall', [0.16, 3.4, 6.8], [-10.8, 1.7, 4.7], m.concrete);
+    this.box(g, 'Valet_lounge_led', [5.6, 0.04, 0.14], [-6.7, 3.2, 4.7], m.warm);
+    this.box(g, 'Valet_lounge_bench', [0.7, 0.52, 2.6], [-9.4, 0.26, 4.7], m.wood, f);
+    this.sign(
+      g,
+      `Valet_lounge_sign_${FLOORS[f]}`,
+      [`${FLOORS[f]} · VIP 발레 대기 라운지`, 'VIP VALET LOUNGE · 엘리베이터 직결'],
+      [-6.8, 2.8, 8.09],
+      [2.2, 0.44],
+      0
+    );
 
     // Break openings in the side wall at both turning bays.
     // Main side wall spans only the ramp's enclosed middle section.

@@ -26,6 +26,27 @@ const MALL_ACTIONS = new Set([
   'mallCinemaScreen',
   'mallCinemaSeat',
   'mallPerson',
+  'mallSpiralSlide',
+  'mallKineticShow',
+  'mallFountainShow',
+  'mallPiano',
+  'mallPhotoBooth',
+  'mallDjBooth',
+  'mallLibrarySeat',
+  'mallBowling',
+  'mallArcade',
+  'mallRhythmFloor',
+  'mallTeamLab',
+  'mallRobotDog',
+  'mallSushiBelt',
+  'mallTeppanyaki',
+  'mallMatchaCone',
+  'mallCinemaSwitch',
+  'mallCampfire',
+  'mallWishingWell',
+  'mallSupercarDrive',
+  'mallLedStep',
+  'mallDiningSeat',
 ]);
 
 const $ = (id) => document.getElementById(id);
@@ -923,6 +944,13 @@ export class GameMode {
       }
     }
 
+    if (this.slideRide) {
+      this.slideRide.t += dt;
+      if (this.slideRide.t >= this.slideRide.duration) {
+        this.slideRide = null;
+        this.view?.applyVisibility?.(this.controller);
+      }
+    }
     this.applyCamera();
 
     // Auto-reset telescope zoom if walking or stepped away
@@ -967,6 +995,16 @@ export class GameMode {
   }
 
   applyCamera() {
+    if (this.slideRide) {
+      const u = Math.max(0, Math.min(1, this.slideRide.t / this.slideRide.duration));
+      const ang = u * Math.PI * 2 * 3.0;
+      const curY = this.slideRide.startY * (1 - u) + 1.5;
+      this.view.camera.position.set(-38.2 + Math.cos(ang) * 1.95, curY, 25.0 + Math.sin(ang) * 1.95);
+      this.view.camera.rotation.order = 'YXZ';
+      this.view.camera.rotation.set(-0.24, -ang, 0.06);
+      this.view.camera.updateMatrixWorld();
+      return;
+    }
     const p = this.player;
     const ox = this.camOffset?.x || 0;
     const oy = this.camOffset?.y || 0;
@@ -1092,10 +1130,40 @@ export class GameMode {
   interactMall(action, data = {}) {
     if (!this.active) return;
     const res = this.stay.interactMall(action, data, this.player);
+    const mallScene = this.view?.mallScene;
+    const t = this.controller?.time ?? 0;
+    if (mallScene) {
+      if (action === 'mallFountainShow') mallScene.triggerFountainShow(t);
+      else if (action === 'mallKineticShow') mallScene.triggerKineticShow(t);
+      else if (action === 'mallBowling') mallScene.triggerBowlingStrike(t);
+      else if (action === 'mallTeppanyaki') mallScene.triggerTeppanyakiFlame(t);
+      else if (action === 'mallRobotDog') mallScene.triggerRobotDogTrick(t);
+      else if (action === 'mallCinemaSwitch' || action === 'mallCinemaScreen') {
+        mallScene.setCinemaMovie(res.cinemaMovieIndex ?? 0);
+      }
+    }
+    if (res.slideRide) {
+      this.slideRide = {
+        t: 0,
+        duration: 2.1,
+        startY: (res.slideRide.startFloor - 5) * 3.5,
+      };
+      this.view?.applyVisibility?.(this.controller);
+    }
+    if (res.photoFlash) {
+      this.showToast?.({
+        badge: '📸 FLASH! 4-CUT STUDIO',
+        title: '인생네컷 포토카드 인화 완료!',
+        subtitle: '+70 VIP PTS · 오른손 포토카드를 확인하세요',
+        duration: 3200,
+      });
+    }
     this.notifyQuestProgress?.(res.newlyCompletedQuests);
     this.message(res.message);
     this.messageUntil = performance.now() + 5500;
-    if (action === 'mallCinemaSeat') this.applyCamera();
+    if (['mallCinemaSeat', 'mallLibrarySeat', 'mallDiningSeat', 'mallSupercarDrive'].includes(action)) {
+      this.applyCamera();
+    }
     this.updateHUD();
     return res;
   }
@@ -1544,6 +1612,27 @@ export class GameMode {
       case 'mallCinemaSnack':
       case 'mallCinemaScreen':
       case 'mallCinemaSeat':
+      case 'mallSpiralSlide':
+      case 'mallKineticShow':
+      case 'mallFountainShow':
+      case 'mallPiano':
+      case 'mallPhotoBooth':
+      case 'mallDjBooth':
+      case 'mallLibrarySeat':
+      case 'mallBowling':
+      case 'mallArcade':
+      case 'mallRhythmFloor':
+      case 'mallTeamLab':
+      case 'mallRobotDog':
+      case 'mallSushiBelt':
+      case 'mallTeppanyaki':
+      case 'mallMatchaCone':
+      case 'mallCinemaSwitch':
+      case 'mallCampfire':
+      case 'mallWishingWell':
+      case 'mallSupercarDrive':
+      case 'mallLedStep':
+      case 'mallDiningSeat':
       case 'mallWaterfall':
       case 'mallLibrary':
       case 'mallCafe':
@@ -1554,7 +1643,7 @@ export class GameMode {
       case 'mallMediaWall':
       case 'mallParking':
       case 'mallConcierge':
-        return `✨ ${d.label || '그랜드 아트리움 몰'} · 이용하기`;
+        return `✨ ${d.label || '그랜드 아트리움 몰'} · 즐기기`;
       default:
         return `${d.accessible ? '♿ ' : d.tenKey ? '🔢 ' : ''}${{ open: '문 열림', close: '문 닫힘', alarm: '비상 호출' }[d.action] || '상호작용'}`;
     }

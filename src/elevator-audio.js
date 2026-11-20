@@ -261,5 +261,43 @@ export class HotelSoundEffects {
     const b = this.tone(880, 0.18, { type: 'triangle', delay: 0.09, gainScale: 0.055, endFreq: 1174.66 });
     return a || b;
   }
+
+  playPianoChord() {
+    const notes = [261.63, 329.63, 392.0, 493.88];
+    let ok = false;
+    notes.forEach((f, i) => {
+      if (this.tone(f, 0.45, { type: 'sine', delay: i * 0.065, gainScale: 0.062 })) ok = true;
+    });
+    return ok;
+  }
+
+  playCameraShutter() {
+    const a = this.tone(1600, 0.045, { type: 'triangle', gainScale: 0.075, endFreq: 900 });
+    const b = this.tone(2200, 0.065, { type: 'sine', delay: 0.055, gainScale: 0.055 });
+    return a || b;
+  }
+
+  playArcadeWin() {
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    let ok = false;
+    notes.forEach((f, i) => {
+      const type = i === notes.length - 1 ? 'square' : 'triangle';
+      if (this.tone(f, 0.16, { type, delay: i * 0.07, gainScale: 0.05 })) ok = true;
+    });
+    return ok;
+  }
+
+  playSlideWhoosh() {
+    const a = this.tone(680, 0.35, { type: 'sine', gainScale: 0.065, endFreq: 220 });
+    const b = this.tone(920, 0.28, { type: 'triangle', delay: 0.06, gainScale: 0.035, endFreq: 310 });
+    return a || b;
+  }
+
+  playCoinSplash() {
+    const a = this.tone(1480, 0.08, { type: 'sine', gainScale: 0.06 });
+    const b = this.tone(1975, 0.11, { type: 'sine', delay: 0.055, gainScale: 0.055 });
+    const c = this.tone(420, 0.18, { type: 'sine', delay: 0.13, gainScale: 0.05, endFreq: 240 });
+    return a || b || c;
+  }
 }
 

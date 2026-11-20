@@ -276,6 +276,72 @@ export class LiftScene {
     this.vmKeycard.add(cardBorder, cardBody, cardChip);
     this.vmKeycard.rotation.set(0.28, -0.42, 0.12);
     this.viewmodelGroup.add(this.vmKeycard);
+
+    // 3. Cinema Popcorn Bucket viewmodel
+    this.vmPopcorn = new THREE.Group();
+    this.vmPopcorn.name = 'VM_cinema_popcorn';
+    const bucket = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.052, 0.036, 0.12, 16),
+      new THREE.MeshStandardMaterial({ color: 0xb8252d, roughness: 0.55 })
+    );
+    const popcornTop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.048, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xf7e19c, roughness: 0.85 })
+    );
+    popcornTop.scale.set(1, 0.55, 1);
+    popcornTop.position.y = 0.062;
+    this.vmPopcorn.add(bucket, popcornTop);
+    this.vmPopcorn.rotation.set(0.18, -0.28, 0.06);
+    this.viewmodelGroup.add(this.vmPopcorn);
+
+    // 4. Kyoto Matcha Cone viewmodel
+    this.vmMatcha = new THREE.Group();
+    this.vmMatcha.name = 'VM_matcha_cone';
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.028, 0.095, 14),
+      new THREE.MeshStandardMaterial({ color: 0xc9945b, roughness: 0.8 })
+    );
+    cone.rotation.x = Math.PI;
+    const scoop = new THREE.Mesh(
+      new THREE.SphereGeometry(0.032, 14, 12),
+      new THREE.MeshStandardMaterial({ color: 0x4d8a4b, roughness: 0.65 })
+    );
+    scoop.position.y = 0.052;
+    this.vmMatcha.add(cone, scoop);
+    this.vmMatcha.rotation.set(0.18, -0.25, 0.08);
+    this.viewmodelGroup.add(this.vmMatcha);
+
+    // 5. Luxury Shopping Bag viewmodel
+    this.vmShoppingBag = new THREE.Group();
+    this.vmShoppingBag.name = 'VM_shopping_bag';
+    const bagBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.09, 0.105, 0.038),
+      new THREE.MeshStandardMaterial({ color: 0xc4ab82, roughness: 0.45, metalness: 0.15 })
+    );
+    const bagTrim = new THREE.Mesh(new THREE.BoxGeometry(0.092, 0.018, 0.04), lidMat);
+    bagTrim.position.y = 0.045;
+    this.vmShoppingBag.add(bagBody, bagTrim);
+    this.vmShoppingBag.rotation.set(0.12, -0.35, 0.06);
+    this.viewmodelGroup.add(this.vmShoppingBag);
+
+    // 6. 4-Cut Photo Card Strip viewmodel
+    this.vmPhotocard = new THREE.Group();
+    this.vmPhotocard.name = 'VM_fourcut_photocard';
+    const stripBg = new THREE.Mesh(
+      new THREE.BoxGeometry(0.042, 0.12, 0.004),
+      new THREE.MeshStandardMaterial({ color: 0xf7f5ef, roughness: 0.35 })
+    );
+    for (let f = 0; f < 4; f++) {
+      const pic = new THREE.Mesh(
+        new THREE.BoxGeometry(0.032, 0.022, 0.005),
+        new THREE.MeshStandardMaterial({ color: [0xff8c82, 0x7ec8e3, 0xf6c26b, 0x8de0a8][f], roughness: 0.3 })
+      );
+      pic.position.set(0, 0.041 - f * 0.027, 0.001);
+      this.vmPhotocard.add(pic);
+    }
+    this.vmPhotocard.add(stripBg);
+    this.vmPhotocard.rotation.set(0.24, -0.35, 0.08);
+    this.viewmodelGroup.add(this.vmPhotocard);
   }
 
   updateViewmodel(time = 0) {
@@ -294,8 +360,9 @@ export class LiftScene {
       !showCoffee &&
       Boolean(game.stay?.keycard) &&
       (nearRoomDoor || game.currentHit?.userData?.action === 'roomDoor' || game.currentHit?.userData?.action === 'cabinVip');
+    const mallItem = !showCoffee && !showKeycard ? game.stay?.heldMallItem || null : null;
 
-    if (!showCoffee && !showKeycard) {
+    if (!showCoffee && !showKeycard && !mallItem) {
       this.viewmodelGroup.visible = false;
       return;
     }
@@ -303,6 +370,10 @@ export class LiftScene {
     this.viewmodelGroup.visible = true;
     this.vmCoffee.visible = showCoffee;
     this.vmKeycard.visible = showKeycard;
+    if (this.vmPopcorn) this.vmPopcorn.visible = mallItem === 'popcorn';
+    if (this.vmMatcha) this.vmMatcha.visible = mallItem === 'matcha';
+    if (this.vmShoppingBag) this.vmShoppingBag.visible = mallItem === 'bag';
+    if (this.vmPhotocard) this.vmPhotocard.visible = mallItem === 'photocard';
 
     const bobPhase = game.walkBobPhase || 0;
     const moveAmp = game.isMoving ? 1 : 0.18;

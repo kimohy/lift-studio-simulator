@@ -13,7 +13,12 @@ import { Escalators } from '../src/escalator.js';
 import { EscalatorView } from '../src/escalator-view.js';
 import { GameMode } from '../src/game-mode.js';
 import { HotelScene } from '../src/hotel-scene.js';
-import { HotelStay, MALL_FAST_TRAVEL_SPOTS } from '../src/hotel-stay.js';
+import {
+  HotelStay,
+  MALL_CINEMA_MOVIES,
+  MALL_DJ_TRACKS,
+  MALL_FAST_TRAVEL_SPOTS,
+} from '../src/hotel-stay.js';
 import { HotelWorld, MALL_LIFT_X, MALL_LIFT_Z } from '../src/hotel-world.js';
 import { MALL_ROOF_Y, MALL_STORY_H, MallScene } from '../src/mall-scene.js';
 import { WalkingPlayer } from '../src/player.js';
@@ -315,4 +320,83 @@ test('mall includes floor-themed shops, M5F Grand Cinema Multiplex, and 30+ anim
   const npcRes = stay.interactMall('mallPerson', { personId: 'crowd-1', personName: '지우', roleLabel: '쇼퍼', quote: '좋아요!' });
   assert.equal(npcRes.ok, true);
   assert.equal(stay.socialContacts.has('mallPerson:crowd-1'), true);
+});
+
+test('experiential mall attractions span spiral slide, kinetic show, arcade bowling, teamLab, sushi belt, 4DX cinema, & hand viewmodels', () => {
+  const world = new HotelWorld();
+  const mallCtrl = new LiftController({
+    minFloor: 0,
+    maxFloor: MALL_MAX_FLOOR,
+    id: 'mall',
+    startFloor: 5,
+    allowedFloors: MALL_VALID_FLOORS,
+  });
+
+  withMockCanvas(() => {
+    const scene = new THREE.Scene();
+    const pickables = [];
+    const mall = new MallScene(scene, world, pickables);
+
+    assert.ok(mall.root.getObjectByName('Mall_spiral_slide'));
+    assert.ok(mall.root.getObjectByName('Mall_grand_piano'));
+    assert.ok(mall.root.getObjectByName('Mall_photo_booth'));
+    assert.ok(mall.root.getObjectByName('Mall_dj_booth'));
+    assert.ok(mall.root.getObjectByName('Mall_bowling_lane'));
+    assert.ok(mall.root.getObjectByName('Mall_arcade_claw'));
+    assert.ok(mall.root.getObjectByName('Mall_teamlab_room'));
+    assert.ok(mall.root.getObjectByName('Mall_robot_dog'));
+    assert.ok(mall.root.getObjectByName('Mall_sushi_belt'));
+    assert.ok(mall.root.getObjectByName('Mall_teppanyaki_grill'));
+    assert.ok(mall.root.getObjectByName('Mall_glamping_campfire'));
+    assert.ok(mall.root.getObjectByName('Mall_wishing_fountain'));
+    assert.ok(mall.root.getObjectByName('Mall_supercar_testdrive'));
+    assert.ok(mall.kineticOrbs.length >= 16);
+    assert.ok(mall.fountainJets.length >= 6);
+    assert.ok(mall.sushiPlates.length >= 8);
+    assert.ok(mall.bowlingPins.length >= 6);
+
+    // Animations & triggered shows execute smoothly without throwing
+    const plate0X = mall.sushiPlates[0].position.x;
+    mall.triggerFountainShow(1.0);
+    mall.triggerKineticShow(1.0);
+    mall.triggerBowlingStrike(1.0);
+    mall.triggerTeppanyakiFlame(1.0);
+    mall.triggerRobotDogTrick(1.0);
+    mall.setCinemaMovie(1);
+    mall.update(mallCtrl, 1.8, { floor: 9, x: -27.5, z: 31.0 });
+    assert.notEqual(mall.sushiPlates[0].position.x, plate0X);
+    assert.notEqual(mall.bowlingBall.position.x, -38.0);
+  });
+
+  // Stay rewards, mode cycling, spiral slide descent & first-person viewmodel item tracking
+  const stay = new HotelStay();
+  const p = { floor: 13, x: -38.2, z: 25.0, yaw: 0, pitch: 0, zone: 'lobby', worldY: 28 };
+  const slideRes = stay.interactMall('mallSpiralSlide', { floorIndex: 13 }, p);
+  assert.equal(slideRes.ok, true);
+  assert.equal(p.floor, 5);
+  assert.equal(p.worldY, 0);
+  assert.equal(slideRes.slideRide.startFloor, 13);
+
+  const pbRes = stay.interactMall('mallPhotoBooth', { floorIndex: 7 }, p);
+  assert.equal(pbRes.photoFlash, true);
+  assert.equal(stay.heldMallItem, 'photocard');
+
+  stay.interactMall('mallCinemaSnack', { floorIndex: 13 }, p);
+  assert.equal(stay.heldMallItem, 'popcorn');
+
+  stay.interactMall('mallMatchaCone', { floorIndex: 11 }, p);
+  assert.equal(stay.heldMallItem, 'matcha');
+
+  stay.interactMall('mallArcade', { floorIndex: 9 }, p);
+  assert.equal(stay.gachaCount, 1);
+  assert.equal(stay.heldMallItem, 'bag');
+
+  stay.interactMall('mallBowling', { floorIndex: 9 }, p);
+  assert.equal(stay.bowlingStrikes, 1);
+
+  const movRes = stay.interactMall('mallCinemaSwitch', { floorIndex: 13 }, p);
+  assert.equal(movRes.cinemaMovieIndex, 1 % MALL_CINEMA_MOVIES.length);
+
+  const djRes = stay.interactMall('mallDjBooth', { floorIndex: 7 }, p);
+  assert.equal(djRes.djTrackIndex, 1 % MALL_DJ_TRACKS.length);
 });

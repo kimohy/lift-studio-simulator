@@ -248,11 +248,41 @@ function act(action, floor, direction, data) {
       'mallCinemaScreen',
       'mallCinemaSeat',
       'mallPerson',
+      'mallSpiralSlide',
+      'mallKineticShow',
+      'mallFountainShow',
+      'mallPiano',
+      'mallPhotoBooth',
+      'mallDjBooth',
+      'mallLibrarySeat',
+      'mallBowling',
+      'mallArcade',
+      'mallRhythmFloor',
+      'mallTeamLab',
+      'mallRobotDog',
+      'mallSushiBelt',
+      'mallTeppanyaki',
+      'mallMatchaCone',
+      'mallCinemaSwitch',
+      'mallCampfire',
+      'mallWishingWell',
+      'mallSupercarDrive',
+      'mallLedStep',
+      'mallDiningSeat',
     ].includes(action)
   ) {
-    if (action === 'mallWaterfall') sfx.playWater?.();
-    else if (action === 'mallCafe' || action === 'mallCinemaSnack') sfx.playCoffeeSip?.() ?? sfx.playButton();
-    else if (action === 'mallParking') sfx.playCarChirp?.() ?? sfx.playButton();
+    if (action === 'mallWaterfall' || action === 'mallFountainShow') sfx.playWater?.();
+    else if (action === 'mallPiano') sfx.playPianoChord?.() ?? sfx.playAmenity?.();
+    else if (action === 'mallPhotoBooth') sfx.playCameraShutter?.() ?? sfx.playButton();
+    else if (action === 'mallBowling' || action === 'mallArcade' || action === 'mallRhythmFloor') {
+      sfx.playArcadeWin?.() ?? sfx.playAmenity?.();
+    } else if (action === 'mallSpiralSlide') sfx.playSlideWhoosh?.() ?? sfx.playWater?.();
+    else if (action === 'mallWishingWell') sfx.playCoinSplash?.() ?? sfx.playWater?.();
+    else if (action === 'mallSupercarDrive') sfx.playCarIgnition?.() ?? sfx.playCarChirp?.();
+    else if (action === 'mallRobotDog') sfx.playRobot?.() ?? sfx.playButton();
+    else if (action === 'mallCafe' || action === 'mallCinemaSnack' || action === 'mallMatchaCone') {
+      sfx.playCoffeeSip?.() ?? sfx.playButton();
+    } else if (action === 'mallParking') sfx.playCarChirp?.() ?? sfx.playButton();
     else if (action === 'mallPerson') sfx.playButton();
     else sfx.playAmenity?.() ?? sfx.playButton();
     const res = game?.interactMall?.(action, data);

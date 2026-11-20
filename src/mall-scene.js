@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mallFloorMeta, MALL_VALID_FLOORS } from './building.js';
 import { FLOORS, PITCH } from './controller.js';
+import { MALL_CINEMA_MOVIES } from './hotel-stay.js';
 import { MALL_LIFT_X, MALL_LIFT_Z } from './hotel-world.js';
 import { hotelSignTexture } from './hotel-sign.js';
 
@@ -62,6 +63,24 @@ export class MallScene {
     this.mallPeople = [];
     this.mallCars = [];
     this.ropeMeshes = [];
+    this.kineticOrbs = [];
+    this.fountainJets = [];
+    this.ledStepTiles = [];
+    this.djPlatters = [];
+    this.djEqBars = [];
+    this.bowlingPins = [];
+    this.bowlingBall = null;
+    this.bowlingStrikeUntil = -1;
+    this.rhythmTiles = [];
+    this.teamLabPillars = [];
+    this.sushiPlates = [];
+    this.teppanFlames = [];
+    this.teppanFlareUntil = -1;
+    this.fountainShowUntil = -1;
+    this.kineticShowUntil = -1;
+    this.robotDogTrickUntil = -1;
+    this.campfireFlame = null;
+    this.cinemaMovieIndex = 0;
 
     const mat = (color, roughness = 0.68, metalness = 0.05) =>
       new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -147,6 +166,8 @@ export class MallScene {
 
     this.buildAtriumLibrarySpine();
     this.buildWaterfallTower();
+    this.buildSpiralSlide();
+    this.buildKineticAurora();
     this.buildExterior();
     this.buildPanoramicElevator();
     this.buildMallCrowd();
@@ -449,6 +470,18 @@ export class MallScene {
       [3.6, 0.58],
       0
     );
+
+    if (f === 4) {
+      // B1 Hypercar Showroom & Test-Drive Cockpit Pod (clear north-west bay)
+      const podMat = new THREE.MeshStandardMaterial({ color: 0xd93829, roughness: 0.22, metalness: 0.65 });
+      const info = { action: 'mallSupercarDrive', floorIndex: 4, label: 'B1 하이퍼카 시승 체험존' };
+      const plinth = this.box(g, 'Mall_supercar_testdrive', [2.8, 0.14, 5.0], [-35.8, 0.07, 11.8], m.charcoal, f, info);
+      plinth.userData.dynamic = true;
+      this.box(g, 'Mall_supercar_rim', [2.9, 0.04, 5.1], [-35.8, 0.15, 11.8], m.cyanLed);
+      this.box(g, 'Mall_supercar_body', [1.85, 0.44, 4.2], [-35.8, 0.44, 11.8], podMat, null, info);
+      this.box(g, 'Mall_supercar_cockpit', [1.42, 0.38, 1.85], [-35.8, 0.82, 11.9], m.glass, null, info);
+      this.sign(g, 'Mall_supercar_sign', ['B1 HYPERCAR DRIVE EXPERIENCE', '클릭 시 운전석 시승 체험 🏎️'], [-35.8, 2.4, 9.4], [3.6, 0.62], 0);
+    }
   }
 
   buildStorefront(g, f, spec) {
@@ -606,6 +639,54 @@ export class MallScene {
     });
     const poolWater = this.box(g, 'Mall_waterfall_pool', [7.4, 0.12, 3.2], [-19.0, 0.24, 32.2], m.water);
     poolWater.userData.dynamic = true;
+    // Musical Fountain Jets inside Waterfall Reflecting Pool
+    for (let j = 0; j < 6; j++) {
+      const jet = new THREE.Mesh(unitCyl, m.cyanLed);
+      jet.name = `Mall_fountain_jet_${j}`;
+      jet.scale.set(0.09, 0.4, 0.09);
+      jet.position.set(-21.8 + j * 1.12, 0.35, 32.2);
+      jet.userData = { dynamic: true, baseX: -21.8 + j * 1.12, phase: j * 0.65 };
+      this.markInteractive(jet, { action: 'mallFountainShow', floorIndex: 5, label: '워터폴 뮤지컬 분수쇼 시작' });
+      g.add(jet);
+      this.fountainJets.push(jet);
+    }
+    this.box(g, 'Mall_fountain_console', [0.8, 1.05, 0.6], [-23.4, 0.525, 29.6], m.champagne, 5, {
+      action: 'mallFountainShow',
+      floorIndex: 5,
+      label: '워터폴 뮤지컬 레이저 분수쇼 ⛲',
+    });
+
+    // Atrium Grand Piano Live Busking Stage (open M1F court)
+    const pianoGroup = new THREE.Group();
+    pianoGroup.name = 'Mall_grand_piano';
+    pianoGroup.position.set(-29.5, 0, 17.5);
+    g.add(pianoGroup);
+    const pianoInfo = { action: 'mallPiano', floorIndex: 5, label: '아트리움 그랜드 피아노 연주 🎹' };
+    this.box(pianoGroup, 'Piano_body', [1.8, 0.32, 1.4], [0, 0.86, 0], m.black, 5, pianoInfo);
+    const pianoLid = this.box(pianoGroup, 'Piano_lid', [1.7, 0.06, 1.2], [0, 1.22, -0.15], m.black, null, pianoInfo);
+    pianoLid.rotation.x = 0.38;
+    this.box(pianoGroup, 'Piano_keys', [1.5, 0.08, 0.34], [0, 0.82, 0.68], m.white, null, pianoInfo);
+    this.box(pianoGroup, 'Piano_bench', [1.0, 0.48, 0.42], [0, 0.24, 1.3], m.black, null, pianoInfo);
+    for (const [lx, lz] of [
+      [-0.75, -0.5],
+      [0.75, -0.5],
+      [0, 0.5],
+    ]) {
+      this.rail(pianoGroup, [lx, 0, lz], [lx, 0.72, lz], m.champagne, 0.045);
+    }
+    this.world.addObstacle(5, -30.5, -28.5, 16.5, 19.0);
+
+    // Kinetic Light Show & Spiral Slide Arrival Pad on M1F
+    this.box(g, 'Mall_kinetic_console_1F', [0.75, 1.05, 0.55], [-29.5, 0.525, 14.0], m.charcoal, 5, {
+      action: 'mallKineticShow',
+      floorIndex: 5,
+      label: '오픈 아트리움 키네틱 고래 라이트쇼 🐋',
+    });
+    this.box(g, 'Mall_kinetic_gem_1F', [0.42, 0.16, 0.42], [-29.5, 1.12, 14.0], m.cyanLed, null, {
+      action: 'mallKineticShow',
+      floorIndex: 5,
+      label: '키네틱 라이트쇼 트리거',
+    });
     for (let s = 0; s < 3; s++) {
       this.box(g, `Mall_waterfall_step_${s}`, [5.2, 0.28 * (s + 1), 0.65], [-24.6, 0.14 * (s + 1), 30.8 - s * 0.7], m.warmWood, 5, {
         action: 'mallWaterfall',
@@ -713,8 +794,231 @@ export class MallScene {
       this.buildStorefront(g, f, storeSpec);
     }
 
-    // On M4F (floor 11), add indoor biophilic dining planter groves along the South/North promenade
+    // On M2F (floor 7): 4-Cut Photo Booth, LP Vinyl DJ Booth, and Starfield Reading Desk
+    if (f === 7) {
+      // Self 4-Cut Photo Studio Booth (x=-24.2, z=8.0)
+      const pbInfo = { action: 'mallPhotoBooth', floorIndex: f, label: '인생네컷 셀프 포토부스 촬영 📸' };
+      this.box(g, 'Mall_photo_booth', [2.2, 2.6, 1.7], [-24.2, 1.3, 8.0], m.vermilion, f, pbInfo);
+      this.box(g, 'Mall_photo_ring', [0.9, 0.9, 0.12], [-24.2, 1.65, 8.88], m.warmLed, null, pbInfo);
+      this.sign(g, 'Mall_photo_sign', ['PHOTO 4-CUT STUDIO', '클릭 시 플래시 촬영 📸'], [-24.2, 2.85, 8.88], [2.2, 0.45], 0);
+
+      // LP Vinyl DJ Booth (x=-31.5, z=31.2)
+      const djInfo = { action: 'mallDjBooth', floorIndex: f, label: 'LP 바이닐 DJ 턴테이블 🎧' };
+      this.box(g, 'Mall_dj_booth', [3.2, 1.08, 1.2], [-31.5, 0.54, 31.2], m.darkOak, f, djInfo);
+      for (const ox of [-0.7, 0.7]) {
+        const vinyl = new THREE.Mesh(unitCyl, m.black);
+        vinyl.scale.set(0.36, 0.03, 0.36);
+        vinyl.position.set(-31.5 + ox, 1.11, 31.2);
+        vinyl.userData.dynamic = true;
+        this.markInteractive(vinyl, djInfo);
+        g.add(vinyl);
+        this.djPlatters.push(vinyl);
+      }
+      for (let b = 0; b < 7; b++) {
+        const eq = new THREE.Mesh(unitBox, m.cyanLed);
+        eq.scale.set(0.22, 0.45, 0.08);
+        eq.position.set(-32.4 + b * 0.3, 1.3, 30.55);
+        eq.userData = { dynamic: true, phase: b * 0.7 };
+        g.add(eq);
+        this.djEqBars.push(eq);
+      }
+
+      // Starfield Library Reading Desk overlooking Atrium (x=-43.5, z=20.0)
+      const libDeskInfo = { action: 'mallLibrarySeat', floorIndex: f, seatX: -43.5, seatZ: 20.0, seatYaw: Math.PI / 2, label: '별마당 도서관 열람석 착석 📖' };
+      this.box(g, 'Mall_library_desk', [1.2, 0.76, 3.6], [-43.5, 0.38, 20.0], m.warmWood, f, libDeskInfo);
+      this.box(g, 'Mall_library_lamp', [0.35, 0.35, 0.35], [-43.5, 0.94, 20.0], m.warmLed, null, libDeskInfo);
+    }
+
+    // On M3F (floor 9): Neon Bowling, Claw/Gacha Arcade, Rhythm Stage, teamLab Light Room & AI Robot Dog
+    if (f === 9) {
+      // 1. Neon Mini Bowling Lane along North Gallery (x ∈ [-46.5, -36.5], z = 7.4)
+      const bowlInfo = { action: 'mallBowling', floorIndex: f, label: '네온 미니 볼링 스트라이크 도전 🎳' };
+      this.box(g, 'Mall_bowling_lane', [9.0, 0.14, 1.8], [-42.0, 0.07, 7.4], m.warmWood, null, bowlInfo);
+      this.box(g, 'Mall_bowling_neon_L', [9.0, 0.08, 0.1], [-42.0, 0.15, 6.5], m.cyanLed, null, bowlInfo);
+      this.box(g, 'Mall_bowling_neon_R', [9.0, 0.08, 0.1], [-42.0, 0.15, 8.3], m.cyanLed, null, bowlInfo);
+      const ball = new THREE.Mesh(unitSphere, m.vermilion);
+      ball.scale.setScalar(0.2);
+      ball.position.set(-38.0, 0.32, 7.4);
+      ball.userData.dynamic = true;
+      this.markInteractive(ball, bowlInfo);
+      g.add(ball);
+      this.bowlingBall = ball;
+      for (const [px, pz] of [
+        [-45.6, 7.4],
+        [-46.0, 7.15],
+        [-46.0, 7.65],
+        [-46.4, 6.95],
+        [-46.4, 7.4],
+        [-46.4, 7.85],
+      ]) {
+        const pin = new THREE.Mesh(unitCyl, m.white);
+        pin.scale.set(0.08, 0.48, 0.08);
+        pin.position.set(px, 0.38, pz);
+        pin.userData = { dynamic: true, basePos: [px, 0.38, pz] };
+        this.markInteractive(pin, bowlInfo);
+        g.add(pin);
+        this.bowlingPins.push(pin);
+      }
+      this.box(g, 'Mall_bowling_backstop', [0.5, 2.2, 2.1], [-46.8, 1.1, 7.4], m.charcoal, f, bowlInfo);
+
+      // 2. Claw Machine & Gacha Wall (x = -20.5, z = 7.4)
+      const arcInfo = { action: 'mallArcade', floorIndex: f, label: '인형뽑기 & 캡슐 가챠폰 뽑기 🕹️' };
+      this.box(g, 'Mall_arcade_claw', [3.0, 2.2, 1.1], [-20.5, 1.1, 7.4], m.charcoal, f, arcInfo);
+      this.box(g, 'Mall_arcade_glass', [2.6, 1.1, 1.15], [-20.5, 1.45, 7.4], m.glass, null, arcInfo);
+      for (const [cx, clr] of [
+        [-21.2, 0xf28b82],
+        [-20.5, 0xfbbc04],
+        [-19.8, 0x81c995],
+      ]) {
+        const capMat = new THREE.MeshStandardMaterial({ color: clr, roughness: 0.25 });
+        this.sph(g, 'Mall_gacha_capsule', 0.22, [cx, 1.15, 7.4], capMat, [1, 1, 1], arcInfo);
+      }
+
+      // 3. Walkable 3x3 Neon Rhythm Dance Stage (x = -27.5, z = 31.0)
+      const rhythmInfo = { action: 'mallRhythmFloor', floorIndex: f, label: '네온 리듬 댄스 스테이지 밟기 💃' };
+      for (let rx = 0; rx < 3; rx++) {
+        for (let rz = 0; rz < 3; rz++) {
+          const tileMat = new THREE.MeshStandardMaterial({
+            color: 0x1b2b36,
+            emissive: 0x3b8eff,
+            emissiveIntensity: 0.45,
+            roughness: 0.25,
+          });
+          const tile = new THREE.Mesh(unitBox, tileMat);
+          tile.name = `Mall_rhythm_tile_${rx}_${rz}`;
+          tile.scale.set(1.05, 0.04, 1.05);
+          tile.position.set(-28.6 + rx * 1.15, 0.02, 29.8 + rz * 1.15);
+          tile.userData = { dynamic: true, phase: rx * 0.9 + rz * 1.3 };
+          this.markInteractive(tile, rhythmInfo);
+          g.add(tile);
+          this.rhythmTiles.push(tile);
+        }
+      }
+
+      // 4. teamLab-Style Infinity Light Interactive Room (x = -45.5, z = 30.2)
+      const tlInfo = { action: 'mallTeamLab', floorIndex: f, label: '인피니티 라이트 미디어아트 룸 체험 🌌' };
+      this.box(g, 'Mall_teamlab_room', [7.2, 4.6, 5.4], [-45.5, 2.3, 30.2], m.black);
+      this.sign(g, 'Mall_teamlab_sign', ['INFINITE LIGHT GARDEN · teamLab', '디지털 미디어아트 체험관'], [-41.85, 3.6, 30.2], [3.6, 0.72], Math.PI / 2);
+      for (let i = 0; i < 6; i++) {
+        const px = -47.6 + (i % 3) * 2.0;
+        const pz = 28.8 + Math.floor(i / 3) * 2.6;
+        const pMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: 0x4fb8ff,
+          emissiveIntensity: 0.85,
+          transparent: true,
+          opacity: 0.88,
+        });
+        const pil = new THREE.Mesh(unitCyl, pMat);
+        pil.name = `Mall_teamlab_pillar_${i}`;
+        pil.scale.set(0.18, 4.2, 0.18);
+        pil.position.set(px, 2.1, pz);
+        pil.userData = { dynamic: true, phase: i * 0.85 };
+        this.markInteractive(pil, tlInfo);
+        g.add(pil);
+        this.teamLabPillars.push(pil);
+      }
+
+      // 5. Kinetic Light Show Trigger Console on Skybridge West Entrance
+      this.box(g, 'Mall_kinetic_console_3F', [0.7, 1.05, 0.55], [-21.8, 0.525, 20.0], m.charcoal, f, {
+        action: 'mallKineticShow',
+        floorIndex: f,
+        label: '아트리움 공중 키네틱 쇼 제어 🐋',
+      });
+
+      // 6. AI Robot Dog (SPOT-M) patrolling M3F Skybridge (z = 20.0)
+      const dog = new THREE.Group();
+      dog.name = 'Mall_robot_dog';
+      dog.position.set(-31.0, 0, 20.0);
+      dog.userData.dynamic = true;
+      const dogInfo = { action: 'mallRobotDog', floorIndex: f, label: 'AI 로봇강아지 SPOT-M 하이파이브 🐕' };
+      const dogBody = new THREE.Mesh(unitBox, m.yellow);
+      dogBody.scale.set(0.34, 0.24, 0.68);
+      dogBody.position.y = 0.42;
+      this.markInteractive(dogBody, dogInfo);
+      const dogHead = new THREE.Mesh(unitBox, m.charcoal);
+      dogHead.scale.set(0.24, 0.2, 0.28);
+      dogHead.position.set(0, 0.56, 0.38);
+      this.markInteractive(dogHead, dogInfo);
+      const dogVisor = new THREE.Mesh(unitBox, m.cyanLed);
+      dogVisor.scale.set(0.22, 0.08, 0.04);
+      dogVisor.position.set(0, 0.57, 0.52);
+      dog.add(dogBody, dogHead, dogVisor);
+      for (const [lx, lz] of [
+        [-0.14, 0.24],
+        [0.14, 0.24],
+        [-0.14, -0.24],
+        [0.14, -0.24],
+      ]) {
+        const leg = new THREE.Mesh(unitCyl, m.black);
+        leg.scale.set(0.05, 0.36, 0.05);
+        leg.position.set(lx, 0.18, lz);
+        dog.add(leg);
+      }
+      g.add(dog);
+      this.robotDog = dog;
+    }
+
+    // On M4F (floor 11): Rotating Conveyor Belt Sushi, Live Teppanyaki Flames, Matcha Bar, & Slide Portal
     if (f === 11) {
+      // 1. Rotating Conveyor Belt Sushi (Kaitenzushi) at x=-20.5, z=8.0
+      const sushiInfo = { action: 'mallSushiBelt', floorIndex: f, label: '회전초밥 오마카세 한 접시 맛보기 🍣' };
+      this.box(g, 'Mall_sushi_belt', [5.2, 0.85, 2.0], [-20.5, 0.425, 8.0], m.darkOak, f, sushiInfo);
+      this.box(g, 'Mall_sushi_track', [4.8, 0.06, 1.5], [-20.5, 0.88, 8.0], m.charcoal, null, sushiInfo);
+      for (let i = 0; i < 8; i++) {
+        const plateMat = new THREE.MeshStandardMaterial({ color: i % 2 ? 0xe6843c : 0x57b887, roughness: 0.3 });
+        const plate = new THREE.Mesh(unitCyl, plateMat);
+        plate.name = `Mall_sushi_plate_${i}`;
+        plate.scale.set(0.24, 0.06, 0.24);
+        plate.userData = { dynamic: true, idx: i, cx: -20.5, cz: 8.0 };
+        this.markInteractive(plate, sushiInfo);
+        g.add(plate);
+        this.sushiPlates.push(plate);
+      }
+
+      // 2. Open Kitchen Live Teppanyaki Grill (x=-35.5, z=8.0)
+      const teppInfo = { action: 'mallTeppanyaki', floorIndex: f, label: '테판야키 라이브 플람베 불꽃쇼 🔥' };
+      this.box(g, 'Mall_teppanyaki_grill', [3.8, 0.92, 1.4], [-35.5, 0.46, 8.0], m.steel, f, teppInfo);
+      for (let k = 0; k < 3; k++) {
+        const fMat = new THREE.MeshStandardMaterial({
+          color: 0xff7b29,
+          emissive: 0xff4500,
+          emissiveIntensity: 0.9,
+          transparent: true,
+          opacity: 0.85,
+        });
+        const flame = new THREE.Mesh(unitSphere, fMat);
+        flame.name = `Mall_teppanyaki_flame_${k}`;
+        flame.scale.set(0.22, 0.38, 0.22);
+        flame.position.set(-36.4 + k * 0.9, 1.15, 8.0);
+        flame.userData = { dynamic: true, baseY: 1.15, phase: k * 1.1 };
+        this.markInteractive(flame, teppInfo);
+        g.add(flame);
+        this.teppanFlames.push(flame);
+      }
+
+      // 3. Kyoto Matcha Gelato Tasting Kiosk (x=-45.5, z=30.8) & Atrium Terrace Dining Table
+      this.box(g, 'Mall_matcha_bar', [2.6, 1.0, 1.0], [-45.5, 0.5, 30.8], m.leaf, f, {
+        action: 'mallMatchaCone',
+        floorIndex: f,
+        label: '교토 프리미엄 말차 젤라또 수령 🍵',
+      });
+      this.cyl(g, 'Mall_dining_table_terrace', 0.85, 0.85, 0.78, [-31.0, 0.39, 10.6], m.terrazzo, f, {
+        action: 'mallDiningSeat',
+        floorIndex: f,
+        seatX: -31.0,
+        seatZ: 9.6,
+        seatYaw: Math.PI,
+        label: 'M4F 아트리움 테라스 테이블 착석 🍽️',
+      });
+
+      // 4. Spiral Slide Boarding Deck Portal at M4F South-West Void Rim (-38.2, 27.6)
+      this.box(g, 'Mall_slide_gate_M4F', [1.4, 1.6, 0.9], [-38.2, 0.8, 27.6], m.cyanLed, null, {
+        action: 'mallSpiralSlide',
+        floorIndex: f,
+        label: '35m 투명 나선형 슬라이드 탑승 (M4F→M1F) 🛝',
+      });
+
       for (const [tx, tz] of [
         [-25.5, 31.2],
         [-29.5, 31.2],
@@ -889,14 +1193,114 @@ export class MallScene {
       });
     }
 
+    // 4. M5F 4DX Program Switcher Console, Top Spiral Slide Portal, Glamping Campfire, & Wishing Fountain
+    this.box(g, 'Mall_cinema_switcher', [0.75, 1.12, 0.55], [-40.8, 0.56, 18.2], m.charcoal, f, {
+      action: 'mallCinemaSwitch',
+      floorIndex: f,
+      label: 'IMAX 4DX 상영 영화 실시간 변경 🎬',
+    });
+    this.box(g, 'Mall_cinema_switcher_led', [0.46, 0.16, 0.36], [-40.8, 1.18, 18.2], m.cyanLed, null, {
+      action: 'mallCinemaSwitch',
+      floorIndex: f,
+      label: '상영작 전환',
+    });
+
+    this.box(g, 'Mall_slide_gate_M5F', [1.4, 1.6, 0.9], [-38.2, 0.8, 25.0], m.cyanLed, null, {
+      action: 'mallSpiralSlide',
+      floorIndex: f,
+      label: '35m 투명 나선형 슬라이드 탑승 (M5F→M1F 활강) 🛝',
+    });
+
+    // Glamping Campfire & Marshmallow Lounge
+    const fireInfo = { action: 'mallCampfire', floorIndex: f, label: '사운즈 포레스트 모닥불 불멍 & 마시멜로 🔥' };
+    this.cyl(g, 'Mall_glamping_campfire', 1.1, 1.25, 0.32, [-21.5, 0.32, 31.5], m.travertine, f, fireInfo);
+    const flameMat = new THREE.MeshStandardMaterial({
+      color: 0xff8a2b,
+      emissive: 0xff4d00,
+      emissiveIntensity: 0.95,
+      transparent: true,
+      opacity: 0.88,
+    });
+    const campFlame = new THREE.Mesh(unitSphere, flameMat);
+    campFlame.name = 'Mall_campfire_flame';
+    campFlame.scale.set(0.38, 0.72, 0.38);
+    campFlame.position.set(-21.5, 0.88, 31.5);
+    campFlame.userData.dynamic = true;
+    this.markInteractive(campFlame, fireInfo);
+    g.add(campFlame);
+    this.campfireFlame = campFlame;
+
+    // Central Wishing Fountain (between twin lightwells at -28, 20)
+    const wishInfo = { action: 'mallWishingWell', floorIndex: f, label: '행운의 소원 분수 동전 던지기 🪙' };
+    this.cyl(g, 'Mall_wishing_fountain', 1.45, 1.55, 0.56, [-28.0, 0.28, 20.0], m.travertine, f, wishInfo);
+    const wishWater = this.cyl(g, 'Mall_wishing_water', 1.28, 1.28, 0.1, [-28.0, 0.56, 20.0], m.water, null, wishInfo);
+    wishWater.userData.dynamic = true;
+
     this.sign(
       g,
       'Mall_M5F_banner',
-      ['M5F GRAND CINEMA · IMAX MULTIPLEX & SOUNDS FOREST', '시네마 매표소 · IMAX 상영관 · 사운즈 포레스트 천창 정원'],
+      ['M5F GRAND CINEMA · IMAX MULTIPLEX & SOUNDS FOREST', '시네마 매표소 · 4DX 상영관 · 모닥불 정원 · 35m 슬라이드'],
       [-28.0, 5.4, 11.8],
       [6.4, 0.92],
       0
     );
+  }
+
+  buildSpiralSlide() {
+    // 35m Giant Transparent Glass Spiral Slide descending from M5F (28m) & M4F (21m) to M1F (0.2m)
+    const slide = new THREE.Group();
+    slide.name = 'Mall_spiral_slide';
+    const cx = -38.2;
+    const cz = 25.0;
+    const r = 1.95;
+    const turns = 3.2;
+    const totalSegs = 28;
+    const topY = 28.0;
+    for (let i = 0; i < totalSegs; i++) {
+      const t0 = i / totalSegs;
+      const t1 = (i + 1) / totalSegs;
+      const a0 = t0 * Math.PI * 2 * turns;
+      const a1 = t1 * Math.PI * 2 * turns;
+      const p0 = [cx + Math.cos(a0) * r, topY * (1 - t0) + 0.35, cz + Math.sin(a0) * r];
+      const p1 = [cx + Math.cos(a1) * r, topY * (1 - t1) + 0.35, cz + Math.sin(a1) * r];
+      this.rail(slide, p0, p1, this.m.glass, 0.52);
+      if (i % 4 === 0) {
+        this.rail(slide, p0, p1, this.m.champagne, 0.08);
+      }
+    }
+    this.box(slide, 'Mall_slide_finish_pad', [2.6, 0.25, 2.2], [-36.2, 0.125, 25.0], this.m.cyanLed, null, {
+      action: 'mallKineticShow',
+      floorIndex: 5,
+      label: '35m 스파이럴 슬라이드 도착 패드',
+    });
+    this.root.add(slide);
+  }
+
+  buildKineticAurora() {
+    // Inspire-style Aerial Kinetic Whale & Drone Wave Lights under the 35m Glass Skylight
+    const group = new THREE.Group();
+    group.name = 'Mall_kinetic_aurora_show';
+    for (let i = 0; i < 16; i++) {
+      const t = i / 15;
+      const ox = -37.0 + t * 12.0;
+      const oz = 20.0 + Math.sin(t * Math.PI * 2) * 3.8;
+      const oy = 25.5 + Math.sin(t * Math.PI) * 3.2;
+      const orbMat = new THREE.MeshStandardMaterial({
+        color: 0x9cf7ec,
+        emissive: 0x3ecfb9,
+        emissiveIntensity: 0.9,
+        roughness: 0.18,
+      });
+      const orb = new THREE.Mesh(unitSphere, orbMat);
+      orb.name = `Mall_kinetic_orb_${i}`;
+      orb.scale.setScalar(i % 4 === 0 ? 0.45 : 0.28);
+      orb.position.set(ox, oy, oz);
+      orb.userData = { dynamic: true, baseX: ox, baseY: oy, baseZ: oz, phase: i * 0.42 };
+      this.markInteractive(orb, { action: 'mallKineticShow', label: '공중 키네틱 고래 라이트쇼 🐋' });
+      group.add(orb);
+      this.kineticOrbs.push(orb);
+    }
+    this.root.add(group);
   }
 
   buildAtriumLibrarySpine() {
@@ -1103,6 +1507,26 @@ export class MallScene {
     ext.add(sculpture);
     this.box(ext, 'Mall_sculpture_plinth', [2.2, 0.55, 2.2], [-22.0, 0.275, 43.2], m.travertine, 5);
     this.plazaSculpture = sculpture;
+
+    // Outdoor Interactive LED Step Tiles in Plaza walkway (x ∈ [-35, -29], z ∈ [37.5, 41.5])
+    for (let sx = 0; sx < 4; sx++) {
+      for (let sz = 0; sz < 3; sz++) {
+        const stepMat = new THREE.MeshStandardMaterial({
+          color: 0x203542,
+          emissive: 0x4fb8ff,
+          emissiveIntensity: 0.45,
+          roughness: 0.3,
+        });
+        const tile = new THREE.Mesh(unitBox, stepMat);
+        tile.name = `Mall_plaza_led_step_${sx}_${sz}`;
+        tile.scale.set(1.2, 0.03, 1.1);
+        tile.position.set(-34.2 + sx * 1.45, 0.015, 37.8 + sz * 1.35);
+        tile.userData = { dynamic: true, phase: sx * 0.7 + sz * 1.1 };
+        this.markInteractive(tile, { action: 'mallLedStep', floorIndex: 5, label: '야외 광장 LED 라이트 스텝 ✨' });
+        ext.add(tile);
+        this.ledStepTiles.push(tile);
+      }
+    }
   }
 
   buildPanoramicElevator() {
@@ -1576,6 +2000,44 @@ export class MallScene {
     }
   }
 
+  triggerFountainShow(time = 0) {
+    this.fountainShowUntil = time + 12.0;
+  }
+
+  triggerKineticShow(time = 0) {
+    this.kineticShowUntil = time + 12.0;
+  }
+
+  triggerBowlingStrike(time = 0) {
+    this.bowlingStrikeUntil = time + 3.2;
+  }
+
+  triggerTeppanyakiFlame(time = 0) {
+    this.teppanFlareUntil = time + 4.5;
+  }
+
+  triggerRobotDogTrick(time = 0) {
+    this.robotDogTrickUntil = time + 3.0;
+  }
+
+  setCinemaMovie(movieIndex = 0) {
+    this.cinemaMovieIndex = movieIndex % MALL_CINEMA_MOVIES.length;
+    const disp = this.cinemaScreen;
+    if (!disp?.ctx) return;
+    const movie = MALL_CINEMA_MOVIES[this.cinemaMovieIndex];
+    const { ctx, canvas, tex } = disp;
+    ctx.fillStyle = movie.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = movie.accent;
+    ctx.font = 'bold 60px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(movie.title, canvas.width / 2, canvas.height / 2 - 20);
+    ctx.fillStyle = '#f2efe9';
+    ctx.font = 'bold 32px sans-serif';
+    ctx.fillText(movie.sub, canvas.width / 2, canvas.height / 2 + 44);
+    tex.needsUpdate = true;
+  }
+
   update(mc, time = 0, player = null) {
     if (!mc) return;
     const carY = mc.position - 5 * PITCH; // floor 5 (M1F) -> y = 0, floor 13 (M5F) -> y = 28.0m
@@ -1644,6 +2106,112 @@ export class MallScene {
     if (this.plazaSculpture) {
       this.plazaSculpture.rotation.y = time * 0.32;
       this.plazaSculpture.rotation.x = Math.sin(time * 0.5) * 0.18;
+    }
+
+    // Animate Kinetic Whale & Drone Show
+    const kinBoost = time < (this.kineticShowUntil ?? -1) ? 2.4 : 1.0;
+    for (const orb of this.kineticOrbs) {
+      const ph = time * 1.4 * kinBoost + orb.userData.phase;
+      orb.position.y = orb.userData.baseY + Math.sin(ph) * (kinBoost > 1 ? 2.2 : 0.9);
+      orb.position.z = orb.userData.baseZ + Math.cos(ph * 0.7) * 0.65;
+      const hue = (((time * 0.08 * kinBoost + orb.userData.phase * 0.1) % 1) + 1) % 1;
+      orb.material.emissive.setHSL(hue, 0.85, 0.56);
+    }
+
+    // Animate Musical Fountain Jets
+    const fountainBoost = time < (this.fountainShowUntil ?? -1);
+    for (const jet of this.fountainJets) {
+      const h = fountainBoost
+        ? 2.2 + Math.abs(Math.sin(time * 5.2 + jet.userData.phase)) * 4.8
+        : 0.45 + Math.abs(Math.sin(time * 2.2 + jet.userData.phase)) * 0.6;
+      jet.scale.y = h;
+      jet.position.y = 0.25 + h / 2;
+      if (fountainBoost) {
+        jet.material.emissive.setHSL(((time * 0.35 + jet.userData.phase) % 1 + 1) % 1, 0.9, 0.6);
+      } else {
+        jet.material.emissive.setHex(0x39c9bb);
+      }
+    }
+
+    // Animate Plaza Interactive LED Step Tiles
+    for (const tile of this.ledStepTiles) {
+      const dist =
+        player && player.floor === 5 ? Math.hypot(player.x - tile.position.x, player.z - tile.position.z) : 99;
+      if (dist < 1.5) {
+        tile.material.emissive.setHex(0xffd269);
+        tile.material.emissiveIntensity = 1.25;
+      } else {
+        tile.material.emissive.setHSL(((time * 0.1 + tile.userData.phase * 0.2) % 1 + 1) % 1, 0.7, 0.5);
+        tile.material.emissiveIntensity = 0.42;
+      }
+    }
+
+    // Animate M2F DJ Platters & Equalizer
+    for (const p of this.djPlatters) p.rotation.y = time * 3.2;
+    for (const eq of this.djEqBars) {
+      const h = 0.18 + Math.abs(Math.sin(time * 7.5 + eq.userData.phase)) * 0.68;
+      eq.scale.y = h;
+      eq.position.y = 1.08 + h / 2;
+    }
+
+    // Animate M3F Neon Mini Bowling Strike & Reset
+    if (this.bowlingBall) {
+      const strikeAge = time - ((this.bowlingStrikeUntil ?? -1) - 3.2);
+      if (time < (this.bowlingStrikeUntil ?? -1) && strikeAge >= 0) {
+        const p = Math.min(1, strikeAge / 1.1);
+        this.bowlingBall.position.x = -38.0 - p * 8.0;
+        for (const [idx, pin] of this.bowlingPins.entries()) {
+          if (p > 0.85) {
+            pin.rotation.z = (idx % 2 ? 1 : -1) * 1.25;
+            pin.position.y = 0.22;
+          }
+        }
+      } else {
+        this.bowlingBall.position.x = -38.0;
+        for (const pin of this.bowlingPins) {
+          pin.rotation.z = 0;
+          pin.position.set(...pin.userData.basePos);
+        }
+      }
+    }
+
+    // Animate M3F Rhythm Floor, teamLab Pillars, & Robot Dog
+    for (const tile of this.rhythmTiles) {
+      const dist = player && player.floor === 9 ? Math.hypot(player.x - tile.position.x, player.z - tile.position.z) : 99;
+      tile.material.emissive.setHSL(((time * 0.18 + tile.userData.phase * 0.15) % 1 + 1) % 1, 0.85, dist < 1.2 ? 0.65 : 0.45);
+      tile.material.emissiveIntensity = dist < 1.2 ? 1.4 : 0.52;
+    }
+    for (const pil of this.teamLabPillars) {
+      pil.material.emissive.setHSL(((time * 0.12 + pil.userData.phase * 0.18) % 1 + 1) % 1, 0.85, 0.55);
+    }
+    if (this.robotDog) {
+      const dx = Math.sin(time * 0.45) * 6.0;
+      this.robotDog.position.x = -30.5 + dx;
+      this.robotDog.rotation.y = Math.cos(time * 0.45) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+      if (time < (this.robotDogTrickUntil ?? -1)) {
+        this.robotDog.position.y = Math.abs(Math.sin(time * 10)) * 0.35;
+      } else {
+        this.robotDog.position.y = 0;
+      }
+    }
+
+    // Animate M4F Conveyor Belt Sushi Plates & Teppanyaki Flames
+    for (const plate of this.sushiPlates) {
+      const a = time * 0.45 + (plate.userData.idx * Math.PI * 2) / this.sushiPlates.length;
+      plate.position.set(plate.userData.cx + Math.cos(a) * 1.9, 0.94, plate.userData.cz + Math.sin(a) * 0.48);
+    }
+    const flare = time < (this.teppanFlareUntil ?? -1);
+    for (const fl of this.teppanFlames) {
+      const s = flare ? 0.8 + Math.abs(Math.sin(time * 14 + fl.userData.phase)) * 0.95 : 0.25 + Math.sin(time * 6 + fl.userData.phase) * 0.08;
+      fl.scale.set(0.24, s, 0.24);
+      fl.position.y = 0.96 + s * 0.5;
+    }
+
+    // Animate M5F Glamping Campfire
+    if (this.campfireFlame) {
+      const cs = 0.58 + Math.sin(time * 9.5) * 0.18;
+      this.campfireFlame.scale.set(0.38, cs, 0.38);
+      this.campfireFlame.position.y = 0.52 + cs * 0.5;
     }
 
     // Animate 32 Mall Visitors walking smoothly along patrol segments & swinging limbs

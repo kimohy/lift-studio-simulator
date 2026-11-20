@@ -371,10 +371,157 @@ const MALL_INTERACTION_SPECS = {
   mallCinemaSeat: {
     points: 55,
     energy: 12,
-    item: 'IMAX VIP 리클라이너 좌석 💺',
-    message: '💺 [IMAX VIP 리클라이너 착석] 스크린 정면 VIP 좌석에 편안히 기대어 영화를 감상합니다.',
+    item: 'IMAX VIP 4DX 리클라이너 좌석 💺',
+    message: '💺 [IMAX VIP 4DX 착석] 스크린 정면 리클라이너 좌석에 편안히 앉아 입체 영화를 감상합니다.',
+  },
+  mallSpiralSlide: {
+    points: 95,
+    energy: 15,
+    item: '35m 아트리움 스파이럴 슬라이드 탑승권 🛝',
+    message: '🛝 [35m 자이언트 투명 슬라이드] 아트리움 상층부에서 1층까지 투명 나선형 튜브를 타고 스릴 있게 활강했습니다!',
+  },
+  mallKineticShow: {
+    points: 70,
+    energy: 14,
+    item: '인스파이어 오로라 고래 라이트쇼 🐋',
+    message: '🐋 [키네틱 고래 & 드론 라이트쇼] 35m 천창 아래 허공에서 발광 키네틱 링과 드론 군집이 환상적인 파동을 그립니다!',
+  },
+  mallFountainShow: {
+    points: 65,
+    energy: 15,
+    item: '워터폴 뮤지컬 레이저 분수쇼 ⛲',
+    message: '⛲ [워터폴 뮤지컬 분수쇼] 14m 폭포수 아래 물줄기와 멀티 컬러 레이저 조명이 음악에 맞춰 춤을 춥니다!',
+  },
+  mallPiano: {
+    points: 55,
+    energy: 14,
+    item: '아트리움 그랜드 피아노 라이브 🎹',
+    message: '🎹 [그랜드 피아노 버스킹] 중정 한가운데 울려 퍼지는 감미로운 피아노 선율에 방문객들이 발걸음을 멈춥니다.',
+  },
+  mallPhotoBooth: {
+    points: 70,
+    energy: 10,
+    item: 'THE GRAND MALL 인생네컷 포토카드 📸',
+    message: '📸 [인생네컷 셀프 포토부스] 셔터와 플래시가 터지며 오늘의 시그니처 네컷 포토카드가 인화되었습니다!',
+  },
+  mallDjBooth: {
+    points: 60,
+    energy: 12,
+    item: '바이닐 LP DJ 부스 패스 🎧',
+    message: '🎧 [LP 바이닐 리스닝 부스] 아날로그 턴테이블 위 바이닐 트랙이 회전하며 몰 사운드가 전환됩니다.',
+  },
+  mallLibrarySeat: {
+    points: 50,
+    energy: 16,
+    item: '별마당 도서관 시그니처 책갈피 📖',
+    message: '📖 [별마당 도서관 열람석] 14m 서가 옆 아늑한 데스크에 앉아 건축·예술 도서를 감상하며 여유를 즐깁니다.',
+  },
+  mallBowling: {
+    points: 85,
+    energy: 14,
+    item: '네온 미니 볼링 스트라이크 🎳',
+    message: '🎳 [네온 미니 볼링] 파워풀한 투구로 핀이 시원하게 쓰러지며 네온 스코어보드가 환호합니다!',
+  },
+  mallArcade: {
+    points: 70,
+    energy: 10,
+    item: '아케이드 & 가챠폰 캡슐토이 🕹️',
+    message: '🕹️ [클로우 머신 & 가챠폰 월] 투명 캡슐 속 리미티드 아트토이 경품을 획득했습니다!',
+  },
+  mallRhythmFloor: {
+    points: 65,
+    energy: 12,
+    item: '네온 리듬 댄스 스테이지 💃',
+    message: '💃 [네온 리듬 스텝 스테이지] 발밑 LED 패널이 박자에 맞춰 폭발하며 신나는 리듬 게임을 즐깁니다!',
+  },
+  mallTeamLab: {
+    points: 85,
+    energy: 16,
+    item: '인피니티 라이트 미디어아트 전시 🌌',
+    message: '🌌 [인피니티 라이트 룸] 발걸음에 반응해 춤추는 빛의 크리스탈 기둥 속에서 환상적인 미디어아트를 체험합니다.',
+  },
+  mallRobotDog: {
+    points: 65,
+    energy: 15,
+    item: 'AI 로봇견 SPOT-M 하이파이브 🐕',
+    message: '🤖🐕 [AI 로봇강아지 SPOT-M] 반갑게 꼬리를 흔들며 재롱을 부리고 하이파이브에 화답했습니다!',
+  },
+  mallSushiBelt: {
+    points: 60,
+    energy: 24,
+    item: '스시 소라 오마카세 한 접시 🍣',
+    message: '🍣 [카이텐즈시 회전초밥] 컨베이어 벨트 위 신선한 참치 대토로 & 연어 아부리 접시를 집어 맛보았습니다!',
+  },
+  mallTeppanyaki: {
+    points: 65,
+    energy: 18,
+    item: '라이브 테판야키 플람베 셰프쇼 🔥',
+    message: '🔥 [테판야키 라이브 불꽃쇼] 셰프의 철판 위에서 화려한 플람베 불꽃과 고소한 스테이크 향이 피어오릅니다!',
+  },
+  mallMatchaCone: {
+    points: 50,
+    energy: 18,
+    item: '교토 프리미엄 말차 젤라또 🍵',
+    message: '🍵 [교토 말차 디저트 랩] 진한 우지 말차 젤라또 콘을 손에 들고 달콤한 산책을 이어갑니다!',
+  },
+  mallCinemaSwitch: {
+    points: 45,
+    energy: 8,
+    item: 'IMAX 4DX 상영 프로그램 리모컨 🎬',
+    message: '🎬 [IMAX 상영작 채널 전환] 새로운 블록버스터 영화로 스크린과 사운드가 전환되었습니다!',
+  },
+  mallCampfire: {
+    points: 75,
+    energy: 22,
+    item: '사운즈 포레스트 글램핑 마시멜로 🔥',
+    message: '🏕️ [글램핑 모닥불 불멍 존] 따뜻한 장작불 앞에서 구운 마시멜로를 즐기며 완벽한 도심 속 힐링을 만끽합니다.',
+  },
+  mallWishingWell: {
+    points: 65,
+    energy: 15,
+    item: '사운즈 포레스트 행운의 금화 🪙',
+    message: '🪙 [행운의 소원 분수] 맑은 물속으로 행운의 동전을 던져 VIP 보너스 포인트를 획득했습니다!',
+  },
+  mallSupercarDrive: {
+    points: 80,
+    energy: 14,
+    item: 'B1 하이퍼카 시승 체험 패스 🏎️',
+    message: '🏎️ [B1 슈퍼카 쇼룸 시승] 운전석 버킷 시트에 올라 시동을 걸자 웅장한 배기음과 웰컴 라이트가 점등됩니다!',
+  },
+  mallLedStep: {
+    points: 45,
+    energy: 8,
+    item: '플라자 인터랙티브 라이트 스텝 ✨',
+    message: '✨ [야외 광장 LED 라이트 스텝] 발을 디딘 타일에서 웨이브 네온 파동이 광장 전체로 퍼져나갑니다!',
+  },
+  mallDiningSeat: {
+    points: 50,
+    energy: 20,
+    item: 'M4F 고메 테라스 다이닝 🍽️',
+    message: '🍽️ [M4F 아트리움 테라스 착석] 중정 뷰 발코니 테이블에 앉아 여유로운 식사를 즐깁니다.',
   },
 };
+
+export const MALL_CINEMA_MOVIES = Object.freeze([
+  { id: 'odyssey', title: 'SPACE ODYSSEY 4DX', sub: '코스믹 4K 레이저 돌비 애트모스', bg: '#07142b', accent: '#6ff2e3' },
+  { id: 'cyber', title: 'CYBERPUNK SEOUL 2099', sub: '네온 퓨처 액션 4DX 시뮬레이션', bg: '#210a2e', accent: '#ff5ec4' },
+  { id: 'forest', title: 'SOUNDS OF NATURE 8K', sub: '알프스 & 오로라 힐링 다큐멘터리', bg: '#09241b', accent: '#8ef576' },
+  { id: 'mystery', title: 'GRAND HOTEL MYSTERY', sub: '로열 스위트 미스터리 오리지널', bg: '#24160a', accent: '#f5cb75' },
+]);
+
+export const MALL_DJ_TRACKS = Object.freeze([
+  { id: 'citypop', title: 'SEOUL CITY POP VINYL', bpm: '116 BPM · MARBLE GROOVE' },
+  { id: 'jazz', title: 'MIDNIGHT JAZZ LOUNGE', bpm: '92 BPM · BRASS & PIANO' },
+  { id: 'aurora', title: 'AURORA SYNTHWAVE MIX', bpm: '124 BPM · KINETIC CLUB' },
+  { id: 'breeze', title: 'ACOUSTIC FOREST BREEZE', bpm: '84 BPM · LO-FI CHILL' },
+]);
+
+const GACHA_PRIZES = [
+  '시그니처 그랜드 베어 키링 🧸',
+  '골드 에디션 미니어처 엘리베이터 🛗',
+  '스타필드 우주비행사 피규어 🧑‍🚀',
+  '네온 아케이드 레트로 미니콘솔 🕹️',
+];
 
 export class HotelStay {
   constructor() {
@@ -392,6 +539,11 @@ export class HotelStay {
     this.rewardedActions = new Set();
     this.lastAmenityItem = null;
     this.cafeSeated = false;
+    this.heldMallItem = null;
+    this.cinemaMovieIndex = 0;
+    this.djTrackIndex = 0;
+    this.gachaCount = 0;
+    this.bowlingStrikes = 0;
   }
 
   get vipTier() {
@@ -648,23 +800,91 @@ export class HotelStay {
     if (!spec) {
       return { ok: false, message: '🛍️ 그랜드 아트리움 몰 시설을 확인했습니다.' };
     }
-    if (action === 'mallCinemaSeat' && player && Number.isFinite(data.seatX) && Number.isFinite(data.seatZ)) {
+
+    let slideRide = null;
+    let extraNote = '';
+    if (action === 'mallSpiralSlide') {
+      const startFloor = player?.floor ?? data.floorIndex ?? 13;
+      if (player) {
+        player.floor = 5;
+        player.zone = 'lobby';
+        player.x = -36.5;
+        player.z = 24.5;
+        player.yaw = Math.PI / 2;
+        player.pitch = -0.05;
+        player.worldY = 0;
+      }
+      slideRide = { startFloor, endFloor: 5 };
+    } else if (action === 'mallCinemaSeat' && player && Number.isFinite(data.seatX) && Number.isFinite(data.seatZ)) {
       player.x = data.seatX;
       player.z = data.seatZ;
       player.yaw = data.seatYaw ?? Math.PI;
       player.pitch = 0.08;
       player.zone = 'lobby';
+    } else if (action === 'mallLibrarySeat' && player) {
+      player.x = data.seatX ?? -43.8;
+      player.z = data.seatZ ?? 20.0;
+      player.yaw = data.seatYaw ?? Math.PI / 2;
+      player.pitch = -0.04;
+      player.zone = 'lobby';
+    } else if (action === 'mallDiningSeat' && player && Number.isFinite(data.seatX) && Number.isFinite(data.seatZ)) {
+      player.x = data.seatX;
+      player.z = data.seatZ;
+      player.yaw = data.seatYaw ?? 0;
+      player.pitch = -0.04;
+      player.zone = 'lobby';
+    } else if (action === 'mallSupercarDrive' && player) {
+      player.floor = 4;
+      player.worldY = -3.5;
+      player.x = -33.5;
+      player.z = 14.5;
+      player.yaw = 0;
+      player.pitch = -0.05;
+      player.zone = 'lobby';
     }
+
+    if (action === 'mallCinemaSwitch' || action === 'mallCinemaScreen') {
+      this.cinemaMovieIndex = (this.cinemaMovieIndex + 1) % MALL_CINEMA_MOVIES.length;
+      const m = MALL_CINEMA_MOVIES[this.cinemaMovieIndex];
+      extraNote = `현재 상영작: [${m.title}] (${m.sub})`;
+    } else if (action === 'mallDjBooth') {
+      this.djTrackIndex = (this.djTrackIndex + 1) % MALL_DJ_TRACKS.length;
+      const t = MALL_DJ_TRACKS[this.djTrackIndex];
+      extraNote = `재생 트랙: ♪ ${t.title} · ${t.bpm}`;
+    } else if (action === 'mallBowling') {
+      this.bowlingStrikes += 1;
+      extraNote = `누적 스트라이크 ${this.bowlingStrikes}회 달성!`;
+    } else if (action === 'mallArcade') {
+      const prize = GACHA_PRIZES[this.gachaCount % GACHA_PRIZES.length];
+      this.gachaCount += 1;
+      this.heldMallItem = 'bag';
+      extraNote = `획득 경품: [${prize}] (총 ${this.gachaCount}회)`;
+    } else if (action === 'mallPhotoBooth') {
+      this.heldMallItem = 'photocard';
+    } else if (action === 'mallMatchaCone') {
+      this.heldMallItem = 'matcha';
+    } else if (action === 'mallCinemaSnack') {
+      this.heldMallItem = 'popcorn';
+    } else if (action === 'mallShop') {
+      this.heldMallItem = 'bag';
+    }
+
     const floorKey = data.floorIndex ?? '';
     if (spec.item) this.lastAmenityItem = spec.item;
     this.addPoints(spec.points, `mall:${action}:${floorKey}`);
     this.addEnergy(spec.energy);
     const newlyCompletedQuests = this.evaluateQuests();
+    const tail = extraNote ? ` · ${extraNote}` : data.label ? ` (${data.label})` : '';
     return {
       ok: true,
       item: spec.item,
+      heldMallItem: this.heldMallItem,
+      cinemaMovieIndex: this.cinemaMovieIndex,
+      djTrackIndex: this.djTrackIndex,
+      slideRide,
+      photoFlash: action === 'mallPhotoBooth',
       newlyCompletedQuests,
-      message: data.label ? `${spec.message} (${data.label})` : spec.message,
+      message: `${spec.message}${tail}`,
     };
   }
 }

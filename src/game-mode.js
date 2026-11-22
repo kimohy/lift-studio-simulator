@@ -658,21 +658,15 @@ export class GameMode {
     this.mallControllerB?.setObstruction(false, 'player');
 
     let targetX = 0;
-    let targetZ = 8.5;
+    let targetZ = 2.65;
     let zone = 'lobby';
     let yaw = Math.PI;
 
-    if (floorIndex === 7) {
-      targetX = -1.5;
-      targetZ = 6.0;
-    } else if (floorIndex === 14) {
-      targetX = 6.0;
-      targetZ = 2.0;
+    if (floorIndex === 14) {
+      targetX = 0;
+      targetZ = 3.6;
       zone = 'pool';
       this.stay.completeMilestone('rooftopPool');
-    } else if (floorIndex < 5) {
-      targetX = 0;
-      targetZ = 6.0;
     }
 
     if (floorIndex !== 5) {
@@ -1431,7 +1425,7 @@ export class GameMode {
     if (document.pointerLockElement) document.exitPointerLock();
     if ($('checkin-greeting')) {
       $('checkin-greeting').textContent = this.stay.keycard
-        ? `${staffName}: "현재 ${this.stay.keycard.room}호 키카드를 보유 중입니다. 변경하실 객실(201~902호)을 선택해 주세요."`
+        ? `${staffName}: "현재 ${this.stay.keycard.room}호 키카드를 보유 중입니다. 변경하실 객실(201~901호 · 9F 단독 펜트하우스 포함)을 선택해 주세요."`
         : `${staffName}: "그랜드 호텔에 오신 것을 환영합니다! 원하시는 층과 객실 타입을 선택해 주세요."`;
     }
     this.renderCheckInDialog();
@@ -1804,15 +1798,17 @@ export class GameMode {
     const room = String(data.room);
     const f = data.floorIndex ?? this.player.floor;
     const pivot = this.view?.gameRoom?.getObjectByName?.(`Door_pivot_${room}`);
+    const pivotR = this.view?.gameRoom?.getObjectByName?.(`Door_pivot_${room}_R`);
     const isOpen = this.world?.isRoomOpen?.(room);
 
     // Clicking door from deep inside an already-open room steps back into the corridor & closes door
     if (isOpen && this.player.z > 4.2 && this.player.floor === f) {
       this.world?.setRoomOpen?.(room, false);
       if (pivot) pivot.rotation.y = 0;
+      if (pivotR) pivotR.rotation.y = 0;
       const prev = this.captureCameraPose();
-      this.player.x = room.endsWith('01') ? -1.38 : 1.38;
-      this.player.z = 2.85;
+      this.player.x = room === '901' ? 0 : room.endsWith('01') ? -1.38 : 1.38;
+      this.player.z = room === '901' ? 2.65 : 2.85;
       this.player.yaw = 0;
       this.player.pitch = -0.04;
       this.player.zone = 'lobby';
@@ -1827,6 +1823,7 @@ export class GameMode {
     const nextOpen = !isOpen;
     this.world?.setRoomOpen?.(room, nextOpen);
     if (pivot) pivot.rotation.y = nextOpen ? -Math.PI / 2 : 0;
+    if (pivotR) pivotR.rotation.y = nextOpen ? Math.PI / 2 : 0;
 
     if (nextOpen) {
       const prev = this.captureCameraPose();
@@ -1834,6 +1831,10 @@ export class GameMode {
         this.player.x = 8.9;
         this.player.z = 5.0;
         this.player.yaw = Math.PI * 0.72;
+      } else if (room === '901') {
+        this.player.x = 0;
+        this.player.z = 4.8;
+        this.player.yaw = Math.PI;
       } else {
         this.player.x = room.endsWith('01') ? -1.38 : 1.38;
         this.player.z = 4.65;
@@ -1850,7 +1851,7 @@ export class GameMode {
         this.notifyQuestProgress(this.stay.evaluateQuests?.());
         this.message(`🔑 [키카드 인증 완료 · ${room}호] 배정받으신 ${spec?.nameKo || '스위트'}에 오신 것을 환영합니다!`);
       } else {
-        const label = spec?.nameKo || (f === 13 ? (room === '901' ? '프레지덴셜 펜트하우스 스위트' : '로열 이그제큐티브 스위트') : f >= 11 ? '스카이 프리미어 스위트' : f >= 9 ? '주니어 스위트' : room.endsWith('02') ? '패밀리 트윈 룸' : '디럭스 킹 룸');
+        const label = spec?.nameKo || (f === 13 ? '로열 프레지덴셜 펜트하우스' : f >= 11 ? '스카이 프리미어 스위트' : f >= 9 ? '주니어 스위트' : room.endsWith('02') ? '패밀리 트윈 룸' : '디럭스 킹 룸');
         this.message(`🚪 ${room}호 [${label}] 객실 투어 열람 (현재 배정 객실: ${this.stay.keycard ? `${this.stay.keycard.room}호` : '미배정'})`);
       }
     } else {
@@ -1865,10 +1866,12 @@ export class GameMode {
     const room = String(data.room);
     this.world?.setRoomOpen?.(room, false);
     const pivot = this.view?.gameRoom?.getObjectByName?.(`Door_pivot_${room}`);
+    const pivotR = this.view?.gameRoom?.getObjectByName?.(`Door_pivot_${room}_R`);
     if (pivot) pivot.rotation.y = 0;
+    if (pivotR) pivotR.rotation.y = 0;
     const prev = this.captureCameraPose();
-    this.player.x = room.endsWith('01') ? -1.38 : 1.38;
-    this.player.z = 2.85;
+    this.player.x = room === '901' ? 0 : room.endsWith('01') ? -1.38 : 1.38;
+    this.player.z = room === '901' ? 2.65 : 2.85;
     this.player.yaw = 0;
     this.player.pitch = -0.04;
     this.player.zone = 'lobby';

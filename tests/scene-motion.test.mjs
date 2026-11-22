@@ -113,10 +113,12 @@ test('all landing indicators share the live cabin floor display', () => {
 test('other guest room doors on guest floors register interactive metadata', () => {
   const v = scene();
   const otherDoors = v.pickables.filter((o) => o.userData.action === 'otherRoomDoor');
-  // 8 guest floors (2F..9F = 16 doors) minus Room 301 = 15 doors (each has door panel + handle = 30 pickables); 10F is Rooftop Pool (no 1001/1002)
-  assert.equal(otherDoors.length, 30);
+  // 2F..8F (14 doors minus 301 = 13 standard doors x 4 = 52) + unified 9F Penthouse 901 double door (7) = 59 pickables; 10F is Rooftop Pool
+  assert.equal(otherDoors.length, 59);
   assert.ok(otherDoors.some((o) => o.userData.room === '201' && o.userData.floorIndex === 6));
   assert.ok(otherDoors.some((o) => o.userData.room === '302' && o.userData.floorIndex === 7));
+  assert.ok(otherDoors.some((o) => o.userData.room === '901' && o.userData.floorIndex === 13));
+  assert.ok(!otherDoors.some((o) => o.userData.room === '902'));
   assert.ok(!otherDoors.some((o) => o.userData.room === '301'));
   assert.ok(!otherDoors.some((o) => o.userData.room === '1001' || o.userData.room === '1002'));
 });

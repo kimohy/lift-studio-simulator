@@ -15,6 +15,18 @@ const SHAFT_CUTOUT = { minX: -31.0, maxX: -25.0, minZ: 8.85, maxZ: 11.15 };
 
 export const MALL_STORY_H = PITCH * 2; // 7.0m per double-height Mall story (2 Hotel floors)
 export const MALL_ROOF_Y = 5 * MALL_STORY_H; // 35.0m above ground (= Hotel 10F height)
+export const CINEMA_ROW_ZS = [23.0, 25.4, 27.8]; // C열(0), B열(1), A열(2)
+export const CINEMA_COL_XS = [-47.4, -46.0, -44.6, -43.2, -41.8];
+
+export function cinemaRowMetrics(rowIdx) {
+  const sz = CINEMA_ROW_ZS[rowIdx];
+  const riserStep = (2 - rowIdx) * 0.22;
+  const riserH = riserStep + 0.05;
+  const riserCenterY = riserStep / 2;
+  const riserTop = riserCenterY + riserH / 2; // C: 0.465, B: 0.245, A: 0.025
+  const seatTop = riserTop + 0.45; // C: 0.915, B: 0.695, A: 0.475
+  return { sz, riserStep, riserH, riserCenterY, riserTop, seatTop };
+}
 
 function safeCanvasTexture(width, height, draw) {
   if (typeof document === 'undefined') return null;
@@ -1331,25 +1343,26 @@ export class MallScene {
     }
 
     // 3 Rows of Plush Crimson Velvet VIP Recliner Seats with Armrests & Illuminated Aisle Steps
-    for (const [rowIdx, sz] of [23.0, 25.4, 27.8].entries()) {
-      const seatY = 0.25 + (2 - rowIdx) * 0.22;
-      this.box(g, `Cinema_aisle_led_${rowIdx}`, [0.22, 0.04, 1.55], [-41.6, (2 - rowIdx) * 0.22 + 0.03, sz], m.warmLed);
-      for (let col = 0; col < 5; col++) {
-        const sx = -47.4 + col * 1.4;
+    for (let rowIdx = 0; rowIdx < CINEMA_ROW_ZS.length; rowIdx++) {
+      const { sz, riserH, riserCenterY, riserTop, seatTop } = cinemaRowMetrics(rowIdx);
+      this.box(g, `Cinema_aisle_led_${rowIdx}`, [0.22, 0.04, 1.55], [-41.6, riserTop + 0.02, sz], m.warmLed);
+      for (let col = 0; col < CINEMA_COL_XS.length; col++) {
+        const sx = CINEMA_COL_XS[col];
         const seatInfo = {
           action: 'mallCinemaSeat',
           floorIndex: f,
           seatX: sx,
-          seatZ: sz - 0.15,
+          seatZ: sz - 0.07,
           seatYaw: Math.PI,
           label: `IMAX VIP ${['C', 'B', 'A'][rowIdx]}열 ${col + 1}번 좌석 착석`,
         };
-        this.box(g, 'Cinema_seat_base', [0.78, 0.45, 0.72], [sx, seatY, sz], m.cinemaRed, null, seatInfo);
-        this.box(g, 'Cinema_seat_back', [0.78, 0.85, 0.18], [sx, seatY + 0.47, sz - 0.3], m.cinemaRed, null, seatInfo);
-        this.box(g, 'Cinema_seat_arm_L', [0.12, 0.26, 0.62], [sx - 0.42, seatY + 0.22, sz], m.charcoal, null, seatInfo);
-        this.box(g, 'Cinema_seat_arm_R', [0.12, 0.26, 0.62], [sx + 0.42, seatY + 0.22, sz], m.charcoal, null, seatInfo);
+        this.box(g, 'Cinema_seat_pedestal', [0.56, 0.27, 0.36], [sx, riserTop + 0.135, sz - 0.08], m.charcoal, null, seatInfo);
+        this.box(g, 'Cinema_seat_base', [0.78, 0.18, 0.54], [sx, riserTop + 0.36, sz - 0.04], m.cinemaRed, null, seatInfo);
+        this.box(g, 'Cinema_seat_back', [0.78, 0.85, 0.18], [sx, seatTop + 0.245, sz - 0.3], m.cinemaRed, null, seatInfo);
+        this.box(g, 'Cinema_seat_arm_L', [0.12, 0.34, 0.54], [sx - 0.42, riserTop + 0.44, sz - 0.04], m.charcoal, null, seatInfo);
+        this.box(g, 'Cinema_seat_arm_R', [0.12, 0.34, 0.54], [sx + 0.42, riserTop + 0.44, sz - 0.04], m.charcoal, null, seatInfo);
       }
-      this.box(g, 'Cinema_riser', [8.4, (2 - rowIdx) * 0.22 + 0.05, 1.8], [-44.6, ((2 - rowIdx) * 0.22) / 2, sz], m.charcoal);
+      this.box(g, 'Cinema_riser', [8.4, riserH, 1.8], [-44.6, riserCenterY, sz], m.charcoal);
     }
 
     // 2. Self-Ticketing Touchscreen Kiosks & Gourmet Popcorn Concession Zone (North Foyer)
@@ -1819,7 +1832,7 @@ export class MallScene {
     }
 
     // 6. West Outdoor Plaza (x ∈ [-50, -14], z ∈ [36, 47.5]) connecting to Hotel Entry Plaza
-    this.box(ext, 'Mall_outdoor_plaza', [36.2, 0.16, 11.8], [-32.0, -0.08, 41.9], m.terrazzo);
+    this.box(ext, 'Mall_outdoor_plaza', [36.1, 0.16, 11.8], [-32.05, -0.08, 41.9], m.terrazzo);
     for (const [px, pz] of [
       [-45.5, 41.0],
       [-21.0, 41.0],
@@ -2287,8 +2300,9 @@ export class MallScene {
       // M5F (floor 13) — Top-Floor Grand Cinema Multiplex (IMAX) & Sounds Forest
       { id: 'crowd-23', name: '씨네필 예린', role: 'IMAX 예매객', floor: 13, x: -23.5, z: 11.8, toX: -36.0, toZ: 11.8, coat: 0x8f2934, bag: 0xf4c45c, quote: '꼭대기층 M5F 전체가 IMAX 멀티플렉스랑 하늘정원이라 규모가 어마어마해요!' },
       { id: 'crowd-24', name: '관객 승호', role: '팝콘 키오스크 주문', floor: 13, x: -38.8, z: 9.8, toX: -42.0, toZ: 11.4, coat: 0x263847, bag: 0xffe075, quote: '매점 셀프 오더 키오스크에서 카라멜 팝콘 콤보 주문하고 이제 검표 게이트로 들어가요!' },
-      { id: 'crowd-25', name: '관객 다혜', role: '영화 관람객', floor: 13, x: -46.0, z: 25.25, toX: -46.0, toZ: 25.25, coat: 0x3b4d59, bag: null, seat: true, quote: '대형 IMAX 스크린 화질이 진짜 선명하네요! 빈 좌석 클릭하면 같이 앉을 수 있어요.' },
-      { id: 'crowd-26', name: '관객 준영', role: '영화 관람객', floor: 13, x: -43.2, z: 27.65, toX: -43.2, toZ: 27.65, coat: 0x5c363e, bag: null, seat: true, quote: '돌비 애트모스 사운드가 웅장하게 울리네요.' },
+      { id: 'crowd-25', name: '관객 다혜', role: '영화 관람객', floor: 13, seatRow: 1, seatCol: 1, coat: 0x3b4d59, bag: null, seat: true, quote: '대형 IMAX 스크린 화질이 진짜 선명하네요! 빈 좌석 클릭하면 같이 앉을 수 있어요.' },
+      { id: 'crowd-26', name: '관객 준영', role: '영화 관람객', floor: 13, seatRow: 2, seatCol: 3, coat: 0x5c363e, bag: null, seat: true, quote: '돌비 애트모스 사운드가 웅장하게 울리네요.' },
+      { id: 'crowd-33', name: '관객 서연', role: 'VIP C열 관객', floor: 13, seatRow: 0, seatCol: 0, coat: 0x32524c, bag: null, seat: true, quote: '계단식 C열 좌석이라 앞사람 가림 없이 대형 스크린이 한눈에 들어오네요!' },
       { id: 'crowd-27', name: '어셔 미소', role: '티켓 검표 매니저', floor: 13, x: -40.1, z: 12.6, toX: -40.1, toZ: 12.6, coat: 0x911d24, bag: null, quote: '북측 무인 키오스크에서 영화 티켓 발권과 매점 주문 후, 여기 게이트에 QR 티켓을 스캔하시면 입장 가능합니다!' },
       { id: 'crowd-28', name: '자연애호가 유리', role: '사운즈 포레스트 방문객', floor: 13, x: -29.0, z: 25.5, toX: -17.5, toZ: 25.5, coat: 0x457352, bag: null, quote: '영화 보고 나와서 주홍빛 트러스 천창 아래 사운즈 포레스트 나무 사이를 산책 중이에요.' },
       { id: 'crowd-29', name: '관광객 알렉스', role: '루프탑 가든 관람객', floor: 13, x: -21.2, z: 14.0, toX: -21.2, toZ: 24.0, coat: 0x334756, bag: 0x9fc2cf, quote: 'The glass skylight trusses 35 meters above look incredible!' },
@@ -2301,6 +2315,11 @@ export class MallScene {
 
     for (const s of specs) {
       const baseY = (s.floor - 5) * PITCH;
+      const hasSeatIdx = Number.isInteger(s.seatRow) && Number.isInteger(s.seatCol);
+      const seatRowInfo = hasSeatIdx ? cinemaRowMetrics(s.seatRow) : null;
+      const px = hasSeatIdx ? CINEMA_COL_XS[s.seatCol] : s.x;
+      const pz = seatRowInfo ? seatRowInfo.sz - 0.07 : s.z;
+      const py = seatRowInfo ? baseY + seatRowInfo.riserTop : baseY;
       const info = {
         action: 'mallPerson',
         floorIndex: s.floor,
@@ -2325,7 +2344,7 @@ export class MallScene {
         pickables: this.pickables,
       });
       person.userData.dynamic = true;
-      person.position.set(s.x, baseY + (s.seat ? 0.18 : 0), s.z);
+      person.position.set(px, py, pz);
       if (s.seat) person.rotation.y = 0;
 
       this.crowdGroup.add(person);
@@ -2337,12 +2356,14 @@ export class MallScene {
         root: person,
         legs,
         arms,
-        ax: s.x,
-        az: s.z,
-        bx: s.toX,
-        bz: s.toZ,
+        ax: px,
+        az: pz,
+        bx: hasSeatIdx ? px : s.toX,
+        bz: hasSeatIdx ? pz : s.toZ,
         baseY,
         seat: !!s.seat,
+        seatRow: s.seatRow ?? null,
+        seatCol: s.seatCol ?? null,
         speed: 0.72 + (this.mallPeople.length % 5) * 0.09,
         phase: this.mallPeople.length * 1.15,
         get x() {

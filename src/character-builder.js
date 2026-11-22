@@ -74,6 +74,10 @@ export function buildStylizedHuman({
   root.name = name;
   root.userData.dynamic = true;
 
+  const body = new THREE.Group();
+  body.name = 'Char_body';
+  root.add(body);
+
   const coatMat = new THREE.MeshStandardMaterial({ color: coatColor, roughness: 0.72, metalness: 0.04 });
   const trouserMat = new THREE.MeshStandardMaterial({ color: trouserColor, roughness: 0.78, metalness: 0.02 });
   const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.62, metalness: 0.02 });
@@ -82,19 +86,19 @@ export function buildStylizedHuman({
   const shirtMat = shirtColor ? new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.62 }) : SHARED_MAT.shirt;
 
   // Pelvis + Belt bridging torso and hip joints cleanly
-  addPart(root, 'Char_pelvis', SHARED_GEO.pelvis, trouserMat, [0, 0.82, 0], [1.06, 1, 0.72]);
-  addPart(root, 'Char_belt', SHARED_GEO.belt, SHARED_MAT.shoe, [0, 0.9, 0], [1.07, 1, 0.73]);
-  addPart(root, 'Char_belt_buckle', SHARED_GEO.box, SHARED_MAT.gold, [0, 0.9, f * 0.122], [0.045, 0.032, 0.015]);
+  addPart(body, 'Char_pelvis', SHARED_GEO.pelvis, trouserMat, [0, 0.82, 0], [1.06, 1, 0.72]);
+  addPart(body, 'Char_belt', SHARED_GEO.belt, SHARED_MAT.shoe, [0, 0.9, 0], [1.07, 1, 0.73]);
+  addPart(body, 'Char_belt_buckle', SHARED_GEO.box, SHARED_MAT.gold, [0, 0.9, f * 0.122], [0.045, 0.032, 0.015]);
 
   // Tailored Torso & Rounded Shoulders
-  addPart(root, 'Char_torso', SHARED_GEO.torso, coatMat, [0, 1.13, 0], [1.08, 1, 0.68]);
-  addPart(root, 'Char_shoulders', SHARED_GEO.chestCap, coatMat, [0, 1.31, 0], [1.14, 0.44, 0.7]);
+  addPart(body, 'Char_torso', SHARED_GEO.torso, coatMat, [0, 1.13, 0], [1.08, 1, 0.68]);
+  addPart(body, 'Char_shoulders', SHARED_GEO.chestCap, coatMat, [0, 1.31, 0], [1.14, 0.44, 0.7]);
 
   // Front Shirt Collar, Jacket Lapels & Tie/Plastron/Apron
-  addPart(root, 'Char_shirt', SHARED_GEO.box, shirtMat, [0, 1.24, f * 0.118], [0.11, 0.25, 0.025]);
+  addPart(body, 'Char_shirt', SHARED_GEO.box, shirtMat, [0, 1.24, f * 0.118], [0.11, 0.25, 0.025]);
   for (const side of [-1, 1]) {
     addPart(
-      root,
+      body,
       'Char_lapel',
       SHARED_GEO.box,
       coatMat,
@@ -104,40 +108,48 @@ export function buildStylizedHuman({
     );
   }
   if (hat === 'bellhop') {
-    addPart(root, 'Bellhop_plastron', SHARED_GEO.box, SHARED_MAT.gold, [0, 1.16, f * 0.128], [0.16, 0.32, 0.02]);
+    addPart(body, 'Bellhop_plastron', SHARED_GEO.box, SHARED_MAT.gold, [0, 1.16, f * 0.128], [0.16, 0.32, 0.02]);
   } else {
-    addPart(root, 'Char_tie', SHARED_GEO.box, accentMat, [0, 1.2, f * 0.132], [0.028, 0.2, 0.016]);
+    addPart(body, 'Char_tie', SHARED_GEO.box, accentMat, [0, 1.2, f * 0.132], [0.028, 0.2, 0.016]);
   }
   if (apron) {
     const apronMat = new THREE.MeshStandardMaterial({ color: apronColor, roughness: 0.76 });
-    addPart(root, 'Char_apron', SHARED_GEO.box, apronMat, [0, 0.98, f * 0.14], [0.3, 0.54, 0.03]);
+    addPart(body, 'Char_apron', SHARED_GEO.box, apronMat, [0, 0.98, f * 0.14], [0.3, 0.54, 0.03]);
   }
 
-  // Articulated Legs + Contoured Dress Shoes
+  // Articulated Legs (Hip + Knee) + Contoured Dress Shoes
   const legs = [];
+  const knees = [];
   for (const side of [-1, 1]) {
     const hip = new THREE.Group();
     hip.position.set(side * 0.092, 0.78, 0);
-    root.add(hip);
+    body.add(hip);
 
     addPart(hip, 'Char_thigh', SHARED_GEO.thigh, trouserMat, [0, -0.18, 0]);
-    addPart(hip, 'Char_knee', SHARED_GEO.knee, trouserMat, [0, -0.37, 0]);
-    addPart(hip, 'Char_calf', SHARED_GEO.calf, trouserMat, [0, -0.55, 0]);
+
+    const knee = new THREE.Group();
+    knee.name = 'Char_knee_joint';
+    knee.position.set(0, -0.37, 0);
+    hip.add(knee);
+
+    addPart(knee, 'Char_knee', SHARED_GEO.knee, trouserMat, [0, 0, 0]);
+    addPart(knee, 'Char_calf', SHARED_GEO.calf, trouserMat, [0, -0.18, 0]);
     // Contoured shoe resting cleanly at y = 0.0
-    addPart(hip, 'Char_shoe_sole', SHARED_GEO.box, SHARED_MAT.sole, [0, -0.768, f * 0.024], [0.092, 0.024, 0.21]);
-    addPart(hip, 'Char_shoe_upper', SHARED_GEO.box, SHARED_MAT.shoe, [0, -0.738, f * 0.014], [0.088, 0.052, 0.175]);
-    addPart(hip, 'Char_shoe_toe', SHARED_GEO.hand, SHARED_MAT.shoe, [0, -0.742, f * 0.09], [1.3, 0.78, 1.5]);
+    addPart(knee, 'Char_shoe_sole', SHARED_GEO.box, SHARED_MAT.sole, [0, -0.398, f * 0.024], [0.092, 0.024, 0.21]);
+    addPart(knee, 'Char_shoe_upper', SHARED_GEO.box, SHARED_MAT.shoe, [0, -0.368, f * 0.014], [0.088, 0.052, 0.175]);
+    addPart(knee, 'Char_shoe_toe', SHARED_GEO.hand, SHARED_MAT.shoe, [0, -0.372, f * 0.09], [1.3, 0.78, 1.5]);
 
     legs.push(hip);
+    knees.push(knee);
   }
 
   // Neck
-  addPart(root, 'Char_neck', SHARED_GEO.neck, skinMat, [0, 1.42, 0]);
+  addPart(body, 'Char_neck', SHARED_GEO.neck, skinMat, [0, 1.42, 0]);
 
   // Expressive Head Group
   const head = new THREE.Group();
   head.position.set(0, 1.56, 0);
-  root.add(head);
+  body.add(head);
 
   addPart(head, 'Char_face', SHARED_GEO.head, skinMat, [0, 0, 0], [0.92, 1.08, 0.96]);
   addPart(head, 'Char_jaw', SHARED_GEO.jaw, skinMat, [0, -0.044, f * 0.022], [0.88, 0.78, 0.88]);
@@ -185,7 +197,7 @@ export function buildStylizedHuman({
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Group();
     shoulder.position.set(side * 0.22, 1.32, 0);
-    root.add(shoulder);
+    body.add(shoulder);
 
     addPart(shoulder, 'Char_shoulder_cap', SHARED_GEO.shoulderCap, coatMat, [0, -0.01, 0]);
     addPart(shoulder, 'Char_upper_arm', SHARED_GEO.upperArm, coatMat, [0, -0.115, 0]);
@@ -221,8 +233,16 @@ export function buildStylizedHuman({
   }
 
   if (seated) {
-    for (const l of legs) {
-      l.rotation.x = f > 0 ? -Math.PI / 2.2 : Math.PI / 2.2;
+    const hipAngle = Math.PI / 2 - 0.1;
+    const soleBottomY = 0.78 - 0.37 * Math.cos(hipAngle) - 0.41;
+    body.position.y = -soleBottomY;
+    for (let i = 0; i < legs.length; i++) {
+      legs[i].rotation.x = f > 0 ? -hipAngle : hipAngle;
+      knees[i].rotation.x = f > 0 ? hipAngle : -hipAngle;
+    }
+    for (let i = 0; i < arms.length; i++) {
+      arms[i].rotation.x = f > 0 ? -0.08 : 0.08;
+      elbows[i].rotation.x = f > 0 ? -1.05 : 1.05;
     }
   }
 
@@ -235,5 +255,5 @@ export function buildStylizedHuman({
     });
   }
 
-  return { root, head, arms, elbows, legs };
+  return { root, body, head, arms, elbows, legs, knees };
 }

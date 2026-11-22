@@ -3,6 +3,7 @@ import { floorMeta, floorUsage } from './building.js';
 import { FLOORS } from './controller.js';
 import { hotelSignTexture } from './hotel-sign.js';
 import { FLOOR_AMENITY_SPECS } from './hotel-stay.js';
+import { EXECUTIVE_LOUNGE_FLOORS } from './hotel-world.js';
 
 const geometry = new THREE.BoxGeometry(1, 1, 1);
 
@@ -105,7 +106,7 @@ function makeSign(parent, name, lines, pos, width, height, rotation = Math.PI) {
     new THREE.PlaneGeometry(width * scale, height * scale),
     new THREE.MeshBasicMaterial({
       map: tex,
-      side: THREE.DoubleSide,
+      side: isRoomNum ? THREE.FrontSide : THREE.DoubleSide,
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -1,
@@ -121,7 +122,7 @@ function makeSign(parent, name, lines, pos, width, height, rotation = Math.PI) {
 
 export function suiteTierForRoom(floor, roomNumber) {
   const num = Number(roomNumber);
-  if (floor === 13) return num % 2 === 1 ? 'presidential' : 'royal';
+  if (floor === 13) return 'presidential';
   if (floor >= 11) return 'sky';
   if (floor >= 9) return 'junior';
   return num % 2 === 0 ? 'twin' : 'deluxe';
@@ -188,7 +189,7 @@ function buildExecutiveClubLounge(parent, floor, pickables) {
   makeMesh(lounge, `West_lounge_wine_${tag}`, [0.16, 0.36, 0.16], [-5.5, 1.22, 7.05], materials.velvetBurgundy, barData, pickables);
 
   const tierTitle =
-    floor >= 12 ? 'ROYAL CHAMPAGNE & SKY CLUB LOUNGE' : floor >= 9 ? 'SKY WINE & LIBRARY LOUNGE' : 'EXECUTIVE ESPRESSO CLUB LOUNGE';
+    floor === 10 ? 'EXECUTIVE BUSINESS & WINE CLUB LOUNGE' : 'JUNIOR EXECUTIVE TEA & ESPRESSO LOUNGE';
   makeSign(
     lounge,
     `West_lounge_sign_${tag}`,
@@ -196,6 +197,15 @@ function buildExecutiveClubLounge(parent, floor, pickables) {
     [-9.46, 2.28, 3.0],
     2.4,
     0.58,
+    Math.PI / 2
+  );
+  makeSign(
+    lounge,
+    `Executive_lounge_entry_sign_${tag}`,
+    ['← 이그제큐티브 클럽 라운지', 'EXECUTIVE CLUB LOUNGE'],
+    [-2.46, 2.58, 2.35],
+    1.15,
+    0.42,
     Math.PI / 2
   );
 }
@@ -374,32 +384,217 @@ function buildFurnishedSuite(parent, { floor, number, side, pickables }) {
     makeMesh(suite, `Suite_spa_tub_${number}`, [1.75, 0.14, 0.98], [spaX, 0.5, spaZ], materials.spaWater, spaInfo, pickables);
   }
 
-  // 9F Presidential Penthouse (901) & Royal Executive (902) Showpieces: VIP Dining + Piano/Fireplace + Ring Chandelier
+  // 9F Presidential/Royal legacy showpiece branch kept for any explicit caller
   if (tier === 'presidential' || tier === 'royal') {
     const showX = parlorX;
     const showZ = mainZMax - 1.65;
-    // VIP Dining / Lounge Table
     makeMesh(suite, `Suite_dining_table_${number}`, [2.4, 0.08, 1.15], [showX, 0.76, showZ], materials.marbleFloor);
     makeMesh(suite, `Suite_dining_base_${number}`, [0.9, 0.72, 0.55], [showX, 0.36, showZ], materials.gold);
-    // Gold Ring Chandelier over Suite Lounge
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.025, 8, 36), materials.gold);
     ring.name = `Suite_chandelier_${number}`;
     ring.rotation.x = Math.PI / 2;
     ring.position.set(mainCx, 2.75, mainCz);
     suite.add(ring);
+  }
+}
 
-    if (tier === 'presidential') {
-      // Grand Piano in 901 Presidential Suite
-      const pianoX = -4.8;
-      const pianoZ = mainZMax - 1.8;
-      makeMesh(suite, 'Suite_grand_piano_901', [1.55, 0.28, 1.85], [pianoX, 0.76, pianoZ], materials.black);
-      makeMesh(suite, 'Suite_piano_keys_901', [1.35, 0.06, 0.28], [pianoX, 0.74, pianoZ - 0.88], materials.linen);
-      makeMesh(suite, 'Suite_piano_leg_901', [0.1, 0.65, 0.1], [pianoX, 0.325, pianoZ], materials.black);
-    } else {
-      // Illuminated Marble Fireplace Hearth in 902 Royal Executive Suite
-      makeMesh(suite, 'Suite_fireplace_902', [2.1, 1.65, 0.45], [8.55, 0.825, mainCz], materials.stone);
-      makeMesh(suite, 'Suite_hearth_fire_902', [0.12, 0.52, 1.15], [8.32, 0.46, mainCz], materials.emberGlow);
+function buildGrandPenthouse901(parent, pickables) {
+  const suite = new THREE.Group();
+  suite.name = 'Suite_interior_901';
+  parent.add(suite);
+
+  const info = (amenityType, seatX, seatZ, seatYaw, label) => ({
+    action: 'suiteAmenity',
+    room: '901',
+    floorIndex: 13,
+    tier: 'presidential',
+    amenityType,
+    seatX,
+    seatZ,
+    seatYaw,
+    label,
+  });
+
+  // 1) Grand Marble Foyer Gallery (x ∈ [-2.42, +2.42], z ∈ [3.68, 8.20])
+  makeMesh(suite, 'Suite_foyer_floor_901', [4.84, 0.12, 4.52], [0, -0.06, 5.94], materials.marbleFloor);
+  makeMesh(suite, 'Suite_foyer_ceil_901', [4.84, 0.12, 4.52], [0, 3.16, 5.94], materials.wallWarm);
+  makeMesh(suite, 'Suite_foyer_carpet_trim_901', [2.04, 0.01, 4.2], [0, 0.006, 5.95], materials.gold);
+  makeMesh(suite, 'Suite_foyer_carpet_901', [1.9, 0.014, 4.1], [0, 0.01, 5.95], materials.velvetBurgundy);
+  makeMesh(suite, 'Suite_foyer_light_901', [0.52, 0.025, 3.8], [0, 3.09, 5.95], materials.warmGlow);
+
+  for (const side of [-1, 1]) {
+    makeMesh(suite, `Suite_foyer_wall_${side < 0 ? 'W' : 'E'}_901`, [0.12, 3.2, 4.52], [side * 2.42, 1.6, 5.94], materials.wallWarm);
+    makeMesh(suite, `Suite_foyer_console_${side < 0 ? 'W' : 'E'}_901`, [0.38, 0.85, 1.5], [side * 2.18, 0.425, 5.95], materials.walnut);
+    makeMesh(suite, `Suite_foyer_console_top_${side < 0 ? 'W' : 'E'}_901`, [0.42, 0.05, 1.56], [side * 2.18, 0.87, 5.95], materials.marbleFloor);
+    makeMesh(suite, `Suite_foyer_art_${side < 0 ? 'W' : 'E'}_901`, [0.05, 1.25, 1.45], [side * 2.34, 1.85, 5.95], materials.gold);
+    makeMesh(suite, `Suite_foyer_art_spot_${side < 0 ? 'W' : 'E'}_901`, [0.08, 0.04, 0.7], [side * 2.24, 2.58, 5.95], materials.warmGlow);
+
+    // Fluted Marble & Gold Colonnade Columns framing the Salon entry at x = ±2.45, z = 8.3
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 3.1, 18), materials.marbleFloor);
+    col.name = `Suite_colonnade_${side < 0 ? 'W' : 'E'}_901`;
+    col.position.set(side * 2.45, 1.55, 8.3);
+    suite.add(col);
+    makeMesh(suite, `Suite_colonnade_base_${side < 0 ? 'W' : 'E'}_901`, [0.54, 0.14, 0.54], [side * 2.45, 0.07, 8.3], materials.gold);
+    makeMesh(suite, `Suite_colonnade_cap_${side < 0 ? 'W' : 'E'}_901`, [0.56, 0.16, 0.56], [side * 2.45, 3.04, 8.3], materials.gold);
+  }
+
+  // 2) Monumental Unified 23.6m × 13.6m Main Hall (x ∈ [-11.8, +11.8], z ∈ [8.20, 21.80])
+  makeMesh(suite, 'Suite_floor_901', [23.6, 0.12, 13.6], [0, -0.06, 15.0], materials.marbleFloor);
+  makeMesh(suite, 'Suite_ceil_901', [23.6, 0.12, 13.6], [0, 3.16, 15.0], materials.wallWarm);
+  for (const [idx, cz] of [10.6, 15.0, 19.6].entries()) {
+    makeMesh(suite, `Suite_cove_led_901_${idx}`, [21.6, 0.03, 0.28], [0, 3.08, cz], materials.warmGlow);
+  }
+  makeMesh(suite, 'Suite_west_wall_901', [0.16, 3.2, 13.6], [-11.8, 1.6, 15.0], materials.wallWarm);
+  makeMesh(suite, 'Suite_east_wall_901', [0.16, 3.2, 13.6], [11.8, 1.6, 15.0], materials.wallWarm);
+  makeMesh(suite, 'Suite_north_wall_W_901', [9.38, 3.2, 0.16], [-7.11, 1.6, 8.2], materials.wallWarm);
+  makeMesh(suite, 'Suite_north_wall_E_901', [9.38, 3.2, 0.16], [7.11, 1.6, 8.2], materials.wallWarm);
+  makeMesh(suite, 'Suite_arch_beam_901', [5.0, 0.16, 0.2], [0, 3.02, 8.2], materials.gold);
+
+  // Full-Width 23.6m Panoramic South Skyline Curtain Wall (z = 21.80)
+  makeMesh(suite, 'Suite_win_sill_901', [23.6, 0.56, 0.18], [0, 0.28, 21.8], materials.stone);
+  makeMesh(suite, 'Suite_win_led_901', [23.2, 0.03, 0.08], [0, 0.57, 21.68], materials.warmGlow);
+  makeMesh(suite, 'Suite_win_hdr_901', [23.6, 0.4, 0.18], [0, 3.0, 21.8], materials.walnut);
+  makeMesh(suite, 'Suite_window_901', [23.2, 2.25, 0.04], [0, 1.72, 21.74], materials.skyGlass);
+  for (let mx = -11.6; mx <= 11.61; mx += 2.9) {
+    makeMesh(suite, 'Suite_mullion_901', [0.06, 2.26, 0.12], [mx, 1.72, 21.75], materials.gold);
+  }
+  const skyline = new THREE.Mesh(new THREE.PlaneGeometry(23.4, 2.32), getSkylineMaterial());
+  skyline.name = 'Suite_skyline_901';
+  skyline.position.set(0, 1.72, 21.88);
+  skyline.rotation.y = Math.PI;
+  suite.add(skyline);
+
+  // 3) Zone 1: Central Grand Salon & Double-Tier Crystal Chandelier ([0, 13.8])
+  const sofaInfo = info('sofa', 0, 12.6, Math.PI, '901호 펜트하우스 그랜드 살롱 소파 착석 🛋️');
+  makeMesh(suite, 'Suite_salon_rug_trim_901', [6.6, 0.008, 4.8], [0, 0.005, 13.8], materials.gold);
+  makeMesh(suite, 'Suite_salon_rug_901', [6.4, 0.014, 4.6], [0, 0.01, 13.8], materials.velvetBurgundy);
+  makeMesh(suite, 'Suite_sofa_main_901', [3.6, 0.42, 0.9], [0, 0.21, 15.2], materials.velvetBurgundy, sofaInfo, pickables);
+  makeMesh(suite, 'Suite_sofa_main_back_901', [3.6, 0.48, 0.22], [0, 0.64, 15.55], materials.velvetBurgundy, sofaInfo, pickables);
+  for (const sx of [-1.35, 1.35]) {
+    makeMesh(suite, 'Suite_sofa_wing_901', [0.9, 0.42, 2.4], [sx, 0.21, 13.8], materials.velvetBurgundy, sofaInfo, pickables);
+    makeMesh(suite, 'Suite_sofa_wing_back_901', [0.22, 0.48, 2.4], [sx + (sx < 0 ? -0.34 : 0.34), 0.64, 13.8], materials.velvetBurgundy, sofaInfo, pickables);
+  }
+  makeMesh(suite, 'Suite_coffee_table_901', [1.9, 0.4, 1.05], [0, 0.2, 13.7], materials.marbleFloor, sofaInfo, pickables);
+  makeMesh(suite, 'Suite_coffee_tray_901', [0.7, 0.05, 0.45], [0, 0.425, 13.7], materials.gold, sofaInfo, pickables);
+
+  const chandelier = new THREE.Group();
+  chandelier.name = 'Suite_chandelier_901';
+  chandelier.position.set(0, 2.74, 13.8);
+  suite.add(chandelier);
+  for (const [r, dy, count] of [
+    [1.55, 0, 12],
+    [0.92, -0.16, 8],
+  ]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 10, 44), materials.gold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = dy;
+    chandelier.add(ring);
+    for (let k = 0; k < count; k++) {
+      const a = (k * Math.PI * 2) / count;
+      makeMesh(chandelier, 'Suite_crystal_drop_901', [0.07, 0.14, 0.07], [Math.cos(a) * r, dy - 0.1, Math.sin(a) * r], materials.warmGlow);
     }
+  }
+
+  // 4) Zone 2: Concert Grand Piano Stage ([-4.6, 18.2])
+  const pianoInfo = info('piano', -4.6, 16.6, Math.PI, '901호 콘서트 그랜드 피아노 연주 🎹');
+  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.2, 0.14, 32), materials.walnut);
+  plinth.name = 'Suite_piano_stage_901';
+  plinth.position.set(-4.6, 0.07, 18.2);
+  suite.add(plinth);
+  const plinthRim = new THREE.Mesh(new THREE.CylinderGeometry(2.22, 2.22, 0.04, 32), materials.gold);
+  plinthRim.position.set(-4.6, 0.02, 18.2);
+  suite.add(plinthRim);
+  makeMesh(suite, 'Suite_grand_piano_901', [1.75, 0.34, 2.1], [-4.6, 0.84, 18.3], materials.black, pianoInfo, pickables);
+  const pianoLid = makeMesh(suite, 'Suite_piano_lid_901', [1.65, 0.06, 1.85], [-4.6, 1.24, 18.45], materials.black, pianoInfo, pickables);
+  pianoLid.rotation.x = 0.42;
+  makeMesh(suite, 'Suite_piano_keys_901', [1.45, 0.07, 0.3], [-4.6, 0.82, 17.22], materials.linen, pianoInfo, pickables);
+  for (const [lx, lz] of [
+    [-5.35, 17.5],
+    [-3.85, 17.5],
+    [-4.6, 19.15],
+  ]) {
+    makeMesh(suite, 'Suite_piano_leg_901', [0.1, 0.56, 0.1], [lx, 0.42, lz], materials.black, pianoInfo, pickables);
+  }
+  makeMesh(suite, 'Suite_piano_bench_901', [1.1, 0.48, 0.44], [-4.6, 0.38, 16.75], materials.velvetBurgundy, pianoInfo, pickables);
+
+  // 5) Zone 3: West Wing Royal Master Bedroom Sanctuary ([-8.8, 12.4])
+  const bedInfo = info('bed', -6.8, 12.4, Math.PI / 2, '901호 로열 마스터 수퍼 킹 베드 휴식 🛏️');
+  makeMesh(suite, 'Suite_master_platform_901', [4.2, 0.1, 4.4], [-8.8, 0.05, 12.4], materials.walnut);
+  makeMesh(suite, 'Suite_master_rug_901', [3.8, 0.012, 4.0], [-8.8, 0.106, 12.4], materials.velvetBurgundy);
+  makeMesh(suite, 'Suite_bed_base_901', [2.6, 0.36, 2.4], [-8.9, 0.28, 12.4], materials.walnut, bedInfo, pickables);
+  makeMesh(suite, 'Suite_bed_mattress_901', [2.48, 0.26, 2.32], [-8.9, 0.59, 12.4], materials.linen, bedInfo, pickables);
+  makeMesh(suite, 'Suite_bed_runner_901', [0.64, 0.03, 2.34], [-8.15, 0.73, 12.4], materials.velvetBurgundy, bedInfo, pickables);
+  makeMesh(suite, 'Suite_bed_headboard_901', [0.16, 1.38, 2.7], [-10.18, 0.85, 12.4], materials.gold);
+  for (const pz of [11.75, 13.05]) {
+    makeMesh(suite, 'Suite_pillow_901', [0.44, 0.16, 0.72], [-9.75, 0.78, pz], materials.linen, bedInfo, pickables);
+  }
+  for (const cx of [-10.1, -7.65]) {
+    for (const cz of [11.2, 13.6]) {
+      makeMesh(suite, 'Suite_canopy_post_901', [0.09, 2.45, 0.09], [cx, 1.32, cz], materials.gold);
+    }
+  }
+  makeMesh(suite, 'Suite_canopy_frame_901', [2.56, 0.08, 2.52], [-8.88, 2.54, 12.4], materials.gold);
+  for (const nz of [10.85, 13.95]) {
+    makeMesh(suite, 'Suite_nightstand_901', [0.48, 0.52, 0.48], [-9.85, 0.36, nz], materials.walnut);
+    makeMesh(suite, 'Suite_lamp_901', [0.22, 0.36, 0.22], [-9.85, 0.8, nz], materials.warmGlow);
+  }
+  // Walk-in Backlit Wardrobe & 100" OLED TV Wall
+  makeMesh(suite, 'Suite_wardrobe_back_901', [4.2, 2.6, 0.14], [-8.8, 1.3, 8.42], materials.walnut);
+  makeMesh(suite, 'Suite_wardrobe_glow_901', [3.8, 2.2, 0.04], [-8.8, 1.32, 8.51], materials.warmGlow);
+  makeMesh(suite, 'Suite_wardrobe_glass_901', [3.9, 2.3, 0.05], [-8.8, 1.3, 8.88], materials.skyGlass);
+  makeMesh(suite, 'Suite_tv_console_901', [0.46, 0.58, 2.8], [-11.46, 0.29, 12.4], materials.walnut);
+  makeMesh(suite, 'Suite_tv_screen_901', [0.06, 1.24, 2.35], [-11.62, 1.62, 12.4], materials.black);
+
+  // 6) Zone 4: South-West Panoramic Sky Spa & Heated Jacuzzi ([-9.2, 19.3])
+  const spaInfo = info('spa', -7.1, 19.3, Math.PI / 2, '901호 마블 스카이 자쿠지 스파 🛁');
+  makeMesh(suite, 'Suite_spa_deck_901', [4.2, 0.56, 3.0], [-9.2, 0.28, 19.3], materials.stone, spaInfo, pickables);
+  makeMesh(suite, 'Suite_spa_step_901', [0.48, 0.28, 2.8], [-6.86, 0.14, 19.3], materials.stone, spaInfo, pickables);
+  makeMesh(suite, 'Suite_spa_tub_901', [3.4, 0.16, 2.2], [-9.2, 0.54, 19.3], materials.spaWater, spaInfo, pickables);
+  makeMesh(suite, 'Suite_spa_led_901', [3.5, 0.04, 2.3], [-9.2, 0.5, 19.3], materials.kioskGlow);
+  for (const lx of [-8.2, -10.2]) {
+    makeMesh(suite, 'Suite_spa_lounger_901', [0.76, 0.34, 1.55], [lx, 0.17, 16.9], materials.linen, spaInfo, pickables);
+  }
+
+  // 7) Zone 5: North-East Private Champagne & Wine Cellar Bar ([7.2, 10.3])
+  const barInfo = info('bar', 7.2, 11.8, 0, '901호 프라이빗 와인 셀러 & 샴페인 바 🥂');
+  makeMesh(suite, 'Suite_wine_cellar_901', [5.6, 2.8, 0.36], [7.2, 1.4, 8.45], materials.walnut, barInfo, pickables);
+  makeMesh(suite, 'Suite_wine_cellar_glow_901', [5.1, 2.35, 0.04], [7.2, 1.42, 8.65], materials.warmGlow);
+  makeMesh(suite, 'Suite_bar_body_901', [4.6, 1.0, 0.85], [7.2, 0.5, 10.3], materials.walnut, barInfo, pickables);
+  makeMesh(suite, 'Suite_bar_top_901', [4.76, 0.07, 0.98], [7.2, 1.03, 10.3], materials.marbleFloor, barInfo, pickables);
+  makeMesh(suite, 'Suite_bar_champagne_901', [1.4, 0.38, 0.32], [7.2, 1.26, 10.3], materials.gold, barInfo, pickables);
+  makeMesh(suite, 'Suite_bar_espresso_901', [0.55, 0.42, 0.44], [5.5, 1.28, 10.3], materials.chrome, barInfo, pickables);
+  for (const sx of [5.4, 6.6, 7.8, 9.0]) {
+    makeMesh(suite, 'Suite_bar_stool_901', [0.42, 0.72, 0.42], [sx, 0.36, 11.15], materials.velvetNavy, barInfo, pickables);
+  }
+
+  // 8) Zone 6: East Fireplace Lounge & SE 10-Seat Royal Banquet Dining Salon
+  const fireInfo = info('fireplace', 9.2, 13.8, -Math.PI / 2, '901호 마블 벽난로 파이어사이드 라운지 🔥');
+  makeMesh(suite, 'Suite_fireplace_901', [0.52, 2.2, 2.6], [11.45, 1.1, 13.8], materials.stone, fireInfo, pickables);
+  makeMesh(suite, 'Suite_hearth_fire_901', [0.14, 0.62, 1.35], [11.18, 0.54, 13.8], materials.emberGlow, fireInfo, pickables);
+  makeMesh(suite, 'Suite_hearth_mantel_901', [0.64, 0.1, 2.75], [11.42, 1.32, 13.8], materials.gold);
+  for (const az of [12.8, 14.8]) {
+    makeMesh(suite, 'Suite_fireplace_chair_901', [0.88, 0.46, 0.88], [9.6, 0.23, az], materials.velvetEmerald, fireInfo, pickables);
+    makeMesh(suite, 'Suite_fireplace_chair_back_901', [0.22, 0.52, 0.88], [9.25, 0.7, az], materials.velvetEmerald, fireInfo, pickables);
+  }
+
+  const diningInfo = info('dining', 7.0, 17.2, Math.PI, '901호 10인 로열 뱅큇 다이닝 살롱 🍽️');
+  makeMesh(suite, 'Suite_dining_rug_901', [6.2, 0.012, 3.8], [7.0, 0.01, 18.8], materials.velvetNavy);
+  makeMesh(suite, 'Suite_dining_table_901', [4.8, 0.09, 1.55], [7.0, 0.78, 18.8], materials.marbleFloor, diningInfo, pickables);
+  for (const px of [5.5, 8.5]) {
+    makeMesh(suite, 'Suite_dining_base_901', [0.65, 0.74, 0.75], [px, 0.37, 18.8], materials.gold, diningInfo, pickables);
+  }
+  makeMesh(suite, 'Suite_dining_candelabra_901', [1.2, 0.42, 0.28], [7.0, 1.04, 18.8], materials.gold, diningInfo, pickables);
+  for (const cx of [5.2, 6.4, 7.6, 8.8]) {
+    for (const cz of [17.85, 19.75]) {
+      makeMesh(suite, 'Suite_dining_chair_901', [0.5, 0.88, 0.5], [cx, 0.44, cz], materials.velvetBurgundy, diningInfo, pickables);
+    }
+  }
+  for (const hx of [4.3, 9.7]) {
+    makeMesh(suite, 'Suite_dining_head_chair_901', [0.54, 0.96, 0.54], [hx, 0.48, 18.8], materials.velvetBurgundy, diningInfo, pickables);
+  }
+  makeMesh(suite, 'Suite_dining_chandelier_901', [4.6, 0.06, 0.45], [7.0, 2.75, 18.8], materials.gold);
+  for (const lx of [5.4, 7.0, 8.6]) {
+    makeMesh(suite, 'Suite_dining_pendant_901', [0.12, 0.22, 0.12], [lx, 2.6, 18.8], materials.warmGlow);
   }
 }
 
@@ -433,15 +628,19 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
     };
 
     if (floor >= 6 && floor <= 13) {
-      // Guest floor central concierge credenza & digital touch bar (between the two guest room doors at x = 0)
-      const base = box(`Floor_amenity_credenza_${FLOORS[floor]}`, [0.92, 0.92, 0.24], [0, 0.46, 3.48], materials.wood);
-      const top = box(`Floor_amenity_top_${FLOORS[floor]}`, [0.98, 0.045, 0.28], [0, 0.94, 3.48], materials.gold);
-      const disp = box(`Floor_amenity_kiosk_${FLOORS[floor]}`, [0.48, 0.34, 0.04], [0, 1.34, 3.56], materials.black);
-      const led = box(`Floor_amenity_led_${FLOORS[floor]}`, [0.84, 0.02, 0.02], [0, 0.98, 3.36], materials.kioskGlow);
+      // Guest floor concierge credenza & digital touch bar (on 9F shifted left to keep centered double doors unobstructed)
+      const ax = floor === 13 ? -1.76 : 0;
+      const bw = floor === 13 ? 0.86 : 0.92;
+      const tw = floor === 13 ? 0.9 : 0.98;
+      const lw = floor === 13 ? 0.76 : 0.84;
+      const base = box(`Floor_amenity_credenza_${FLOORS[floor]}`, [bw, 0.92, 0.24], [ax, 0.46, 3.48], materials.wood);
+      const top = box(`Floor_amenity_top_${FLOORS[floor]}`, [tw, 0.045, 0.28], [ax, 0.94, 3.48], materials.gold);
+      const disp = box(`Floor_amenity_kiosk_${FLOORS[floor]}`, [0.48, 0.34, 0.04], [ax, 1.34, 3.56], materials.black);
+      const led = box(`Floor_amenity_led_${FLOORS[floor]}`, [lw, 0.02, 0.02], [ax, 0.98, 3.36], materials.kioskGlow);
       const screen = sign(
         `Floor_amenity_screen_${FLOORS[floor]}`,
         [amenitySpec.name, amenitySpec.badge],
-        [0, 1.34, 3.53],
+        [ax, 1.34, 3.53],
         0.66,
         0.44,
         Math.PI
@@ -481,50 +680,129 @@ export function decorateFloor(room, floor, { expanded = false, pickables = null 
 
   if (expanded) return;
 
-  // Guest floor lounges (2F–10F) and Walk-In Rooms / Suites (2F–9F)
+  // Guest floor lounges (5F–6F Executive floors only) and Walk-In Rooms / Suites (2F–9F)
   if (usage.kind === 'guest') {
-    buildExecutiveClubLounge(room, floor, pickables);
+    if (EXECUTIVE_LOUNGE_FLOORS.includes(floor)) {
+      buildExecutiveClubLounge(room, floor, pickables);
+    } else {
+      const tag = FLOORS[floor];
+      box(`West_wall_art_frame_${tag}`, [0.05, 1.22, 1.02], [-2.46, 1.62, 2.35], materials.gold);
+      box(
+        `West_wall_art_canvas_${tag}`,
+        [0.06, 1.06, 0.86],
+        [-2.45, 1.62, 2.35],
+        floor % 2 === 0 ? materials.velvetNavy : materials.velvetBurgundy
+      );
+      box(`West_wall_art_light_${tag}`, [0.08, 0.04, 0.56], [-2.42, 2.34, 2.35], materials.warmGlow);
+    }
     if (floor === 14) return;
 
-    const doorPositions = [-1.38, 1.38];
-    for (const [i, x] of doorPositions.entries()) {
-      const number = (floor - 4) * 100 + i + 1;
-      if (number === 301) continue;
-
+    if (floor === 13) {
+      // Unified Full-Floor 9F Royal Presidential Penthouse (901) with Grand Centered Double-Leaf Entrance
       const doorData = {
         action: 'otherRoomDoor',
-        room: String(number),
+        room: '901',
         floorIndex: floor,
       };
 
-      const doorPivot = new THREE.Group();
-      doorPivot.name = `Door_pivot_${number}`;
-      doorPivot.position.set(x - 0.43, 0, 3.565);
-      doorPivot.userData.dynamic = true;
-      room.add(doorPivot);
+      const doorPivotL = new THREE.Group();
+      doorPivotL.name = 'Door_pivot_901';
+      doorPivotL.position.set(-0.9, 0, 3.565);
+      doorPivotL.userData.dynamic = true;
+      room.add(doorPivotL);
 
-      const doorPanel = makeMesh(doorPivot, `Guest_room_door_${number}`, [0.86, 2.18, 0.06], [0.43, 1.09, 0], materials.wood, doorData, pickables);
-      doorPanel.userData.dynamic = true;
+      const panelL = makeMesh(doorPivotL, 'Guest_room_door_901', [0.88, 2.28, 0.06], [0.44, 1.14, 0], materials.walnut, doorData, pickables);
+      panelL.userData.dynamic = true;
+      makeMesh(doorPivotL, 'Door_trim_901_L', [0.64, 1.84, 0.072], [0.44, 1.14, 0], materials.gold);
+      for (const hz of [-0.065, 0.065]) {
+        const handleL = makeMesh(doorPivotL, 'Room_handle_901', [0.16, 0.055, 0.07], [0.74, 1.06, hz], materials.gold, doorData, pickables);
+        handleL.userData.dynamic = true;
+      }
+      const roomSign = makeSign(
+        doorPivotL,
+        'Room_number_901',
+        ['901 · PENTHOUSE', 'ROYAL PRESIDENTIAL'],
+        [0.44, 1.72, -0.035],
+        0.42,
+        0.24,
+        Math.PI
+      );
+      roomSign.userData = { ...roomSign.userData, ...doorData, dynamic: true };
+      if (pickables) pickables.push(roomSign);
 
-      const handle = makeMesh(doorPivot, `Room_handle_${number}`, [0.14, 0.055, 0.07], [0.69, 1.02, -0.065], materials.gold, doorData, pickables);
-      handle.userData.dynamic = true;
+      const doorPivotR = new THREE.Group();
+      doorPivotR.name = 'Door_pivot_901_R';
+      doorPivotR.position.set(0.9, 0, 3.565);
+      doorPivotR.userData.dynamic = true;
+      room.add(doorPivotR);
+
+      const panelR = makeMesh(doorPivotR, 'Guest_room_door_901_R', [0.88, 2.28, 0.06], [-0.44, 1.14, 0], materials.walnut, doorData, pickables);
+      panelR.userData.dynamic = true;
+      makeMesh(doorPivotR, 'Door_trim_901_R', [0.64, 1.84, 0.072], [-0.44, 1.14, 0], materials.gold);
+      for (const hz of [-0.065, 0.065]) {
+        const handleR = makeMesh(doorPivotR, 'Room_handle_901_R', [0.16, 0.055, 0.07], [-0.74, 1.06, hz], materials.gold, doorData, pickables);
+        handleR.userData.dynamic = true;
+      }
 
       for (const side of [-1, 1]) {
-        box(`Room_frame_${number}_${side}`, [0.045, 2.25, 0.075], [x + side * 0.46, 1.125, 3.56], materials.gold);
+        box(`Room_frame_901_${side}`, [0.06, 2.34, 0.09], [side * 0.94, 1.17, 3.56], materials.gold);
       }
-      box(`Room_frame_top_${number}`, [0.965, 0.045, 0.075], [x, 2.25, 3.56], materials.gold);
+      box('Room_frame_top_901', [1.94, 0.06, 0.09], [0, 2.32, 3.56], materials.gold);
 
-      const tierTag =
-        floor === 13 ? (i === 0 ? 'PRESIDENTIAL' : 'ROYAL SUITE') : floor >= 11 ? 'SKY SUITE' : floor >= 9 ? 'JUNIOR SUITE' : 'ROOM';
-      sign(`Room_number_${number}`, [String(number), tierTag], [x, 1.67, 3.53], 0.34, 0.21);
+      buildGrandPenthouse901(room, pickables);
+    } else {
+      const doorPositions = [-1.38, 1.38];
+      for (const [i, x] of doorPositions.entries()) {
+        const number = (floor - 4) * 100 + i + 1;
+        if (number === 301) continue;
 
-      // Build complete walk-in 3D room / suite behind the hinged door
-      buildFurnishedSuite(room, {
-        floor,
-        number: String(number),
-        side: i === 0 ? -1 : 1,
-        pickables,
-      });
+        const doorData = {
+          action: 'otherRoomDoor',
+          room: String(number),
+          floorIndex: floor,
+        };
+
+        const doorPivot = new THREE.Group();
+        doorPivot.name = `Door_pivot_${number}`;
+        doorPivot.position.set(x - 0.43, 0, 3.565);
+        doorPivot.userData.dynamic = true;
+        room.add(doorPivot);
+
+        const doorPanel = makeMesh(doorPivot, `Guest_room_door_${number}`, [0.86, 2.18, 0.06], [0.43, 1.09, 0], materials.wood, doorData, pickables);
+        doorPanel.userData.dynamic = true;
+
+        for (const hz of [-0.065, 0.065]) {
+          const handle = makeMesh(doorPivot, `Room_handle_${number}`, [0.14, 0.055, 0.07], [0.69, 1.02, hz], materials.gold, doorData, pickables);
+          handle.userData.dynamic = true;
+        }
+
+        for (const side of [-1, 1]) {
+          box(`Room_frame_${number}_${side}`, [0.045, 2.25, 0.075], [x + side * 0.46, 1.125, 3.56], materials.gold);
+        }
+        box(`Room_frame_top_${number}`, [0.965, 0.045, 0.075], [x, 2.25, 3.56], materials.gold);
+
+        const tierTag =
+          floor >= 11 ? 'SKY SUITE' : floor >= 9 ? 'JUNIOR SUITE' : 'ROOM';
+        const roomSign = makeSign(
+          doorPivot,
+          `Room_number_${number}`,
+          [String(number), tierTag],
+          [0.43, 1.67, -0.035],
+          0.34,
+          0.21,
+          Math.PI
+        );
+        roomSign.userData = { ...roomSign.userData, ...doorData, dynamic: true };
+        if (pickables) pickables.push(roomSign);
+
+        // Build complete walk-in 3D room / suite behind the hinged door
+        buildFurnishedSuite(room, {
+          floor,
+          number: String(number),
+          side: i === 0 ? -1 : 1,
+          pickables,
+        });
+      }
     }
   } else if (usage.kind === 'parking') {
     for (const x of [-1.56, 1.56]) {

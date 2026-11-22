@@ -20,7 +20,8 @@ import {
   MALL_FAST_TRAVEL_SPOTS,
 } from '../src/hotel-stay.js';
 import { HotelWorld, MALL_LIFT_X, MALL_LIFT_2_X, MALL_LIFT_Z } from '../src/hotel-world.js';
-import { MALL_ROOF_Y, MALL_STORY_H, MallScene } from '../src/mall-scene.js';
+import { cinemaRowMetrics, MALL_ROOF_Y, MALL_STORY_H, MallScene } from '../src/mall-scene.js';
+import { buildStylizedHuman } from '../src/character-builder.js';
 import { WalkingPlayer } from '../src/player.js';
 import { LiftScene } from '../src/scene.js';
 
@@ -668,5 +669,123 @@ test('mall basement parking visibility prevents stacked lower-level bleed-throug
     assert.equal(visB3.find(([f]) => f === 3)?.[1], true);
     assert.equal(visB3.find(([f]) => f === 4)?.[1], false);
     assert.equal(visB3.find(([f]) => f === 5)?.[1], true);
+  });
+});
+
+test('seated cinema audience sits flush on terraced chairs with bent knees and grounded shoes', () => {
+  const standingRig = buildStylizedHuman({ seated: false, facingDir: 1 });
+  standingRig.root.updateMatrixWorld(true);
+  const standingSoles = [];
+  standingRig.root.traverse((o) => {
+    if (o.isMesh && o.name === 'Char_shoe_sole') {
+      standingSoles.push(new THREE.Box3().setFromObject(o));
+    }
+  });
+  assert.equal(standingSoles.length, 2);
+  for (const box of standingSoles) {
+    assert.ok(Math.abs(box.min.y) <= 0.005, `expected standing sole min.y near 0, got ${box.min.y}`);
+  }
+
+  withMockCanvas(() => {
+    const world = new HotelWorld();
+    const scene = new THREE.Scene();
+    const mall = new MallScene(scene, world, []);
+    scene.updateMatrixWorld(true);
+
+    const seatedPeople = mall.mallPeople.filter((p) => p.seat);
+    assert.ok(seatedPeople.length >= 3, `expected at least 3 seated viewers across rows, got ${seatedPeople.length}`);
+    const coveredRows = new Set(seatedPeople.map((p) => p.seatRow));
+    assert.deepEqual([...coveredRows].sort((a, b) => a - b), [0, 1, 2]);
+
+    for (const person of seatedPeople) {
+      const { sz, riserTop, seatTop } = cinemaRowMetrics(person.seatRow);
+      const baseY = person.baseY;
+      let pelvisBox = null;
+      let torsoBox = null;
+      const soles = [];
+      const calves = [];
+
+      person.root.traverse((o) => {
+        if (!o.isMesh) return;
+        const box = new THREE.Box3().setFromObject(o);
+        if (o.name === 'Char_pelvis') pelvisBox = box;
+        if (o.name === 'Char_torso') torsoBox = box;
+        if (o.name === 'Char_shoe_sole') soles.push(box);
+        if (o.name === 'Char_calf') calves.push(box);
+      });
+
+      assert.ok(pelvisBox && torsoBox && soles.length === 2 && calves.length === 2);
+      assert.ok(
+        pelvisBox.min.y >= baseY + seatTop - 0.06 && pelvisBox.min.y <= baseY + seatTop + 0.01,
+        `${person.id} pelvis min.y=${pelvisBox.min.y.toFixed(3)} not flush with seatTop=${(baseY + seatTop).toFixed(3)}`
+      );
+      assert.ok(pelvisBox.max.y > baseY + seatTop, `${person.id} pelvis should sit atop seatTop`);
+
+      for (const soleBox of soles) {
+        assert.ok(
+          Math.abs(soleBox.min.y - (baseY + riserTop)) <= 0.015,
+          `${person.id} sole min.y=${soleBox.min.y.toFixed(3)} not grounded on riserTop=${(baseY + riserTop).toFixed(3)}`
+        );
+      }
+      for (const calfBox of calves) {
+        assert.ok(calfBox.min.y < pelvisBox.min.y - 0.25, `${person.id} calf should bend down below seat`);
+        assert.ok(
+          calfBox.min.z >= sz + 0.22,
+          `${person.id} calf min.z=${calfBox.min.z.toFixed(3)} clips cushion front ${(sz + 0.23).toFixed(3)}`
+        );
+      }
+      assert.ok(
+        torsoBox.min.z >= sz - 0.215,
+        `${person.id} torso min.z=${torsoBox.min.z.toFixed(3)} clips backrest front ${(sz - 0.21).toFixed(3)}`
+      );
+    }
+  });
+});
+
+test('player can walk seamlessly outdoors between Mall exterior plaza and Hotel entrance plaza', () => {
+  withMockCanvas(() => {
+    const world = new HotelWorld();
+    const scene = new THREE.Scene();
+    new HotelScene(scene, world, []);
+    new MallScene(scene, world, []);
+
+    assert.equal(world.canOccupy(5, -13.85, 41.0), true);
+
+    const ctrl = new LiftController();
+    const mallCtrlA = new LiftController({
+      minFloor: 0,
+      maxFloor: MALL_MAX_FLOOR,
+      id: 'mall',
+      startFloor: 5,
+      allowedFloors: MALL_VALID_FLOORS,
+    });
+    const player = new WalkingPlayer(null, world, null, null, null, mallCtrlA, null);
+    player.floor = 5;
+    player.zone = 'lobby';
+    player.x = -32.0;
+    player.z = 34.5;
+
+    // 1. Walk South out through the Mall automatic glass entrance (z = 36) onto Mall outdoor plaza
+    player.yaw = Math.PI;
+    for (let i = 0; i < 33; i++) player.move(1, 0, 0.05, ctrl, false, mallCtrlA);
+    assert.ok(player.z >= 37.5 && player.z <= 38.2, `expected Mall outdoor plaza around z=37.8, got z=${player.z}`);
+
+    // 2. Turn East and walk outdoors across the x = -14.0..-13.7 plaza seam straight onto Hotel outdoor plaza
+    player.yaw = -Math.PI / 2;
+    for (let i = 0; i < 160; i++) player.move(1, 0, 0.1, ctrl, false, mallCtrlA);
+    assert.ok(player.x >= -2.0, `expected Hotel outdoor plaza x >= -2, got x=${player.x}`);
+
+    // 3. Walk North through Hotel main entrance (z = 26) into Hotel lobby
+    player.yaw = 0;
+    for (let i = 0; i < 80; i++) player.move(1, 0, 0.1, ctrl, false, mallCtrlA);
+    assert.ok(player.z <= 22.5, `expected inside Hotel lobby z <= 22.5, got z=${player.z}`);
+    assert.equal(player.floor, 5);
+
+    // 4. Walk back from Hotel outdoor plaza West across the seam onto Mall outdoor plaza
+    player.x = -5.0;
+    player.z = 45.5;
+    player.yaw = Math.PI / 2;
+    for (let i = 0; i < 120; i++) player.move(1, 0, 0.1, ctrl, false, mallCtrlA);
+    assert.ok(player.x <= -28.0, `expected back on Mall outdoor plaza x <= -28, got x=${player.x}`);
   });
 });

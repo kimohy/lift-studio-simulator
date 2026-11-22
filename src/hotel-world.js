@@ -6,6 +6,7 @@ export const MALL_LIFT_2_X = -29.6;
 export const MALL_LIFT_Z = 10.0;
 export const MALL_VALID_FLOORS = Object.freeze([0, 1, 2, 3, 4, 5, 7, 9, 11, 13]);
 export const MALL_MAX_FLOOR = 13;
+export const EXECUTIVE_LOUNGE_FLOORS = Object.freeze([9, 10]); // 5F (Junior Executive Suite) & 6F (Executive Business Suites)
 
 export class HotelWorld {
   constructor() {
@@ -27,9 +28,17 @@ export class HotelWorld {
 
   isWalkInGuestArea(x, z, floor) {
     if (!Number.isInteger(floor) || floor < 6 || floor > 14) return false;
-    // Expanded West Wing Executive Club Lounge (2F–10F)
-    if (inside(x, z, -9.35, -2.28, 1.5, 7.55)) return true;
+    // West Wing Executive Club Lounge (exclusively on 5F–6F next to Executive Suites)
+    if (EXECUTIVE_LOUNGE_FLOORS.includes(floor) && inside(x, z, -9.35, -2.28, 1.5, 7.55)) return true;
     if (floor === 14) return false;
+    if (floor === 13) {
+      return (
+        this.openRooms.has('901') &&
+        (inside(x, z, -0.92, 0.92, 3.3, 4.1) ||
+          inside(x, z, -2.25, 2.25, 3.8, 8.4) ||
+          inside(x, z, -11.55, 11.55, 8.35, 21.55))
+      );
+    }
     const prefix = floor - 4;
     if (floor === 7) {
       return this.openRooms.has('302') && inside(x, z, 7.78, 12.82, 3.85, 12.42);
@@ -79,7 +88,7 @@ export class HotelWorld {
       return true;
     }
     // M1F Outdoor Mall Entrance Plaza (connects seamlessly to Hotel Entrance Plaza)
-    if (floor === 5 && inside(x, z, -49.6, -14.0, 36.3, 47.7)) {
+    if (floor === 5 && inside(x, z, -49.6, -13.6, 36.3, 47.7)) {
       return true;
     }
     // M1F South Curtain-Wall Automatic Entrance Aperture
@@ -144,8 +153,9 @@ export class HotelWorld {
       }
     }
     if (this.isMallArea(x, z, floor)) return true;
-    // Vestibule left wall (x = -2.54): only passable through the 1.1m doorway (z ∈ [1.80, 2.90])
-    if (inside(x, z, -2.68, -2.4, 1.2, 7.85) && !inside(x, z, -2.72, -2.35, 1.8, 2.9)) {
+    // Vestibule left wall (x = -2.54): only passable through the 1.1m doorway (z ∈ [1.80, 2.90]) on floors with a West Wing gallery/lounge
+    const hasWestLounge = floor <= 5 || EXECUTIVE_LOUNGE_FLOORS.includes(floor);
+    if (inside(x, z, -2.68, -2.4, 1.2, 7.85) && !(hasWestLounge && inside(x, z, -2.72, -2.35, 1.8, 2.9))) {
       return false;
     }
     if (this.isWalkInGuestArea(x, z, floor)) return true;
@@ -250,13 +260,11 @@ export class HotelWorld {
     if (player.floor >= 6 && player.floor <= 13 && player.z >= 3.8) {
       if (player.floor === 7 && player.x >= 7.5) return '3층 · 302호 패밀리 트윈 룸';
       if (player.floor !== 7) {
+        if (player.floor === 13) {
+          return '9층 · 901호 로열 프레지덴셜 펜트하우스 (전층 통합)';
+        }
         const prefix = player.floor - 4;
         const roomNum = `${prefix}${player.x < 0 ? '01' : '02'}`;
-        if (player.floor === 13) {
-          return player.x < 0
-            ? `9층 · ${roomNum}호 프레지덴셜 펜트하우스 스위트`
-            : `9층 · ${roomNum}호 로열 이그제큐티브 스위트`;
-        }
         if (player.floor >= 11) return `${prefix}층 · ${roomNum}호 스카이 프리미어 스위트`;
         if (player.floor >= 9) return `${prefix}층 · ${roomNum}호 주니어 스위트`;
         return `${prefix}층 · ${roomNum}호 ${player.x < 0 ? '디럭스 킹 룸' : '패밀리 트윈 룸'}`;

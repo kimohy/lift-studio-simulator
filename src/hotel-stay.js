@@ -234,12 +234,12 @@ export const FAST_TRAVEL_SPOTS = [
 ];
 
 export const HOTEL_ROOM_CATEGORIES = [
-  { id: 'all', label: '전체 객실 (16)' },
+  { id: 'all', label: '전체 객실 (15)' },
   { id: 'signature', label: '★ 스마트 301' },
   { id: 'deluxe', label: '디럭스 (2F~4F)' },
   { id: 'junior', label: '주니어 스위트 (5F~6F)' },
   { id: 'sky', label: '스카이 스위트 (7F~8F)' },
-  { id: 'penthouse', label: '펜트하우스·로열 (9F)' },
+  { id: 'penthouse', label: '★ 9F 단독 펜트하우스' },
 ];
 
 export const HOTEL_ROOMS = [
@@ -271,7 +271,7 @@ export const HOTEL_ROOMS = [
     nameEn: 'Family Twin Room',
     bed: '퀸 + 싱글 트윈',
     view: '이스트 코트뷰',
-    features: ['가족형 2베드', '라운지 테이블', '클럽 라운지 인접'],
+    features: ['가족형 2베드', '라운지 테이블', '2F 아이스 & 런드리 바 인접'],
     price: '₩390,000',
     featured: false,
   },
@@ -367,7 +367,7 @@ export const HOTEL_ROOMS = [
     nameEn: 'Junior Executive Suite',
     bed: '트윈 / 더블 스위트',
     view: '이스트 가든뷰',
-    features: ['넓은 응접 소파', '다도 라운지 인접', '프라이빗 바'],
+    features: ['넓은 응접 소파', '5F 이그제큐티브 라운지 직결 🥂', '프라이빗 바'],
     price: '₩710,000',
     featured: false,
   },
@@ -383,7 +383,7 @@ export const HOTEL_ROOMS = [
     nameEn: 'Junior Business Suite',
     bed: '프리미엄 킹 1',
     view: '하이라이즈 시티뷰',
-    features: ['6F 비즈니스 클럽', '이그제큐티브 데스크', '대형 응접실'],
+    features: ['6F 이그제큐티브 라운지 직결 🥂', '이그제큐티브 데스크', '대형 응접실'],
     price: '₩760,000',
     featured: false,
   },
@@ -472,31 +472,15 @@ export const HOTEL_ROOMS = [
     floorIndex: 13,
     floorLabel: '9',
     floorEn: '9th Floor',
-    doorX: -1.38,
+    doorX: 0,
     category: 'penthouse',
-    badge: 'PRESIDENTIAL 👑',
-    nameKo: '프레지덴셜 펜트하우스 스위트',
-    nameEn: 'Presidential Penthouse Suite',
-    bed: '마스터 캘리포니아 킹',
-    view: '최상층 270° 스카이라인',
-    features: ['그랜드 피아노 🎹', '프라이빗 스파 욕조 🛁', '벽난로 & 풀바 🥂', '전담 버틀러'],
-    price: '₩2,400,000',
-    featured: true,
-  },
-  {
-    room: '902',
-    floorIndex: 13,
-    floorLabel: '9',
-    floorEn: '9th Floor',
-    doorX: 1.38,
-    category: 'penthouse',
-    badge: 'ROYAL SUITE 👑',
-    nameKo: '로열 이그제큐티브 스위트',
-    nameEn: 'Royal Executive Suite',
-    bed: '로열 스위트 트윈/킹',
-    view: '10F 루프탑 & 시티뷰',
-    features: ['프라이빗 스파 욕조 🛁', '벽난로 라운지 🔥', '로열 샴페인 바 🥂', '루프탑 풀 인접'],
-    price: '₩1,950,000',
+    badge: 'FULL-FLOOR PENTHOUSE 👑',
+    nameKo: '로열 프레지덴셜 펜트하우스 (9F 전층 통합)',
+    nameEn: 'Grand Royal Presidential Penthouse',
+    bed: '마스터 수퍼 킹 베드 & 전용 라운지',
+    view: '전층 23.6m 풀 파노라마 스카이라인',
+    features: ['콘서트 그랜드 피아노 🎹', '스카이 자쿠지 스파 🛁', '벽난로 & 와인바 🥂', '10인 연회 다이닝'],
+    price: '₩4,800,000',
     featured: true,
   },
 ];
@@ -973,7 +957,7 @@ export class HotelStay {
     }
     const tierKo =
       tier === 'presidential'
-        ? '프레지덴셜 펜트하우스 스위트'
+        ? '로열 프레지덴셜 펜트하우스'
         : tier === 'royal'
           ? '로열 이그제큐티브 스위트'
           : tier === 'sky'
@@ -985,11 +969,14 @@ export class HotelStay {
                 : '디럭스 킹 룸';
     const actMsg = {
       bed: `🛏️ [${room}호 ${tierKo}] 최고급 구스다운 침구에 기대어 도심 스카이라인을 감상하며 휴식합니다.`,
-      sofa: `🛋️ [${room}호 ${tierKo}] 응접 라운지 소파에 편안히 앉아 여유로운 스위트 모먼트를 즐깁니다.`,
-      bar: `🥂 [${room}호 ${tierKo}] 프라이빗 미니바에서 칠링된 샴페인과 아로마 에스프레소를 즐깁니다.`,
-      spa: `🛁 [${room}호 ${tierKo}] 파노라마 창가 마블 스카이 자쿠지에서 따뜻한 스파 테라피를 만끽합니다.`,
+      sofa: `🛋️ [${room}호 ${tierKo}] 샹들리에 아래 대연회 그랜드 살롱 소파에서 프라이빗한 여유를 만끽합니다.`,
+      bar: `🥂 [${room}호 ${tierKo}] 프라이빗 와인 셀러 바에서 빈티지 샴페인과 에스프레소를 즐깁니다.`,
+      spa: `🛁 [${room}호 ${tierKo}] 파노라마 창가 대형 마블 스카이 자쿠지에서 따뜻한 온수 스파 테라피를 만끽합니다.`,
+      piano: `🎹 [${room}호 ${tierKo}] 스테이지 위 콘서트 그랜드 피아노의 우아한 선율을 연주하며 야경을 감상합니다.`,
+      fireplace: `🔥 [${room}호 ${tierKo}] 대리석 벽난로의 따스한 불꽃 앞에서 아늑한 휴식을 취합니다.`,
+      dining: `🍽️ [${room}호 ${tierKo}] 10인 로열 대리석 뱅큇 다이닝 테이블에서 셰프 특선 만찬 코스를 즐깁니다.`,
     }[type];
-    const pts = tier === 'presidential' || tier === 'royal' ? 75 : tier === 'sky' ? 60 : 45;
+    const pts = tier === 'presidential' ? 90 : tier === 'royal' ? 75 : tier === 'sky' ? 60 : 45;
     const energyGain = type === 'spa' || type === 'bed' ? 20 : 14;
     this.visitedFloorAmenities.add(floorIndex);
     this.lastAmenityItem = `${room}호 ${tierKo}`;

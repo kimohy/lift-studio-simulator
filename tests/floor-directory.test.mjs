@@ -417,5 +417,37 @@ test('startHotelExperience, startMallExperience, and Tab guide toggle keep playe
   assert.equal(dialog.open, false);
 });
 
+test('fastTravelToFloor lands unobstructed in front of the hotel elevator and allows free walking on all 15 floors', () => {
+  const { game, controller } = createMockGame();
+  game.enter();
+
+  for (let f = 0; f < 15; f++) {
+    const res = game.fastTravelToFloor(f);
+    assert.equal(res.ok, true);
+    assert.equal(game.player.floor, f);
+    assert.equal(game.player.x, 0);
+    assert.equal(game.player.z, f === 14 ? 3.6 : 2.65);
+    assert.equal(game.player.canOccupy(game.player.x, game.player.z, controller), true, `spawn blocked on floor ${f}`);
+
+    // Forward (+Z with yaw = Math.PI)
+    const startZ = game.player.z;
+    game.player.move(1, 0, 0.25, controller);
+    assert.ok(game.player.z - startZ > 0.3, `forward blocked on floor ${f}: z ${startZ} -> ${game.player.z}`);
+
+    // Backward (-Z from spawn)
+    game.fastTravelToFloor(f);
+    game.player.move(-1, 0, 0.25, controller);
+    assert.ok(startZ - game.player.z > 0.3, `backward blocked on floor ${f}: z ${startZ} -> ${game.player.z}`);
+
+    // Strafe West (-X with yaw = Math.PI) and Strafe East (+X)
+    game.fastTravelToFloor(f);
+    game.player.move(0, 1, 0.25, controller);
+    assert.ok(game.player.x < -0.3, `strafe -X blocked on floor ${f}: x=${game.player.x}`);
+    game.player.move(0, -1, 0.25, controller);
+    game.player.move(0, -1, 0.25, controller);
+    assert.ok(game.player.x > 0.3, `strafe +X blocked on floor ${f}: x=${game.player.x}`);
+  }
+});
+
 
 

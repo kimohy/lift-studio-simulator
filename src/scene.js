@@ -12,6 +12,7 @@ import { EscalatorView } from './escalator-view.js';
 import { decorateFloor } from './floor-interiors.js';
 import { GuestRoomView } from './guest-room-view.js';
 import { HotelScene } from './hotel-scene.js';
+import { EXECUTIVE_LOUNGE_FLOORS } from './hotel-world.js';
 import { NPCView } from './npc-view.js';
 import { batchStaticMeshes } from './render-optimization.js';
 import { RooftopPoolView } from './rooftop-pool-view.js';
@@ -708,7 +709,7 @@ export class LiftScene {
         const header = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.0, 0.12), wallMaterials.guest);
         header.position.set(-1.38, 2.7, 3.68);
         lobby.add(header);
-      } else if (floor >= 6 && floor <= 13) {
+      } else if (floor >= 6 && floor <= 12) {
         const back = lobby.getObjectByName('Vestibule_back_wall');
         lobby.remove(back);
         for (const [x, width] of [
@@ -725,6 +726,20 @@ export class LiftScene {
           header.position.set(hx, 2.7, 3.68);
           lobby.add(header);
         }
+      } else if (floor === 13) {
+        const back = lobby.getObjectByName('Vestibule_back_wall');
+        lobby.remove(back);
+        for (const [x, width] of [
+          [-1.76, 1.68],
+          [1.76, 1.68],
+        ]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(width, 3.2, 0.12), wallMaterials.guest);
+          m.position.set(x, 1.6, 3.68);
+          lobby.add(m);
+        }
+        const header = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.9, 0.12), wallMaterials.guest);
+        header.position.set(0, 2.75, 3.68);
+        lobby.add(header);
       } else if (floor === 14) {
         const back = lobby.getObjectByName('Vestibule_back_wall');
         lobby.remove(back);
@@ -740,6 +755,12 @@ export class LiftScene {
       if (expanded) {
         const back = lobby.getObjectByName('Vestibule_back_wall');
         lobby.remove(back);
+      }
+      if (floor >= 6 && !EXECUTIVE_LOUNGE_FLOORS.includes(floor)) {
+        const westInfill = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.32, 1.14), wallMaterials.guest);
+        westInfill.name = `West_vestibule_closed_wall_${FLOORS[floor]}`;
+        westInfill.position.set(-2.54, 1.16, 2.35);
+        lobby.add(westInfill);
       }
       decorateFloor(lobby, floor, { expanded, pickables: this.pickables });
       this.gameRoom.add(lobby);

@@ -629,51 +629,86 @@ test('expanded guest lounges, walk-in suites 201-902, and presidential 9F suites
   };
 
   try {
-    // 1. Inspect built 3D geometry for 9F Presidential/Royal Suites (floor 13), 302 (floor 7), and West Executive Club Lounges
+    // 1. Inspect built 3D geometry for 5F-6F Executive Club Lounges, unified 9F Penthouse 901 (floor 13), and sealed non-executive floors
+    const floor9Group = new THREE.Group();
+    const pick9 = [];
+    decorateFloor(floor9Group, 9, { expanded: false, pickables: pick9 });
+    assert.ok(floor9Group.getObjectByName('Executive_lounge_5'));
+    assert.ok(floor9Group.getObjectByName('West_lounge_bar_top_5'));
+    assert.ok(floor9Group.getObjectByName('West_lounge_window_5'));
+    assert.ok(pick9.some((o) => o.userData?.action === 'hotelLounge' && o.userData?.floorIndex === 9));
+
+    const floor10Group = new THREE.Group();
+    const pick10 = [];
+    decorateFloor(floor10Group, 10, { expanded: false, pickables: pick10 });
+    assert.ok(floor10Group.getObjectByName('Executive_lounge_6'));
+    assert.ok(floor10Group.getObjectByName('West_lounge_bar_top_6'));
+    assert.ok(floor10Group.getObjectByName('West_lounge_window_6'));
+    assert.ok(pick10.some((o) => o.userData?.action === 'hotelLounge' && o.userData?.floorIndex === 10));
+
+    const floor6Group = new THREE.Group();
+    decorateFloor(floor6Group, 6, { expanded: false, pickables: [] });
+    assert.equal(floor6Group.getObjectByName('Executive_lounge_2'), undefined);
+    assert.ok(floor6Group.getObjectByName('West_wall_art_frame_2'));
+
     const floor13Group = new THREE.Group();
     const pick13 = [];
     decorateFloor(floor13Group, 13, { expanded: false, pickables: pick13 });
-    assert.ok(floor13Group.getObjectByName('Executive_lounge_9'));
-    assert.ok(floor13Group.getObjectByName('West_lounge_bar_top_9'));
-    assert.ok(floor13Group.getObjectByName('West_lounge_window_9'));
+    assert.equal(floor13Group.getObjectByName('Executive_lounge_9'), undefined);
+    assert.ok(floor13Group.getObjectByName('West_wall_art_frame_9'));
     assert.ok(floor13Group.getObjectByName('Door_pivot_901'));
+    assert.ok(floor13Group.getObjectByName('Door_pivot_901_R'));
+    assert.equal(floor13Group.getObjectByName('Door_pivot_902'), undefined);
     assert.ok(floor13Group.getObjectByName('Suite_interior_901'));
+    assert.equal(floor13Group.getObjectByName('Suite_interior_902'), undefined);
     assert.ok(floor13Group.getObjectByName('Suite_grand_piano_901'));
     assert.ok(floor13Group.getObjectByName('Suite_spa_tub_901'));
-    assert.ok(floor13Group.getObjectByName('Suite_interior_902'));
-    assert.ok(floor13Group.getObjectByName('Suite_fireplace_902'));
+    assert.ok(floor13Group.getObjectByName('Suite_fireplace_901'));
+    assert.ok(floor13Group.getObjectByName('Suite_bar_body_901'));
+    assert.ok(floor13Group.getObjectByName('Suite_dining_table_901'));
+    assert.ok(floor13Group.getObjectByName('Suite_chandelier_901'));
     assert.ok(pick13.some((o) => o.userData?.action === 'suiteAmenity' && o.userData?.room === '901'));
-    assert.ok(pick13.some((o) => o.userData?.action === 'hotelLounge' && o.userData?.floorIndex === 13));
 
     const floor7Group = new THREE.Group();
     const pick7 = [];
     decorateFloor(floor7Group, 7, { expanded: false, pickables: pick7 });
+    assert.equal(floor7Group.getObjectByName('Executive_lounge_3'), undefined);
+    assert.ok(floor7Group.getObjectByName('West_wall_art_frame_3'));
     assert.ok(floor7Group.getObjectByName('Suite_interior_302'));
     assert.ok(floor7Group.getObjectByName('Suite_exit_302'));
     assert.ok(pick7.some((o) => o.userData?.action === 'suiteExit' && o.userData?.room === '302'));
 
-    // 2. HotelWorld enforces door state for suites while allowing walk-in West Executive Club Lounges
+    // 2. HotelWorld restricts West Executive Club Lounge to 5F (9) & 6F (10) and enforces door state for suites/penthouse
     const world = new HotelWorld();
-    assert.equal(world.canOccupy(13, -6.0, 5.0), true, 'Expanded 9F West Executive Club Lounge should be walkable');
-    assert.equal(world.canOccupy(13, -5.0, 11.0), false, 'Closed 901 Presidential Suite should block occupancy until opened');
+    assert.equal(world.canOccupy(9, -6.0, 5.0), true, '5F West Executive Club Lounge should be walkable');
+    assert.equal(world.canOccupy(10, -6.0, 5.0), true, '6F West Executive Club Lounge should be walkable');
+    for (const nonExecFloor of [6, 7, 8, 11, 12, 13, 14]) {
+      assert.equal(world.canOccupy(nonExecFloor, -6.0, 5.0), false, `floor ${nonExecFloor} should not have a West Executive Lounge`);
+      assert.equal(world.canOccupy(nonExecFloor, -2.54, 2.35), false, `floor ${nonExecFloor} west doorway should be sealed`);
+    }
+    assert.equal(world.canOccupy(13, 0.0, 13.0), false, 'Closed 901 Penthouse should block occupancy until opened');
     world.setRoomOpen('901', true);
-    assert.equal(world.canOccupy(13, -5.0, 11.0), true, 'Opened 901 Presidential Suite hall should be walkable');
-    assert.equal(world.canOccupy(13, -1.38, 5.0), true, 'Opened 901 entry foyer should be walkable');
+    assert.equal(world.canOccupy(13, 0.0, 13.0), true, 'Opened 901 Penthouse center salon should be walkable');
+    assert.equal(world.canOccupy(13, -9.0, 12.0), true, 'Opened 901 Penthouse west master sanctuary should be walkable');
+    assert.equal(world.canOccupy(13, 9.0, 18.0), true, 'Opened 901 Penthouse east banquet dining wing should be walkable');
+    assert.equal(world.canOccupy(13, 0.0, 5.0), true, 'Opened 901 marble foyer should be walkable');
     assert.equal(world.canOccupy(7, 9.5, 6.0), false, 'Closed 302 Family Twin should block occupancy until opened');
     world.setRoomOpen('302', true);
     assert.equal(world.canOccupy(7, 9.5, 6.0), true, 'Opened 302 Family Twin east suite should be walkable');
 
     // 3. HotelStay suite & lounge interactions reward VIP points and advance player to lounge/suite spot
     const stay = new HotelStay();
-    const guest = { floor: 13, x: -1.38, z: 4.8, yaw: Math.PI, pitch: 0, zone: 'lobby' };
-    const loungeRes = stay.interactHotelLounge({ floorIndex: 13, loungeType: 'bar', seatX: -6.2, seatZ: 6.1, seatYaw: 0 }, guest);
+    const loungeGuest = { floor: 10, x: -3.5, z: 4.5, yaw: Math.PI, pitch: 0, zone: 'lobby' };
+    const loungeRes = stay.interactHotelLounge({ floorIndex: 10, loungeType: 'bar', seatX: -6.2, seatZ: 6.1, seatYaw: 0 }, loungeGuest);
     assert.equal(loungeRes.ok, true);
-    assert.equal(guest.x, -6.2);
+    assert.equal(loungeGuest.x, -6.2);
     assert.ok(stay.points >= 70);
 
-    const suiteRes = stay.interactSuite({ room: '901', floorIndex: 13, tier: 'presidential', amenityType: 'spa', seatX: -6.05, seatZ: 13.75, seatYaw: Math.PI }, guest);
-    assert.equal(suiteRes.ok, true);
-    assert.equal(guest.z, 13.75);
+    const pentGuest = { floor: 13, x: 0, z: 4.8, yaw: Math.PI, pitch: 0, zone: 'lobby' };
+    for (const amenityType of ['spa', 'piano', 'fireplace', 'dining']) {
+      const suiteRes = stay.interactSuite({ room: '901', floorIndex: 13, tier: 'presidential', amenityType, seatX: -4.6, seatZ: 16.6, seatYaw: Math.PI }, pentGuest);
+      assert.equal(suiteRes.ok, true, `expected ${amenityType} interaction on 901 to succeed`);
+    }
     assert.ok(stay.completedQuests.has('quest-explorer'));
   } finally {
     globalThis.document = prevDoc;
@@ -730,6 +765,104 @@ test('selective room check-in UI elements, counter pickable, and keycard mismatc
     assert.equal(counter?.userData?.action, 'staff');
     assert.equal(counter?.userData?.staffId, 'reception-a');
     assert.ok(pickables.includes(counter));
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+
+test('hotel guest room door number plaques stay attached and swing with opened doors across 201-902', async () => {
+  const THREE = await import('three');
+  const { decorateFloor } = await import('../src/floor-interiors.js');
+  const { GuestRoomView } = await import('../src/guest-room-view.js');
+  const { GuestRoom } = await import('../src/guest-room.js');
+  const { batchStaticMeshes } = await import('../src/render-optimization.js');
+
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      width: 256,
+      height: 256,
+      getContext: () => ({
+        fillRect() {},
+        strokeRect() {},
+        fillText() {},
+        beginPath() {},
+        moveTo() {},
+        bezierCurveTo() {},
+        stroke() {},
+        createLinearGradient: () => ({ addColorStop() {} }),
+      }),
+    }),
+  };
+
+  try {
+    const pickables = [];
+    for (let floor = 6; floor <= 13; floor++) {
+      const floorGroup = new THREE.Group();
+      decorateFloor(floorGroup, floor, { expanded: false, pickables });
+      batchStaticMeshes(floorGroup);
+
+      const doorsForFloor =
+        floor === 13
+          ? [{ number: 901, closedCenterX: -0.46, rightLeaf: true }]
+          : [-1.38, 1.38]
+              .map((closedCenterX, i) => ({ number: (floor - 4) * 100 + i + 1, closedCenterX, rightLeaf: false }))
+              .filter((d) => d.number !== 301);
+
+      for (const { number, closedCenterX, rightLeaf } of doorsForFloor) {
+        const pivot = floorGroup.getObjectByName(`Door_pivot_${number}`);
+        const doorMesh = floorGroup.getObjectByName(`Guest_room_door_${number}`);
+        const signMesh = floorGroup.getObjectByName(`Room_number_${number}`);
+        assert.ok(pivot && doorMesh && signMesh, `missing door hierarchy on ${number}`);
+        assert.equal(signMesh.parent, pivot, `Room_number_${number} must be parented to Door_pivot_${number}`);
+        assert.equal(signMesh.userData.dynamic, true);
+        assert.equal(signMesh.userData.action, 'otherRoomDoor');
+        assert.ok(pickables.includes(signMesh), `Room_number_${number} should be pickable`);
+
+        // Closed pose matches corridor front of the door panel
+        floorGroup.updateMatrixWorld(true);
+        const closedSignPos = new THREE.Vector3();
+        signMesh.getWorldPosition(closedSignPos);
+        assert.ok(Math.abs(closedSignPos.x - closedCenterX) < 0.01);
+        assert.ok(Math.abs(closedSignPos.z - 3.53) < 0.01);
+
+        // Open door 90 degrees and verify plaque swings flush with the door panel
+        pivot.rotation.y = -Math.PI / 2;
+        if (rightLeaf) {
+          const pivotR = floorGroup.getObjectByName(`Door_pivot_${number}_R`);
+          assert.ok(pivotR, `missing right double door pivot on ${number}`);
+          pivotR.rotation.y = Math.PI / 2;
+        }
+        floorGroup.updateMatrixWorld(true);
+        const openDoorPos = new THREE.Vector3();
+        const openSignPos = new THREE.Vector3();
+        doorMesh.getWorldPosition(openDoorPos);
+        signMesh.getWorldPosition(openSignPos);
+        assert.ok(
+          Math.hypot(openSignPos.x - openDoorPos.x, openSignPos.z - openDoorPos.z) <= 0.04,
+          `Room_number_${number} drifted from open door leaf: dist=${Math.hypot(openSignPos.x - openDoorPos.x, openSignPos.z - openDoorPos.z).toFixed(3)}`
+        );
+        assert.ok(
+          closedSignPos.distanceTo(openSignPos) > 0.55,
+          `Room_number_${number} remained stuck in closed doorway`
+        );
+      }
+    }
+
+    // Also verify Room 301 plaque on GuestRoomView swings with pivot
+    const room = new GuestRoom(new HotelStay());
+    const view301 = new GuestRoomView(new THREE.Scene(), room, []);
+    const door301 = view301.door.getObjectByName('Guest_room_door_301');
+    const sign301 = view301.door.getObjectByName('Room_301_number');
+    assert.equal(sign301?.parent, view301.door);
+    room.open = 1;
+    view301.update();
+    view301.root.updateMatrixWorld(true);
+    const door301Pos = new THREE.Vector3();
+    const sign301Pos = new THREE.Vector3();
+    door301.getWorldPosition(door301Pos);
+    sign301.getWorldPosition(sign301Pos);
+    assert.ok(Math.hypot(sign301Pos.x - door301Pos.x, sign301Pos.z - door301Pos.z) <= 0.04);
   } finally {
     globalThis.document = prevDoc;
   }

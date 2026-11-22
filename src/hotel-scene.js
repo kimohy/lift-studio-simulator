@@ -226,20 +226,63 @@ export class HotelScene {
     const m = this.m;
     this.box(g, 'Marble_lobby_floor', [25.8, 0.18, 18], [-1.3, -0.09, 17], m.marble);
     this.box(g, 'Lobby_ceiling', [25.8, 0.12, 18], [-1.3, 3.4, 17], m.wall);
-    // East wall stays solid; West wall (x = -12) opens wide (z ∈ [10.0, 22.0]) straight into Mall 1F Atrium!
-    this.box(g, 'Lobby_side_wall', [0.18, 3.4, 2.0], [-12, 1.7, 9.0], m.wall);
-    this.box(g, 'Lobby_side_wall', [0.18, 3.4, 4.0], [-12, 1.7, 24.0], m.wall);
-    this.box(g, 'Lobby_mall_portal_lintel', [0.24, 0.44, 12.0], [-12, 3.18, 16.0], m.wall);
-    for (const pz of [10.1, 21.9]) {
+    // East wall stays solid; West wall (x = -12) is enclosed with artwork & consoles framing a proportioned 3.6m Glass Connecting Vestibule (z ∈ [14.2, 17.8])!
+    this.box(g, 'Lobby_side_wall_NW', [0.18, 3.4, 6.2], [-12, 1.7, 11.1], m.wall);
+    this.box(g, 'Lobby_side_wall_SW', [0.18, 3.4, 8.2], [-12, 1.7, 21.9], m.wall);
+    this.box(g, 'Lobby_mall_portal_lintel', [0.24, 0.44, 3.6], [-12, 3.18, 16.0], m.wall);
+    this.box(g, 'Lobby_mall_portal_trim', [0.3, 0.08, 3.6], [-12, 2.94, 16.0], m.gold);
+    for (const pz of [14.25, 17.75]) {
       this.cylinder(g, 'Lobby_mall_portal_pier', 0.28, 0.28, 3.3, [-12, 1.65, pz], m.marble);
       this.cylinder(g, 'Lobby_mall_portal_base', 0.33, 0.33, 0.1, [-12, 0.05, pz], m.gold);
+      this.world.addObstacle(5, -12.3, -11.7, pz - 0.3, pz + 0.3);
+    }
+    // Decorative walnut wainscoting, framed canvases & marble console tables flanking the portal
+    for (const [idx, az, colorHex] of [
+      [0, 11.2, 0x2f5e78],
+      [1, 19.6, 0x9c6e3b],
+    ]) {
+      this.box(g, `Lobby_west_wainscot_${idx}`, [0.06, 0.9, 3.2], [-11.88, 0.45, az], m.wood);
+      this.box(g, `Lobby_west_console_${idx}`, [0.46, 0.84, 1.8], [-11.65, 0.42, az], m.wood, 5);
+      this.box(g, `Lobby_west_console_top_${idx}`, [0.52, 0.06, 1.88], [-11.65, 0.87, az], m.marble);
+      this.box(g, `Lobby_west_art_frame_${idx}`, [0.05, 1.35, 1.9], [-11.89, 1.95, az], m.gold);
+      this.box(
+        g,
+        `Lobby_west_art_canvas_${idx}`,
+        [0.06, 1.18, 1.72],
+        [-11.88, 1.95, az],
+        new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.42 })
+      );
+    }
+    // Architectural Hotel ↔ Mall Connecting Vestibule Gallery (x ∈ [-14.1, -12.0], z ∈ [14.2, 17.8])
+    this.box(g, 'Lobby_mall_vestibule_floor', [2.2, 0.18, 3.6], [-13.05, -0.09, 16.0], m.marble);
+    this.box(g, 'Lobby_mall_vestibule_ceil', [2.2, 0.16, 3.6], [-13.05, 3.35, 16.0], m.wall);
+    this.box(g, 'Lobby_mall_vestibule_led', [1.8, 0.03, 0.24], [-13.05, 3.24, 16.0], m.warm);
+    for (const [tag, vz] of [
+      ['N', 14.12],
+      ['S', 17.88],
+    ]) {
+      this.box(g, `Lobby_mall_vestibule_wall_${tag}`, [2.2, 3.4, 0.18], [-13.05, 1.7, vz], m.wall);
+      this.box(
+        g,
+        `Lobby_mall_vestibule_vitrine_${tag}`,
+        [1.3, 1.5, 0.08],
+        [-13.05, 1.65, vz + (tag === 'N' ? 0.12 : -0.12)],
+        m.gold
+      );
+      this.box(
+        g,
+        `Lobby_mall_vestibule_glow_${tag}`,
+        [1.14, 1.32, 0.09],
+        [-13.05, 1.65, vz + (tag === 'N' ? 0.13 : -0.13)],
+        m.warm
+      );
     }
     this.sign(
       g,
       'Lobby_to_mall_sign',
-      ['← THE GRAND ATRIUM MALL', '쇼핑몰 1F · 명품관 · 워터폴 가든 직결'],
-      [-11.82, 3.05, 16.0],
-      [4.2, 0.65],
+      ['← THE GRAND ATRIUM MALL', '자동 유리 게이트 · 명품관 & 워터폴 직결'],
+      [-11.82, 3.16, 16.0],
+      [3.1, 0.56],
       Math.PI / 2
     );
     this.box(g, 'Lobby_side_wall', [0.18, 3.4, 18], [11.6, 1.7, 17], m.wall);
@@ -310,14 +353,28 @@ export class HotelScene {
       this.sphere(g, 'Chandelier_pendant', 0.075, [x, 2.69, z], m.warm);
     }
 
+    const makePickable = (mesh, data) => {
+      if (!mesh) return mesh;
+      mesh.userData = { ...mesh.userData, ...data };
+      this.pickables?.push(mesh);
+      return mesh;
+    };
+
+    const receptionDeskInfo = {
+      action: 'staff',
+      staffId: 'reception-a',
+      staffName: '프런트 리셉션 체크인 데스크',
+      dialogue: '체크인과 객실 선택을 도와드리겠습니다.',
+    };
+
     // Full reception counter and workstations.
-    this.box(g, 'Reception_counter', [6.2, 1.02, 0.85], [-5.6, 0.51, 21.4], m.wood, 5);
+    makePickable(this.box(g, 'Reception_counter', [6.2, 1.02, 0.85], [-5.6, 0.51, 21.4], m.wood, 5), receptionDeskInfo);
     this.box(g, 'Reception_marble_top', [6.35, 0.08, 0.95], [-5.6, 1.06, 21.4], m.marble);
     this.sign(g, 'Reception_front', ['리셉션', 'RECEPTION'], [-5.6, 0.62, 20.965], [2.5, 0.44]);
     this.sign(g, 'Reception_wall', ['GRAND HOTEL', '리셉션 · RECEPTION'], [-5.6, 2.35, 24.9], [4.4, 0.88]);
     this.box(g, 'Reception_back_panel', [7.5, 3, 0.08], [-5.6, 1.5, 25], m.wood);
     for (const x of [-7.2, -4.2]) {
-      this.box(g, 'Reception_monitor', [0.55, 0.36, 0.04], [x, 1.39, 21.45], m.black);
+      makePickable(this.box(g, 'Reception_monitor', [0.55, 0.36, 0.04], [x, 1.39, 21.45], m.black), receptionDeskInfo);
       this.box(g, 'Reception_monitor_stand', [0.1, 0.21, 0.12], [x, 1.2, 21.46], m.metal);
       this.box(g, 'Reception_keyboard', [0.43, 0.025, 0.15], [x, 1.12, 21.1], m.black);
     }
@@ -339,13 +396,6 @@ export class HotelScene {
       '체크인과 객실 안내를 도와드리겠습니다. How may I assist you?',
       false
     );
-
-    const makePickable = (mesh, data) => {
-      if (!mesh) return mesh;
-      mesh.userData = { ...mesh.userData, ...data };
-      this.pickables?.push(mesh);
-      return mesh;
-    };
 
     // Lounge seating, tables, plants, and a luggage trolley.
     const sofa = (x, z, rotation = 0, seatZ = z + 0.95, seatYaw = Math.PI) => {

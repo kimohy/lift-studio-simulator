@@ -11,6 +11,46 @@ export class HotelWorld {
   constructor() {
     this.obstacles = [];
     this.cinemaGateOpen = false;
+    this.openRooms = new Set();
+  }
+
+  isRoomOpen(roomNumber) {
+    return this.openRooms.has(String(roomNumber));
+  }
+
+  setRoomOpen(roomNumber, open) {
+    const key = String(roomNumber);
+    if (open) this.openRooms.add(key);
+    else this.openRooms.delete(key);
+    return this.openRooms.has(key);
+  }
+
+  isWalkInGuestArea(x, z, floor) {
+    if (!Number.isInteger(floor) || floor < 6 || floor > 14) return false;
+    // Expanded West Wing Executive Club Lounge (2F–10F)
+    if (inside(x, z, -9.35, -2.28, 1.5, 7.55)) return true;
+    if (floor === 14) return false;
+    const prefix = floor - 4;
+    if (floor === 7) {
+      return this.openRooms.has('302') && inside(x, z, 7.78, 12.82, 3.85, 12.42);
+    }
+    if (
+      this.openRooms.has(`${prefix}01`) &&
+      (inside(x, z, -1.78, -0.98, 3.3, 4.1) ||
+        inside(x, z, -2.25, -0.18, 3.8, 8.4) ||
+        inside(x, z, -9.2, -0.18, 8.35, 14.8))
+    ) {
+      return true;
+    }
+    if (
+      this.openRooms.has(`${prefix}02`) &&
+      (inside(x, z, 0.98, 1.78, 3.3, 4.1) ||
+        inside(x, z, 0.18, 2.25, 3.8, 8.8) ||
+        inside(x, z, 0.18, 8.6, 8.75, 14.8))
+    ) {
+      return true;
+    }
+    return false;
   }
 
   addObstacle(floor, minX, maxX, minZ, maxZ) {
@@ -32,8 +72,8 @@ export class HotelWorld {
 
   isMallArea(x, z, floor) {
     if (!Number.isInteger(floor) || !MALL_VALID_FLOORS.includes(floor)) return false;
-    // 1F Open Lobby Connection directly linking Grand Hotel Lobby and Mall M1F Atrium (z ∈ [10.2, 21.8])
-    if (floor === 5 && inside(x, z, -14.6, -11.4, 10.2, 21.8)) return true;
+    // 1F Glass Connecting Vestibule linking Grand Hotel Lobby and Mall M1F Atrium (z ∈ [14.4, 17.6])
+    if (floor === 5 && inside(x, z, -14.6, -11.4, 14.4, 17.6)) return true;
     // Unified Underground Parking connection portals along x = -14 on B5..B1
     if (floor < 5 && (inside(x, z, -14.6, -13.4, 14.6, 17.4) || inside(x, z, -14.6, -13.4, 19.1, 25.3))) {
       return true;
@@ -59,17 +99,17 @@ export class HotelWorld {
     if (!inside(x, z, -49.6, -14.2, 4.6, 35.4)) return false;
     // M1F (floor 5, 7m ceiling) Full Grand Atrium Floor
     if (floor === 5) return true;
-    // M5F (floor 13, 7m ceiling) Top-Floor Grand Cinema & Sky Observatory (twin atrium lightwells around central escalator)
+    // M5F (floor 13, 7m ceiling) Top-Floor Grand Cinema & Sky Observatory (twin atrium lightwells north of central escalators)
     if (floor === 13) {
-      return !inside(x, z, -39.8, -36.0, 16.2, 24.6) && !inside(x, z, -26.0, -22.2, 16.2, 24.6);
+      return !inside(x, z, -34.6, -31.2, 13.2, 16.2) && !inside(x, z, -25.6, -22.2, 13.2, 16.2);
     }
     // M2F (7), M3F (9), M4F (11) Wide Gallery Corridors around Central Atrium Void (x ∈ [-40.0, -22.0], z ∈ [12.8, 27.2])
     const inVoid = inside(x, z, -40.0, -22.0, 12.8, 27.2);
     if (!inVoid) return true;
-    // Central Mall Escalator Gallery Bridges on M2F (7), M3F (9), M4F (11) connecting East/West galleries to Escalators
+    // Central Mall Escalator Landings on M2F (7), M3F (9), M4F (11) connecting East/West galleries directly to Escalators
     if (
       (floor === 7 || floor === 9 || floor === 11) &&
-      (inside(x, z, -40.2, -35.6, 17.2, 24.6) || inside(x, z, -26.4, -21.8, 17.2, 24.6))
+      (inside(x, z, -40.0, -37.0, 17.2, 24.6) || inside(x, z, -25.0, -22.0, 17.2, 24.6))
     ) {
       return true;
     }
@@ -78,9 +118,9 @@ export class HotelWorld {
 
   isExtendedArea(x, z, floor) {
     if (this.isMallArea(x, z, floor)) return true;
+    if (this.isWalkInGuestArea(x, z, floor)) return true;
     // Repurposed Hotel West Wing Lounges (formerly escalator wing)
     if (floor <= 5 && inside(x, z, -11.4, -2.28, 1.45, 8.0)) return true;
-    if (floor >= 6 && inside(x, z, -6.7, -2.28, 1.45, 3.55)) return true;
     if (floor > 5) return false;
     return (
       inside(x, z, 7.5, 10.5, 2, 8) ||
@@ -105,16 +145,16 @@ export class HotelWorld {
     }
     if (this.isMallArea(x, z, floor)) return true;
     // Vestibule left wall (x = -2.54): only passable through the 1.1m doorway (z ∈ [1.80, 2.90])
-    if (inside(x, z, -2.68, -2.4, 1.2, 3.65) && !inside(x, z, -2.72, -2.35, 1.8, 2.9)) {
+    if (inside(x, z, -2.68, -2.4, 1.2, 7.85) && !inside(x, z, -2.72, -2.35, 1.8, 2.9)) {
       return false;
     }
+    if (this.isWalkInGuestArea(x, z, floor)) return true;
     // Repurposed Hotel West Wing Lounges
     if (floor <= 5 && inside(x, z, -11.5, -2.28, 7.75, 8.2)) {
       // On 1F & parking, doorway along z = 8.0 is at x ∈ [-7.85, -5.75]
       return inside(x, z, -7.85, -5.75, 7.7, 8.25);
     }
     if (floor <= 5 && inside(x, z, -11.4, -2.28, 1.45, 8.0)) return true;
-    if (floor >= 6 && inside(x, z, -6.7, -2.28, 1.45, 3.55)) return true;
     if (inside(x, z, -2.28, 2.28, 3.42, 8.3)) return true;
     if (floor < 5) {
       const front = floor % 2 === 0;
@@ -137,8 +177,8 @@ export class HotelWorld {
   surfaceAt(x, z, nearY, floor) {
     if (floor > 14) return null;
     const mallHere = this.isMallArea(x, z, floor);
-    const loungeHere = floor >= 6 && inside(x, z, -6.7, -2.28, 1.45, 3.55);
-    if (floor > 5 && !mallHere && !loungeHere) return null;
+    const guestZoneHere = this.isWalkInGuestArea(x, z, floor);
+    if (floor > 5 && !mallHere && !guestZoneHere) return null;
     const maxF = mallHere || x <= -10.0 ? MALL_MAX_FLOOR : floor >= 6 ? 14 : 5;
     const candidates = [];
     for (let f = 0; f <= maxF; f++) {
@@ -175,13 +215,13 @@ export class HotelWorld {
   location(player) {
     if (player.zone === 'ramp') return '차량 경사로';
     if (player.zone === 'mallCabin') return '그랜드 몰 듀얼 전망 엘리베이터';
-    if (player.x <= -14.0 || (player.x <= -11.5 && player.z >= 10.2 && player.z <= 21.8 && player.floor === 5)) {
+    if (player.x <= -14.0 || (player.x <= -11.5 && player.z >= 14.2 && player.z <= 17.8 && player.floor === 5)) {
       if (player.floor < 5) return '그랜드 몰 · 통합 지하주차장';
       if (player.floor === 5) {
         if (player.z > 36) return '그랜드 몰 · 야외 광장';
         if (player.z > 27) return '그랜드 몰 · M1F 워터폴 가든';
         if (player.x < -40) return '그랜드 몰 · M1F 명품 부티크';
-        if (player.x > -16) return '그랜드 몰 ↔ 호텔 1F 연결 로비';
+        if (player.x > -14.2) return '호텔 ↔ 몰 1F 연결 베스티뷸';
         return '그랜드 몰 · M1F 럭셔리 아트리움';
       }
       if (player.floor === 7) {
@@ -205,7 +245,22 @@ export class HotelWorld {
     if (player.x < -2.3 && player.z <= 8.0) {
       if (player.floor === 5) return '호텔 · 1F VIP 아트 갤러리 & 샴페인 라운지';
       if (player.floor < 5) return '지하주차장 · VIP 발레 라운지';
-      return '웨스트 윙 · 이그제큐티브 라운지';
+      return '웨스트 윙 · 이그제큐티브 클럽 라운지';
+    }
+    if (player.floor >= 6 && player.floor <= 13 && player.z >= 3.8) {
+      if (player.floor === 7 && player.x >= 7.5) return '3층 · 302호 패밀리 트윈 룸';
+      if (player.floor !== 7) {
+        const prefix = player.floor - 4;
+        const roomNum = `${prefix}${player.x < 0 ? '01' : '02'}`;
+        if (player.floor === 13) {
+          return player.x < 0
+            ? `9층 · ${roomNum}호 프레지덴셜 펜트하우스 스위트`
+            : `9층 · ${roomNum}호 로열 이그제큐티브 스위트`;
+        }
+        if (player.floor >= 11) return `${prefix}층 · ${roomNum}호 스카이 프리미어 스위트`;
+        if (player.floor >= 9) return `${prefix}층 · ${roomNum}호 주니어 스위트`;
+        return `${prefix}층 · ${roomNum}호 ${player.x < 0 ? '디럭스 킹 룸' : '패밀리 트윈 룸'}`;
+      }
     }
     if (player.floor < 5) return '주차장';
     if (player.floor > 5) return '호텔 객실';

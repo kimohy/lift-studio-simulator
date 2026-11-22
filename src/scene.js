@@ -376,13 +376,20 @@ export class LiftScene {
     }
 
     const showCoffee = Boolean(game.holdingCoffee);
-    const nearRoomDoor =
-      game.player?.floor === 7 &&
-      Math.hypot((game.player?.x ?? 0) - -1.38, (game.player?.z ?? 0) - 3.5) < 2.6;
+    const checkedSpec = game.stay?.getCheckedInRoomSpec?.();
+    const nearRoomDoor = Boolean(
+      checkedSpec &&
+        game.player?.floor === checkedSpec.floorIndex &&
+        Math.hypot((game.player?.x ?? 0) - checkedSpec.doorX, (game.player?.z ?? 0) - 3.5) < 2.6
+    );
     const showKeycard =
       !showCoffee &&
       Boolean(game.stay?.keycard) &&
-      (nearRoomDoor || game.currentHit?.userData?.action === 'roomDoor' || game.currentHit?.userData?.action === 'cabinVip');
+      (nearRoomDoor ||
+        game.currentHit?.userData?.action === 'roomDoor' ||
+        game.currentHit?.userData?.action === 'cabinVip' ||
+        (game.currentHit?.userData?.action === 'otherRoomDoor' &&
+          game.stay?.canAccess?.(game.currentHit?.userData?.room)));
     const mallItem = !showCoffee && !showKeycard ? game.stay?.heldMallItem || null : null;
 
     if (!showCoffee && !showKeycard && !mallItem) {
@@ -701,6 +708,23 @@ export class LiftScene {
         const header = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.0, 0.12), wallMaterials.guest);
         header.position.set(-1.38, 2.7, 3.68);
         lobby.add(header);
+      } else if (floor >= 6 && floor <= 13) {
+        const back = lobby.getObjectByName('Vestibule_back_wall');
+        lobby.remove(back);
+        for (const [x, width] of [
+          [-2.255, 0.69],
+          [0, 1.7],
+          [2.255, 0.69],
+        ]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(width, 3.2, 0.12), wallMaterials.guest);
+          m.position.set(x, 1.6, 3.68);
+          lobby.add(m);
+        }
+        for (const hx of [-1.38, 1.38]) {
+          const header = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.0, 0.12), wallMaterials.guest);
+          header.position.set(hx, 2.7, 3.68);
+          lobby.add(header);
+        }
       } else if (floor === 14) {
         const back = lobby.getObjectByName('Vestibule_back_wall');
         lobby.remove(back);
@@ -1282,7 +1306,7 @@ export class LiftScene {
     this.escalatorView?.updateVisibility(floor, v === 'game');
     this.stairwellView?.updateVisibility(floor, v === 'game');
     this.hotelScene?.updateVisibility(floor, v === 'game', v === 'exterior' || v === 'mall', this.game?.player);
-    this.mallScene?.updateVisibility(v, c?.floor ?? 5, v === 'game');
+    this.mallScene?.updateVisibility(v, floor, v === 'game');
     this.automaticDoors?.applyVisibility(floor, this.game?.player?.floor);
     const inMallDaylight = v === 'mall' || (v === 'game' && floor >= 5 && (this.game?.player?.x ?? 0) <= -11.5);
     this.scene.background =
@@ -1328,9 +1352,10 @@ export class LiftScene {
     this.rebuildOcclusionCache();
   }
 
-  update(c, mallController = null) {
+  update(c, mallController = null, mallControllerB = null) {
     if (!this.ready) return;
     const mc = mallController ?? this.game?.mallController;
+    const mcB = mallControllerB ?? this.game?.mallControllerB;
     const visibleFloor = this.game?.active ? this.game.player.floor : c.floor;
     const inMainLobby =
       this.view === 'game' &&
@@ -1350,7 +1375,7 @@ export class LiftScene {
     this.escalatorView?.update(c.time, c.paused, this.game?.escalators?.stopped);
     this.stairwellView?.update();
     this.hotelScene?.update(c.time, this.game?.player);
-    this.mallScene?.update(mc, c.time, this.game?.player);
+    this.mallScene?.update(mc, c.time, this.game?.player, mcB);
     this.npcView?.update(c.time, visibleFloor, this.view);
     this.robotView?.update(c.time, visibleFloor, this.view);
     this.automaticDoors?.update(0.016, this.game?.player);

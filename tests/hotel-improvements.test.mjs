@@ -486,6 +486,10 @@ test('10F excludes rooms 1001/1002 and Room 301 TV has unobstructed line-of-sigh
         fillRect() {},
         strokeRect() {},
         fillText() {},
+        beginPath() {},
+        moveTo() {},
+        bezierCurveTo() {},
+        stroke() {},
         createLinearGradient: () => ({ addColorStop() {} }),
       }),
     }),
@@ -596,6 +600,136 @@ test('lobby lighting anti-glare calibration and frame-rate optimizations (cullin
     proto.updateWeatherParticles(2.5);
     assert.equal(posAttr.version, initialVersion, 'updateWeatherParticles should not re-upload vertex buffer every frame');
     assert.ok(proto.weatherPoints.position.y < 0, 'weatherPoints should animate via group Y offset');
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+
+test('expanded guest lounges, walk-in suites 201-902, and presidential 9F suites support door opening and interior exploration', async () => {
+  const THREE = await import('three');
+  const { HotelWorld } = await import('../src/hotel-world.js');
+  const { decorateFloor } = await import('../src/floor-interiors.js');
+
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      width: 256,
+      height: 256,
+      getContext: () => ({
+        fillRect() {},
+        strokeRect() {},
+        fillText() {},
+        beginPath() {},
+        moveTo() {},
+        bezierCurveTo() {},
+        stroke() {},
+        createLinearGradient: () => ({ addColorStop() {} }),
+      }),
+    }),
+  };
+
+  try {
+    // 1. Inspect built 3D geometry for 9F Presidential/Royal Suites (floor 13), 302 (floor 7), and West Executive Club Lounges
+    const floor13Group = new THREE.Group();
+    const pick13 = [];
+    decorateFloor(floor13Group, 13, { expanded: false, pickables: pick13 });
+    assert.ok(floor13Group.getObjectByName('Executive_lounge_9'));
+    assert.ok(floor13Group.getObjectByName('West_lounge_bar_top_9'));
+    assert.ok(floor13Group.getObjectByName('West_lounge_window_9'));
+    assert.ok(floor13Group.getObjectByName('Door_pivot_901'));
+    assert.ok(floor13Group.getObjectByName('Suite_interior_901'));
+    assert.ok(floor13Group.getObjectByName('Suite_grand_piano_901'));
+    assert.ok(floor13Group.getObjectByName('Suite_spa_tub_901'));
+    assert.ok(floor13Group.getObjectByName('Suite_interior_902'));
+    assert.ok(floor13Group.getObjectByName('Suite_fireplace_902'));
+    assert.ok(pick13.some((o) => o.userData?.action === 'suiteAmenity' && o.userData?.room === '901'));
+    assert.ok(pick13.some((o) => o.userData?.action === 'hotelLounge' && o.userData?.floorIndex === 13));
+
+    const floor7Group = new THREE.Group();
+    const pick7 = [];
+    decorateFloor(floor7Group, 7, { expanded: false, pickables: pick7 });
+    assert.ok(floor7Group.getObjectByName('Suite_interior_302'));
+    assert.ok(floor7Group.getObjectByName('Suite_exit_302'));
+    assert.ok(pick7.some((o) => o.userData?.action === 'suiteExit' && o.userData?.room === '302'));
+
+    // 2. HotelWorld enforces door state for suites while allowing walk-in West Executive Club Lounges
+    const world = new HotelWorld();
+    assert.equal(world.canOccupy(13, -6.0, 5.0), true, 'Expanded 9F West Executive Club Lounge should be walkable');
+    assert.equal(world.canOccupy(13, -5.0, 11.0), false, 'Closed 901 Presidential Suite should block occupancy until opened');
+    world.setRoomOpen('901', true);
+    assert.equal(world.canOccupy(13, -5.0, 11.0), true, 'Opened 901 Presidential Suite hall should be walkable');
+    assert.equal(world.canOccupy(13, -1.38, 5.0), true, 'Opened 901 entry foyer should be walkable');
+    assert.equal(world.canOccupy(7, 9.5, 6.0), false, 'Closed 302 Family Twin should block occupancy until opened');
+    world.setRoomOpen('302', true);
+    assert.equal(world.canOccupy(7, 9.5, 6.0), true, 'Opened 302 Family Twin east suite should be walkable');
+
+    // 3. HotelStay suite & lounge interactions reward VIP points and advance player to lounge/suite spot
+    const stay = new HotelStay();
+    const guest = { floor: 13, x: -1.38, z: 4.8, yaw: Math.PI, pitch: 0, zone: 'lobby' };
+    const loungeRes = stay.interactHotelLounge({ floorIndex: 13, loungeType: 'bar', seatX: -6.2, seatZ: 6.1, seatYaw: 0 }, guest);
+    assert.equal(loungeRes.ok, true);
+    assert.equal(guest.x, -6.2);
+    assert.ok(stay.points >= 70);
+
+    const suiteRes = stay.interactSuite({ room: '901', floorIndex: 13, tier: 'presidential', amenityType: 'spa', seatX: -6.05, seatZ: 13.75, seatYaw: Math.PI }, guest);
+    assert.equal(suiteRes.ok, true);
+    assert.equal(guest.z, 13.75);
+    assert.ok(stay.completedQuests.has('quest-explorer'));
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+
+test('selective room check-in UI elements, counter pickable, and keycard mismatch feedback work cleanly', async () => {
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
+  for (const id of [
+    'checkin-dialog',
+    'checkin-category-tabs',
+    'checkin-room-grid',
+    'checkin-confirm-btn',
+    'checkin-confirm-go-btn',
+    'keycard-go-room',
+    'keycard-change-room',
+  ]) {
+    assert.ok(html.includes(`id="${id}"`), `expected #${id} in dist/index.html`);
+  }
+
+  const { GuestRoom } = await import('../src/guest-room.js');
+  const stay = new HotelStay();
+  stay.checkIn('reception-a', '901');
+  const room = new GuestRoom(stay);
+  const blocked = room.toggle({ floor: 7, zone: 'lobby', x: -1.38, z: 2.9 });
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.message, /901호/);
+
+  const THREE = await import('three');
+  const { HotelWorld } = await import('../src/hotel-world.js');
+  const { HotelScene } = await import('../src/hotel-scene.js');
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    createElement: () => ({
+      width: 256,
+      height: 256,
+      getContext: () => ({
+        fillRect() {},
+        strokeRect() {},
+        fillText() {},
+        beginPath() {},
+        moveTo() {},
+        bezierCurveTo() {},
+        stroke() {},
+        createLinearGradient: () => ({ addColorStop() {} }),
+      }),
+    }),
+  };
+  try {
+    const pickables = [];
+    const hs = new HotelScene(new THREE.Scene(), new HotelWorld(), pickables);
+    const counter = hs.floors[5]?.getObjectByName('Reception_counter');
+    assert.equal(counter?.userData?.action, 'staff');
+    assert.equal(counter?.userData?.staffId, 'reception-a');
+    assert.ok(pickables.includes(counter));
   } finally {
     globalThis.document = prevDoc;
   }

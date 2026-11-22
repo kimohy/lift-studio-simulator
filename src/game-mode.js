@@ -3,7 +3,7 @@ import { FLOORS, LiftController } from './controller.js';
 import { Escalators } from './escalator.js';
 import { GuestRoom } from './guest-room.js';
 import { HotelNPCSystem } from './hotel-npcs.js';
-import { FAST_TRAVEL_SPOTS, MALL_FAST_TRAVEL_SPOTS, HotelStay } from './hotel-stay.js';
+import { FAST_TRAVEL_SPOTS, MALL_FAST_TRAVEL_SPOTS, HOTEL_ROOMS, HOTEL_ROOM_CATEGORIES, HotelStay, getHotelRoomSpec } from './hotel-stay.js';
 import { HotelWorld, MALL_LIFT_X, MALL_LIFT_2_X, MALL_LIFT_Z } from './hotel-world.js';
 import { WalkingPlayer } from './player.js';
 import { RooftopPool } from './rooftop-pool.js';
@@ -66,7 +66,7 @@ const MOVE_KEYS = new Set([
 ]);
 
 export class GameMode {
-  constructor(view, controller, mallController = null) {
+  constructor(view, controller, mallController = null, mallControllerB = null) {
     this.view = view;
     this.controller = controller;
     this.mallController =
@@ -75,8 +75,18 @@ export class GameMode {
         minFloor: 0,
         maxFloor: MALL_MAX_FLOOR,
         id: 'mall',
-        label: '몰 전망 엘리베이터',
+        label: '몰 전망 엘리베이터 A호기',
         startFloor: 5,
+        allowedFloors: MALL_VALID_FLOORS,
+      });
+    this.mallControllerB =
+      mallControllerB ||
+      new LiftController({
+        minFloor: 0,
+        maxFloor: MALL_MAX_FLOOR,
+        id: 'mall-b',
+        label: '몰 전망 엘리베이터 B호기',
+        startFloor: 9,
         allowedFloors: MALL_VALID_FLOORS,
       });
     view.game = this;
@@ -102,7 +112,8 @@ export class GameMode {
       this.escalators,
       this.room,
       this.pool,
-      this.mallController
+      this.mallController,
+      this.mallControllerB
     );
 
     this.startInLobby();
@@ -126,8 +137,11 @@ export class GameMode {
     this.camOffset = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
     this.lastKnownVipTierId = this.stay.vipTier?.id || 'classic';
     this.toastUntil = 0;
+    this.pendingCheckInStaffId = 'reception-a';
+    this.selectedCheckInRoom = '301';
+    this.activeCheckInCategory = 'all';
 
-    for (const dialogId of ['keycard-dialog', 'concierge-dialog', 'floor-directory-dialog']) {
+    for (const dialogId of ['keycard-dialog', 'checkin-dialog', 'concierge-dialog', 'floor-directory-dialog']) {
       const dialog = $(dialogId);
       if (dialog && $('viewport')) {
         $('viewport').append(dialog);
@@ -164,9 +178,16 @@ export class GameMode {
         return;
       }
       if (!this.active) return;
-      if (e.code === 'Escape' && document.body.classList.contains('game-fullscreen')) {
-        this.leaveFullscreen();
-        return;
+      if (e.code === 'Escape') {
+        if ($('checkin-dialog')?.open) {
+          e.preventDefault();
+          $('checkin-dialog').close?.();
+          return;
+        }
+        if (document.body.classList.contains('game-fullscreen')) {
+          this.leaveFullscreen();
+          return;
+        }
       }
       if (e.code === 'KeyG' && !e.repeat) {
         e.preventDefault();
@@ -337,10 +358,26 @@ export class GameMode {
       if (this.stay.keycard) {
         this.clearInput();
         if (document.pointerLockElement) document.exitPointerLock();
+        this.updateKeycardUI();
         $('keycard-dialog')?.showModal();
       }
     });
     $('keycard-close')?.addEventListener('click', () => $('keycard-dialog')?.close());
+    $('keycard-go-room')?.addEventListener('click', () => {
+      $('keycard-dialog')?.close();
+      this.fastTravelToAssignedRoom();
+    });
+    $('keycard-change-room')?.addEventListener('click', () => {
+      $('keycard-dialog')?.close();
+      this.openCheckInDialog('reception-a', '프런트 리셉션');
+    });
+    $('checkin-close')?.addEventListener('click', () => $('checkin-dialog')?.close());
+    $('checkin-confirm-btn')?.addEventListener('click', () => {
+      this.completeCheckIn(this.pendingCheckInStaffId, this.selectedCheckInRoom, { goToRoom: false });
+    });
+    $('checkin-confirm-go-btn')?.addEventListener('click', () => {
+      this.completeCheckIn(this.pendingCheckInStaffId, this.selectedCheckInRoom, { goToRoom: true });
+    });
     $('guide-button')?.addEventListener('click', () => this.openConciergeGuide());
     $('concierge-close')?.addEventListener('click', () => $('concierge-dialog')?.close());
     $('game-toggle')?.addEventListener('click', () => (this.active ? this.exit() : this.enter()));
@@ -434,6 +471,20 @@ export class GameMode {
     }
   }
 
+  getMallController(carIndex = null) {
+    if (carIndex === 1) return this.mallControllerB || this.mallController;
+    if (carIndex === 0) return this.mallController;
+    if (this.player?.zone === 'mallCabin') {
+      return this.player.activeMallCar === 'B'
+        ? this.mallControllerB || this.mallController
+        : this.mallController;
+    }
+    if (this.player?.mallDoorwayCar?.() === 'B') {
+      return this.mallControllerB || this.mallController;
+    }
+    return this.mallController;
+  }
+
   fastTravelTo(spotId) {
     const spot = [...FAST_TRAVEL_SPOTS, ...MALL_FAST_TRAVEL_SPOTS].find((s) => s.id === spotId);
     if (!spot) return { ok: false, message: '이동할 위치를 찾을 수 없습니다.' };
@@ -443,12 +494,12 @@ export class GameMode {
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
     this.mallController?.setObstruction(false, 'player');
-    this.mallController?.setObstruction(false, 'player');
+    this.mallControllerB?.setObstruction(false, 'player');
 
     if (spot.id === 'room-301') {
       if (!this.stay.keycard) {
         this.stay.checkIn('reception-a');
-        if ($('keycard-button')) $('keycard-button').hidden = false;
+        this.updateKeycardUI();
       }
       this.room.target = 1;
       this.room.open = 1;
@@ -501,6 +552,10 @@ export class GameMode {
     const mallMoving = this.mallController.state === 'moving';
     const mallDir =
       this.mallController.direction > 0 ? '▲ 상행' : this.mallController.direction < 0 ? '▼ 하행' : '대기';
+    const mallLiftB = this.mallControllerB;
+    const mallLiftBFloor = mallLiftB?.floor;
+    const mallBMoving = mallLiftB?.state === 'moving';
+    const mallBDir = mallLiftB?.direction > 0 ? '▲ 상행' : mallLiftB?.direction < 0 ? '▼ 하행' : '대기';
     const playerFloor = this.player.floor;
 
     for (let f = 14; f >= 0; f--) {
@@ -522,7 +577,12 @@ export class GameMode {
       }
       if (hasMall && f === mallLiftFloor) {
         badges.push(
-          `<span class="dir-badge mall-lift">🛍️ 몰 승강기 (${mallMoving ? mallDir : this.mallController.door > 0 ? '문 열림' : '대기'})</span>`
+          `<span class="dir-badge mall-lift">🛍️ 몰 A호기 (${mallMoving ? mallDir : this.mallController.door > 0 ? '문 열림' : '대기'})</span>`
+        );
+      }
+      if (hasMall && mallLiftB && f === mallLiftBFloor) {
+        badges.push(
+          `<span class="dir-badge mall-lift">🛍️ 몰 B호기 (${mallBMoving ? mallBDir : mallLiftB.door > 0 ? '문 열림' : '대기'})</span>`
         );
       }
 
@@ -563,6 +623,7 @@ export class GameMode {
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
     this.mallController?.setObstruction(false, 'player');
+    this.mallControllerB?.setObstruction(false, 'player');
     if (f !== 5) this.stay.completeMilestone('verticalTransit');
 
     Object.assign(this.player, {
@@ -594,6 +655,7 @@ export class GameMode {
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
     this.mallController?.setObstruction(false, 'player');
+    this.mallControllerB?.setObstruction(false, 'player');
 
     let targetX = 0;
     let targetZ = 8.5;
@@ -743,6 +805,7 @@ export class GameMode {
       this.player.leaveDoorway?.();
       this.controller.setObstruction(false, 'player');
       this.mallController?.setObstruction(false, 'player');
+      this.mallControllerB?.setObstruction(false, 'player');
       Object.assign(this.player, {
         floor: 5,
         zone: 'lobby',
@@ -838,6 +901,7 @@ export class GameMode {
     this.player.leaveDoorway();
     this.controller.setObstruction(false, 'player');
     this.mallController?.setObstruction(false, 'player');
+    this.mallControllerB?.setObstruction(false, 'player');
     this.active = false;
     this.clearInput();
     this.leaveFullscreen();
@@ -870,6 +934,7 @@ export class GameMode {
     this.startInLobby();
     this.stairs.reset();
     this.mallController?.reset();
+    this.mallControllerB?.reset();
     this.npcs.reset(this.controller);
     this.robot.reset(this.controller);
     this.clearInput();
@@ -882,6 +947,8 @@ export class GameMode {
       }
     }
     this.controller.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
+    this.mallControllerB?.setObstruction(false, 'player');
     if (document.pointerLockElement === this.view.canvas) {
       document.exitPointerLock();
     }
@@ -894,9 +961,10 @@ export class GameMode {
 
   beforeStep() {
     if (this.active) {
-      this.player.sync(this.controller, this.mallController);
+      this.player.sync(this.controller, this.mallController, this.mallControllerB);
       this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
-      this.mallController?.setObstruction(this.player.blocksMallDoor(this.mallController), 'player');
+      this.mallController?.setObstruction(this.player.blocksMallDoor(this.mallController, 'A'), 'player');
+      this.mallControllerB?.setObstruction(this.player.blocksMallDoor(this.mallControllerB, 'B'), 'player');
     }
   }
 
@@ -994,9 +1062,10 @@ export class GameMode {
     if (!this.controller.paused) this.stairs.update(dt, this.player);
     if (!this.controller.paused) this.room.update(dt, this.player);
     this.escalators.carry(this.player, dt, this.controller);
-    this.player.move(forward, strafe, dt, this.controller, sprint, this.mallController);
+    this.player.move(forward, strafe, dt, this.controller, sprint, this.mallController, this.mallControllerB);
     this.controller.setObstruction(this.player.blocksDoor(this.controller), 'player');
-    this.mallController?.setObstruction(this.player.blocksMallDoor(this.mallController), 'player');
+    this.mallController?.setObstruction(this.player.blocksMallDoor(this.mallController, 'A'), 'player');
+    this.mallControllerB?.setObstruction(this.player.blocksMallDoor(this.mallControllerB, 'B'), 'player');
 
     const stepMoved = Math.hypot(this.player.x - prevX, this.player.z - prevZ);
     this.isMoving = (forward !== 0 || strafe !== 0) && stepMoved > 1e-4;
@@ -1139,22 +1208,22 @@ export class GameMode {
       return this.player.zone === 'lobby' && data.floorIndex === this.player.floor;
     }
     if (['mallCar', 'mallOpen', 'mallClose', 'mallAlarm'].includes(data.action)) {
+      const carKey = data.carIndex === 1 ? 'B' : data.carIndex === 0 ? 'A' : this.player.mallDoorwayCar?.() ?? this.player.activeMallCar;
+      const mc = carKey === 'B' ? this.getMallController(1) : this.getMallController(0);
       return (
-        this.player.zone === 'mallCabin' ||
-        (this.player.inMallDoorway() &&
-          this.mallController.aligned() &&
-          this.mallController.floor === this.player.floor)
+        (this.player.zone === 'mallCabin' && this.player.activeMallCar === carKey) ||
+        (this.player.inMallDoorway(carKey) && mc.aligned() && mc.floor === this.player.floor)
       );
     }
     if (
       data.action === 'cabinAccessible' &&
       (data.mall || this.player.zone === 'mallCabin' || this.player.inMallDoorway?.())
     ) {
+      const carKey = data.carIndex === 1 ? 'B' : data.carIndex === 0 ? 'A' : this.player.mallDoorwayCar?.() ?? this.player.activeMallCar;
+      const mc = carKey === 'B' ? this.getMallController(1) : this.getMallController(0);
       return (
-        this.player.zone === 'mallCabin' ||
-        (this.player.inMallDoorway?.() &&
-          this.mallController.aligned() &&
-          this.mallController.floor === this.player.floor)
+        (this.player.zone === 'mallCabin' && this.player.activeMallCar === carKey) ||
+        (this.player.inMallDoorway?.(carKey) && mc.aligned() && mc.floor === this.player.floor)
       );
     }
     if (data.action === 'roomDoor' || data.action === 'roomPrivacy') {
@@ -1199,6 +1268,9 @@ export class GameMode {
       return this.player.floor < 5 && this.player.floor === data.floorIndex && this.player.zone === 'lobby';
     }
     if (data.action === 'otherRoomDoor') return this.player.zone === 'lobby' && data.floorIndex === this.player.floor;
+    if (['suiteAmenity', 'suiteExit', 'hotelLounge'].includes(data.action)) {
+      return !['cabin', 'mallCabin'].includes(this.player.zone) && data.floorIndex === this.player.floor;
+    }
     if (data.action === 'staff') return this.player.zone === 'lobby' && this.player.floor === 5;
     if (data.action === 'npc') {
       const npc = this.npcs.getNPC(data.npcId);
@@ -1230,15 +1302,15 @@ export class GameMode {
   }
 
   stepInsideMallCabinIfInDoorway() {
-    if (!this.active || !this.player.inMallDoorway() || !this.mallController) return;
-    if (
-      this.mallController.aligned() &&
-      this.mallController.floor === this.player.floor &&
-      this.mallController.door > 0.5
-    ) {
+    const doorCar = this.player.mallDoorwayCar?.();
+    if (!this.active || !doorCar) return;
+    const mc = doorCar === 'B' ? this.getMallController(1) : this.getMallController(0);
+    if (!mc) return;
+    if (mc.aligned() && mc.floor === this.player.floor && mc.door > 0.5) {
       this.player.z = MALL_LIFT_Z + 0.55;
+      this.player.activeMallCar = doorCar;
       this.player.zone = 'mallCabin';
-      this.mallController.setObstruction(false, 'player');
+      mc.setObstruction(false, 'player');
       this.applyCamera();
     }
   }
@@ -1319,19 +1391,197 @@ export class GameMode {
     return res;
   }
 
+  updateKeycardUI() {
+    const card = this.stay?.keycard;
+    const btn = $('keycard-button');
+    if (!card) {
+      if (btn) btn.hidden = true;
+      return;
+    }
+    const spec = getHotelRoomSpec(card.room);
+    if (btn) {
+      btn.hidden = false;
+      btn.textContent = `키카드 · ${card.room}호`;
+    }
+    if ($('keycard-room-badge')) {
+      $('keycard-room-badge').textContent = spec?.badge || 'GUEST KEY CARD';
+    }
+    if ($('keycard-room-num')) {
+      $('keycard-room-num').textContent = card.room;
+    }
+    if ($('keycard-room-floor')) {
+      $('keycard-room-floor').innerHTML =
+        `${card.floor}층 · ${spec?.nameKo || '호텔 객실'}<br>${spec?.floorEn || `Floor ${card.floor}`} · ${spec?.nameEn || 'Guest Suite'}`;
+    }
+    if ($('keycard-note')) {
+      $('keycard-note').textContent =
+        `${card.floor}층 ${card.room}호 문 또는 카드 리더를 클릭해 객실에 들어가세요.`;
+    }
+  }
+
+  openCheckInDialog(staffId = 'reception-a', staffName = '프런트 리셉션') {
+    this.pendingCheckInStaffId = /^reception-/.test(staffId ?? '') ? staffId : 'reception-a';
+    this.selectedCheckInRoom = this.stay.keycard?.room || this.selectedCheckInRoom || '301';
+    const dialog = $('checkin-dialog');
+    if (!dialog) {
+      this.completeCheckIn(this.pendingCheckInStaffId, this.selectedCheckInRoom, { goToRoom: false });
+      return;
+    }
+    this.clearInput();
+    if (document.pointerLockElement) document.exitPointerLock();
+    if ($('checkin-greeting')) {
+      $('checkin-greeting').textContent = this.stay.keycard
+        ? `${staffName}: "현재 ${this.stay.keycard.room}호 키카드를 보유 중입니다. 변경하실 객실(201~902호)을 선택해 주세요."`
+        : `${staffName}: "그랜드 호텔에 오신 것을 환영합니다! 원하시는 층과 객실 타입을 선택해 주세요."`;
+    }
+    this.renderCheckInDialog();
+    dialog.showModal?.();
+  }
+
+  renderCheckInDialog() {
+    const tabsEl = $('checkin-category-tabs');
+    const gridEl = $('checkin-room-grid');
+    if (!tabsEl || !gridEl) return;
+
+    tabsEl.replaceChildren();
+    for (const cat of HOTEL_ROOM_CATEGORIES) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'checkin-tab-btn' + (cat.id === this.activeCheckInCategory ? ' active' : '');
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', String(cat.id === this.activeCheckInCategory));
+      btn.textContent = cat.label;
+      btn.addEventListener('click', () => {
+        this.activeCheckInCategory = cat.id;
+        this.renderCheckInDialog();
+      });
+      tabsEl.append(btn);
+    }
+
+    const filtered =
+      this.activeCheckInCategory === 'all'
+        ? HOTEL_ROOMS
+        : HOTEL_ROOMS.filter((r) => r.category === this.activeCheckInCategory);
+
+    gridEl.replaceChildren();
+    const currentAssigned = this.stay.keycard?.room || null;
+    for (const spec of filtered) {
+      const isSelected = spec.room === this.selectedCheckInRoom;
+      const isAssigned = spec.room === currentAssigned;
+      const cardBtn = document.createElement('button');
+      cardBtn.type = 'button';
+      cardBtn.dataset.room = spec.room;
+      cardBtn.className =
+        'checkin-room-card' +
+        (isSelected ? ' selected' : '') +
+        (isAssigned ? ' assigned' : '') +
+        (spec.featured ? ' featured' : '');
+      cardBtn.setAttribute('role', 'option');
+      cardBtn.setAttribute('aria-selected', String(isSelected));
+      cardBtn.innerHTML = `
+        <div class="checkin-card-top">
+          <div class="checkin-room-no">${spec.room}호 <small>${spec.floorLabel}F</small></div>
+          <span class="checkin-room-badge">${isAssigned ? '현재 배정 · ' : ''}${spec.badge}</span>
+        </div>
+        <div class="checkin-room-title">${spec.nameKo}</div>
+        <div class="checkin-room-meta">${spec.bed} · ${spec.view}</div>
+        <div class="checkin-room-features">${spec.features.map((f) => `<span>${f}</span>`).join('')}</div>
+        <div class="checkin-room-price">${spec.price} / 1박</div>
+      `;
+      cardBtn.addEventListener('click', () => {
+        this.selectedCheckInRoom = spec.room;
+        this.renderCheckInDialog();
+      });
+      cardBtn.addEventListener('dblclick', () => {
+        this.selectedCheckInRoom = spec.room;
+        this.completeCheckIn(this.pendingCheckInStaffId, spec.room, { goToRoom: false });
+      });
+      gridEl.append(cardBtn);
+    }
+
+    const activeSpec = getHotelRoomSpec(this.selectedCheckInRoom) || HOTEL_ROOMS[2];
+    if ($('checkin-selected-summary')) {
+      $('checkin-selected-summary').innerHTML = `
+        선택 객실: <strong>${activeSpec.floorLabel}층 ${activeSpec.room}호 · ${activeSpec.nameKo}</strong> (${activeSpec.bed} · ${activeSpec.price})
+      `;
+    }
+    if ($('checkin-confirm-btn')) {
+      $('checkin-confirm-btn').textContent =
+        currentAssigned === activeSpec.room
+          ? `🔑 ${activeSpec.room}호 키카드 재확인`
+          : `🔑 ${activeSpec.room}호 키카드 발급`;
+    }
+  }
+
+  completeCheckIn(staffId = 'reception-a', roomNumber = '301', { goToRoom = false } = {}) {
+    const card = this.stay.checkIn(staffId, roomNumber);
+    if (!card) return null;
+    const spec = getHotelRoomSpec(card.room);
+    this.selectedCheckInRoom = card.room;
+    this.updateKeycardUI();
+    $('checkin-dialog')?.close?.();
+    this.view?.sfx?.playKeycard?.(true);
+    this.view?.hotelScene?.waveStaff?.(staffId, this.controller.time);
+    this.notifyQuestProgress(this.stay.evaluateQuests?.());
+    const roomLabel = spec ? `${spec.floorLabel}층 ${spec.room}호 (${spec.nameKo})` : `${card.floor}층 ${card.room}호`;
+    this.showToast?.({
+      badge: '🔑 CHECK-IN COMPLETE',
+      title: `${roomLabel} 체크인 완료`,
+      subtitle: '키카드가 발급되었습니다 · 엘리베이터를 타고 객실로 이동하세요',
+    });
+    this.message(`체크인이 완료되었습니다! ${roomLabel} 키카드를 받았습니다. Welcome to Grand Hotel.`);
+    this.messageUntil = performance.now() + 6500;
+    this.updateHUD();
+    if (goToRoom) {
+      this.fastTravelToAssignedRoom();
+    }
+    return card;
+  }
+
+  fastTravelToAssignedRoom() {
+    const spec = this.stay.getCheckedInRoomSpec();
+    if (!spec) return;
+    if (!this.active && this.view?.ready) {
+      this.enter();
+    }
+    if (spec.room === '301') {
+      this.fastTravelTo('room-301');
+      return;
+    }
+    this.player.leaveDoorway();
+    this.controller.setObstruction(false, 'player');
+    this.mallController?.setObstruction(false, 'player');
+    this.mallControllerB?.setObstruction(false, 'player');
+    this.stay.completeMilestone('verticalTransit');
+    Object.assign(this.player, {
+      floor: spec.floorIndex,
+      zone: 'lobby',
+      x: spec.doorX,
+      z: 2.65,
+      yaw: Math.PI,
+      pitch: -0.04,
+      worldY: (spec.floorIndex - 5) * 3.5,
+      stairY: (spec.floorIndex - 5) * 3.5,
+      escalatorY: (spec.floorIndex - 5) * 3.5,
+    });
+    this.view?.applyVisibility?.(this.controller);
+    this.applyCamera();
+    this.message(`🚪 ${spec.floorLabel}층 ${spec.room}호 [${spec.nameKo}] 문 앞에 도착했습니다. 방문을 클릭해 키카드로 입장하세요!`);
+    this.messageUntil = performance.now() + 5500;
+    this.updateHUD();
+  }
+
   talkToStaff(data) {
     if (!this.active || this.player.floor !== 5 || !data?.staffId) return;
-    const card = this.stay.checkIn(data.staffId);
     const quests = this.stay.recordSocial?.(`staff:${data.staffId}`);
     this.notifyQuestProgress(quests);
-    if (card) {
-      $('keycard-button').hidden = false;
-      this.message('체크인되었습니다. 3층 301호 키카드를 받았습니다. Welcome to Grand Hotel.');
-    } else {
-      this.message(data.dialogue);
-    }
-    this.messageUntil = performance.now() + 6500;
     this.view.hotelScene?.waveStaff(data.staffId, this.controller.time);
+    if (/^reception-/.test(data.staffId)) {
+      this.openCheckInDialog(data.staffId, data.staffName || '프런트 직원');
+      return;
+    }
+    this.message(data.dialogue);
+    this.messageUntil = performance.now() + 6500;
   }
 
   talkToNPC(data) {
@@ -1551,21 +1801,124 @@ export class GameMode {
 
   inspectOtherRoom(data) {
     if (!this.active || !data?.room) return;
-    if (this.stay.keycard) {
-      this.message(`${data.room}호는 다른 투숙객 전용 객실입니다. 배정된 객실은 3층 301호입니다.`);
-    } else {
-      this.message(`${data.room}호 객실입니다. 먼저 1층 리셉션에서 체크인해 배정 객실(301호) 키카드를 받으세요.`);
+    const room = String(data.room);
+    const f = data.floorIndex ?? this.player.floor;
+    const pivot = this.view?.gameRoom?.getObjectByName?.(`Door_pivot_${room}`);
+    const isOpen = this.world?.isRoomOpen?.(room);
+
+    // Clicking door from deep inside an already-open room steps back into the corridor & closes door
+    if (isOpen && this.player.z > 4.2 && this.player.floor === f) {
+      this.world?.setRoomOpen?.(room, false);
+      if (pivot) pivot.rotation.y = 0;
+      const prev = this.captureCameraPose();
+      this.player.x = room.endsWith('01') ? -1.38 : 1.38;
+      this.player.z = 2.85;
+      this.player.yaw = 0;
+      this.player.pitch = -0.04;
+      this.player.zone = 'lobby';
+      this.commitCameraLerp(prev);
+      this.applyCamera();
+      this.message(`🚪 ${room}호 객실을 나와 복도로 이동했습니다.`);
+      this.messageUntil = performance.now() + 4000;
+      this.updateHUD();
+      return;
     }
+
+    const nextOpen = !isOpen;
+    this.world?.setRoomOpen?.(room, nextOpen);
+    if (pivot) pivot.rotation.y = nextOpen ? -Math.PI / 2 : 0;
+
+    if (nextOpen) {
+      const prev = this.captureCameraPose();
+      if (room === '302') {
+        this.player.x = 8.9;
+        this.player.z = 5.0;
+        this.player.yaw = Math.PI * 0.72;
+      } else {
+        this.player.x = room.endsWith('01') ? -1.38 : 1.38;
+        this.player.z = 4.65;
+        this.player.yaw = Math.PI;
+      }
+      this.player.pitch = -0.04;
+      this.player.zone = 'lobby';
+      this.commitCameraLerp(prev);
+      this.applyCamera();
+      const spec = getHotelRoomSpec(room);
+      const isAssigned = this.stay.canAccess(room);
+      if (isAssigned) {
+        this.stay.completeMilestone('room301');
+        this.notifyQuestProgress(this.stay.evaluateQuests?.());
+        this.message(`🔑 [키카드 인증 완료 · ${room}호] 배정받으신 ${spec?.nameKo || '스위트'}에 오신 것을 환영합니다!`);
+      } else {
+        const label = spec?.nameKo || (f === 13 ? (room === '901' ? '프레지덴셜 펜트하우스 스위트' : '로열 이그제큐티브 스위트') : f >= 11 ? '스카이 프리미어 스위트' : f >= 9 ? '주니어 스위트' : room.endsWith('02') ? '패밀리 트윈 룸' : '디럭스 킹 룸');
+        this.message(`🚪 ${room}호 [${label}] 객실 투어 열람 (현재 배정 객실: ${this.stay.keycard ? `${this.stay.keycard.room}호` : '미배정'})`);
+      }
+    } else {
+      this.message(`🚪 ${room}호 문을 닫았습니다.`);
+    }
+    this.messageUntil = performance.now() + 4500;
+    this.updateHUD();
+  }
+
+  exitSuite(data) {
+    if (!this.active || !data?.room) return;
+    const room = String(data.room);
+    this.world?.setRoomOpen?.(room, false);
+    const pivot = this.view?.gameRoom?.getObjectByName?.(`Door_pivot_${room}`);
+    if (pivot) pivot.rotation.y = 0;
+    const prev = this.captureCameraPose();
+    this.player.x = room.endsWith('01') ? -1.38 : 1.38;
+    this.player.z = 2.85;
+    this.player.yaw = 0;
+    this.player.pitch = -0.04;
+    this.player.zone = 'lobby';
+    this.commitCameraLerp(prev);
+    this.applyCamera();
+    this.message(`🚪 ${room}호에서 엘리베이터 홀 복도로 나왔습니다.`);
+    this.messageUntil = performance.now() + 3800;
+    this.updateHUD();
+  }
+
+  interactSuiteAmenity(data) {
+    if (!this.active) return;
+    const prev = this.captureCameraPose();
+    const res = this.stay.interactSuite(data, this.player);
+    this.commitCameraLerp(prev);
+    this.applyCamera();
+    this.notifyQuestProgress(res.newlyCompletedQuests);
+    this.message(res.message);
+    this.messageUntil = performance.now() + 5000;
+    this.updateHUD();
+    return res;
+  }
+
+  interactHotelLounge(data) {
+    if (!this.active) return;
+    const prev = this.captureCameraPose();
+    const res = this.stay.interactHotelLounge(data, this.player);
+    this.commitCameraLerp(prev);
+    this.applyCamera();
+    this.notifyQuestProgress(res.newlyCompletedQuests);
+    this.message(res.message);
+    this.messageUntil = performance.now() + 5000;
+    this.updateHUD();
+    return res;
   }
 
   interactCabin(action, targetCtrl = null) {
     if (!this.active) return;
-    if (
-      action === 'cabinAccessible' &&
-      (targetCtrl === this.mallController || this.player.zone === 'mallCabin' || this.player.inMallDoorway?.())
-    ) {
+    const isMallTarget =
+      targetCtrl === this.mallController ||
+      targetCtrl === this.mallControllerB ||
+      this.player.zone === 'mallCabin' ||
+      this.player.inMallDoorway?.();
+    if (action === 'cabinAccessible' && isMallTarget) {
       this.stepInsideMallCabinIfInDoorway?.();
-      this.message(this.mallController.toggleAccessibleMode().message);
+      const mc =
+        targetCtrl === this.mallController || targetCtrl === this.mallControllerB
+          ? targetCtrl
+          : this.getMallController();
+      this.message(mc.toggleAccessibleMode().message);
       this.messageUntil = performance.now() + 4500;
       return;
     }
@@ -1695,10 +2048,21 @@ export class GameMode {
         return `${d.loungeLabel || '라운지 소파'} · 휴식하기 🛋️`;
       case 'parkingCar':
         return `${d.carModel || '주차 차량'} (${d.bayLabel || '주차장'}) · 스마트키 확인 🚗`;
-      case 'otherRoomDoor':
-        return `${d.room}호 · ${this.stay.keycard ? '배정 객실: 3층 301호' : '1F 체크인 필요'}`;
+      case 'otherRoomDoor': {
+        const isOpen = this.world?.isRoomOpen?.(d.room);
+        const assigned = this.stay.canAccess(d.room);
+        return assigned
+          ? `🔑 ${d.room}호 · 내 배정 객실 ${isOpen ? '닫기 / 복도 이동 🚪' : '키카드로 열기'}`
+          : `🚪 ${d.room}호 · 객실 둘러보기 (${isOpen ? '문 닫기' : '문 열기'})`;
+      }
+      case 'suiteExit':
+        return `${d.room}호 · 복도로 나가기 🚪`;
+      case 'suiteAmenity':
+        return d.label || `${d.room}호 스위트 체험 ✨`;
+      case 'hotelLounge':
+        return d.label || '이그제큐티브 클럽 라운지 이용 🥂';
       case 'staff':
-        return `${d.staffName} · ${d.staffId.startsWith('reception-') ? '체크인' : '대화하기'}`;
+        return `${d.staffName} · ${d.staffId.startsWith('reception-') ? (this.stay.keycard ? '객실 변경 · 체크인 🔑' : '체크인 · 객실 선택 🔑') : '대화하기'}`;
       case 'npc':
         return `${d.npcName} (${this.npcs.statusLabel(this.npcs.getNPC(d.npcId) || {})}) · 대화하기`;
       case 'robot':
@@ -1728,7 +2092,10 @@ export class GameMode {
         return `🔢 10키 [${k}] · ${desc}`;
       }
       case 'cabinAccessible': {
-        const ctrl = d.mall || this.player.zone === 'mallCabin' ? this.mallController : this.controller;
+        const ctrl =
+          d.mall || this.player.zone === 'mallCabin' || this.player.inMallDoorway?.()
+            ? this.getMallController(d.carIndex)
+            : this.controller;
         return `♿ 장애인용 조작반 · 배려 모드 (${ctrl?.accessibleMode ? '켜짐' : '꺼짐'})`;
       }
       case 'cabinLight':
@@ -1745,18 +2112,21 @@ export class GameMode {
         return '🪞 엘리베이터 거울 확인';
       case 'mallHall': {
         const mcCode = d.floorIndex < 5 ? FLOORS[d.floorIndex] : mallFloorMeta(d.floorIndex).mallCode;
-        return `🛍️ 몰 승강기 · ${mcCode} ${d.direction === 1 ? '▲ 상행' : '▼ 하행'} 호출`;
+        const unitLabel = d.carIndex === 1 ? 'B호기' : 'A호기';
+        return `🛍️ 몰 ${unitLabel} · ${mcCode} ${d.direction === 1 ? '▲ 상행' : '▼ 하행'} 호출`;
       }
       case 'mallCar': {
         const mcCode = d.floorIndex < 5 ? FLOORS[d.floorIndex] : mallFloorMeta(d.floorIndex).mallCode;
-        return `🛍️ 몰 ${mcCode} ${this.mallController?.car?.has(d.floorIndex) ? '선택 취소' : '선택'}`;
+        const mc = this.getMallController(d.carIndex);
+        const unitLabel = d.carIndex === 1 ? 'B호기' : 'A호기';
+        return `🛍️ 몰 ${unitLabel} ${mcCode} ${mc?.car?.has(d.floorIndex) ? '선택 취소' : '선택'}`;
       }
       case 'mallOpen':
-        return '🛍️ 몰 엘리베이터 문 열림';
+        return `🛍️ 몰 ${d.carIndex === 1 ? 'B호기' : 'A호기'} 문 열림`;
       case 'mallClose':
-        return '🛍️ 몰 엘리베이터 문 닫힘';
+        return `🛍️ 몰 ${d.carIndex === 1 ? 'B호기' : 'A호기'} 문 닫힘`;
       case 'mallAlarm':
-        return '🛍️ 몰 엘리베이터 비상 호출';
+        return `🛍️ 몰 ${d.carIndex === 1 ? 'B호기' : 'A호기'} 비상 호출`;
       case 'mallPerson':
         return `💬 ${d.personName || '몰 방문객'} (${d.roleLabel || '게스트'}) · 대화하기`;
       case 'mallCinemaTicket':
@@ -1811,7 +2181,8 @@ export class GameMode {
   updateHUD() {
     const p = this.player;
     const c = this.controller;
-    const mc = this.mallController;
+    const mc = this.getMallController();
+    const carLabel = p.activeMallCar === 'B' ? 'B호기' : 'A호기';
     const inMall = p.zone === 'mallCabin' || p.x <= -12.0;
     const mcCode = mc ? (mc.floor < 5 ? FLOORS[mc.floor] : mallFloorMeta(mc.floor).mallCode) : 'M1F';
     const pMallCode = p.floor < 5 ? FLOORS[p.floor] : mallFloorMeta(p.floor).mallCode;
@@ -1819,7 +2190,7 @@ export class GameMode {
       p.zone === 'cabin'
         ? `호텔 엘리베이터 안 · ${FLOORS[c.floor]}층${c.state === 'moving' ? ' 이동 중' : ''}`
         : p.zone === 'mallCabin'
-          ? `몰 전망 엘리베이터 안 · ${mcCode}${mc.state === 'moving' ? ' 이동 중' : ''}`
+          ? `몰 전망 엘리베이터 ${carLabel} 안 · ${mcCode}${mc.state === 'moving' ? ' 이동 중' : ''}`
           : p.zone === 'room'
             ? `3층 · 301호 객실${this.room.wearingRobe ? ' (호텔 가운 🥼)' : ''}${this.room.privacyMode.id === 'dnd' ? ' · 🔕 DND' : this.room.privacyMode.id === 'makeup' ? ' · 🧹 정비요청' : ''}`
             : p.zone === 'pool'
@@ -1939,7 +2310,9 @@ export class GameMode {
   renderMinimap() {
     const p = this.player;
     const c = this.controller;
-    const mc = this.mallController;
+    const mc = this.getMallController();
+    const mcA = this.mallController;
+    const mcB = this.mallControllerB;
     const inMall = p.zone === 'mallCabin' || (p.x <= -14.0 && p.z < 36.2);
     const f = p.zone === 'cabin' ? c.floor : p.zone === 'mallCabin' ? mc.floor : p.floor;
     if ($('minimap-caption')) {
@@ -1967,22 +2340,19 @@ export class GameMode {
       ctx.fillStyle = f < 5 ? '#151f26' : '#142a33';
       ctx.fillRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
       ctx.strokeRect(mapX(-50), mapZ(4), 36 * 2.9, 32 * 3.1);
-      // Wide Central Atrium Void & East/West Escalator Bridges (M2F=7, M3F=9, M4F=11) or Twin Lightwells (M5F Cinema=13)
+      // Wide Central Atrium Void (M2F=7, M3F=9, M4F=11) or Twin Lightwells North of Escalators (M5F Cinema=13)
       if (f === 7 || f === 9 || f === 11) {
         ctx.fillStyle = '#0b141a';
         ctx.fillRect(mapX(-40), mapZ(12.8), 18 * 2.9, 14.4 * 3.1);
         ctx.strokeRect(mapX(-40), mapZ(12.8), 18 * 2.9, 14.4 * 3.1);
-        ctx.fillStyle = '#2c5b63';
-        ctx.fillRect(mapX(-40), mapZ(17.2), 4.2 * 2.9, 7.4 * 3.1);
-        ctx.fillRect(mapX(-26.2), mapZ(17.2), 4.2 * 2.9, 7.4 * 3.1);
       } else if (f === 13) {
         ctx.fillStyle = '#2a1622';
         ctx.fillRect(mapX(-50), mapZ(13), 10.5 * 2.9, 22 * 3.1);
         ctx.fillStyle = '#1b412e';
         ctx.fillRect(mapX(-32), mapZ(26), 17 * 2.9, 9 * 3.1);
         ctx.fillStyle = '#0b141a';
-        ctx.fillRect(mapX(-39.8), mapZ(18.4), 3.8 * 2.9, 5.0 * 3.1);
-        ctx.fillRect(mapX(-26.0), mapZ(18.4), 3.8 * 2.9, 5.0 * 3.1);
+        ctx.fillRect(mapX(-34.6), mapZ(13.2), 3.4 * 2.9, 3.0 * 3.1);
+        ctx.fillRect(mapX(-25.6), mapZ(13.2), 3.4 * 2.9, 3.0 * 3.1);
       } else if (f === 5) {
         // M1F Open Lobby Link, Waterfall & Flush West-Wall Starfield Library
         ctx.fillStyle = '#295763';
@@ -1992,12 +2362,13 @@ export class GameMode {
         ctx.fillStyle = '#735035';
         ctx.fillRect(mapX(-49.8), mapZ(13.7), 2.1 * 2.9, 12.6 * 3.1);
       }
-      // Central Atrium Escalator Core
+      // Long Direct Central Atrium Escalator Core
       ctx.fillStyle = '#244f5c';
-      ctx.fillRect(mapX(-35.8), mapZ(17.2), 9.6 * 2.9, 7.4 * 3.1);
-      // Dual Mall Panoramic Elevators (Car A & Car B) in North-Central Atrium Promenade
-      ctx.fillStyle = mc.floor === f ? '#d4b26f' : '#2a3e4a';
+      ctx.fillRect(mapX(-40.0), mapZ(17.2), 18.0 * 2.9, 7.4 * 3.1);
+      // Independent Dual Mall Panoramic Elevators (Car A & Car B) in North-Central Atrium Promenade
+      ctx.fillStyle = mcA?.floor === f ? '#d4b26f' : '#2a3e4a';
       ctx.fillRect(mapX(MALL_LIFT_X - 1.18), mapZ(MALL_LIFT_Z - 1.06), 2.36 * 2.9, 2.18 * 3.1);
+      ctx.fillStyle = mcB?.floor === f ? '#d4b26f' : '#2a3e4a';
       ctx.fillRect(mapX(MALL_LIFT_2_X - 1.18), mapZ(MALL_LIFT_Z - 1.06), 2.36 * 2.9, 2.18 * 3.1);
       // Mall Crowd dots on active floor
       for (const mp of this.view?.mallScene?.mallPeople ?? []) {

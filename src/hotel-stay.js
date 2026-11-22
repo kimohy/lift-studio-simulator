@@ -17,7 +17,7 @@ export const HOTEL_QUESTS = [
   {
     id: 'quest-checkin',
     title: '웰컴 투 그랜드 호텔',
-    desc: '1층 리셉션에서 체크인하고 3층 301호 객실에 입실하세요.',
+    desc: '1층 리셉션에서 원하는 객실을 선택해 체크인하고 배정 객실에 입실하세요.',
     rewardPoints: 150,
   },
   {
@@ -233,8 +233,280 @@ export const FAST_TRAVEL_SPOTS = [
   },
 ];
 
+export const HOTEL_ROOM_CATEGORIES = [
+  { id: 'all', label: '전체 객실 (16)' },
+  { id: 'signature', label: '★ 스마트 301' },
+  { id: 'deluxe', label: '디럭스 (2F~4F)' },
+  { id: 'junior', label: '주니어 스위트 (5F~6F)' },
+  { id: 'sky', label: '스카이 스위트 (7F~8F)' },
+  { id: 'penthouse', label: '펜트하우스·로열 (9F)' },
+];
+
+export const HOTEL_ROOMS = [
+  {
+    room: '201',
+    floorIndex: 6,
+    floorLabel: '2',
+    floorEn: '2nd Floor',
+    doorX: -1.38,
+    category: 'deluxe',
+    badge: 'DELUXE KING',
+    nameKo: '디럭스 킹 룸',
+    nameEn: 'Deluxe King Room',
+    bed: '킹 베드 1',
+    view: '웨스트 가든 시티뷰',
+    features: ['오피스 데스크', '미니 라운지 소파', '레인 샤워실'],
+    price: '₩360,000',
+    featured: false,
+  },
+  {
+    room: '202',
+    floorIndex: 6,
+    floorLabel: '2',
+    floorEn: '2nd Floor',
+    doorX: 1.38,
+    category: 'deluxe',
+    badge: 'FAMILY TWIN',
+    nameKo: '패밀리 트윈 룸',
+    nameEn: 'Family Twin Room',
+    bed: '퀸 + 싱글 트윈',
+    view: '이스트 코트뷰',
+    features: ['가족형 2베드', '라운지 테이블', '클럽 라운지 인접'],
+    price: '₩390,000',
+    featured: false,
+  },
+  {
+    room: '301',
+    floorIndex: 7,
+    floorLabel: '3',
+    floorEn: '3rd Floor',
+    doorX: -1.38,
+    category: 'signature',
+    badge: 'SIGNATURE ★',
+    nameKo: '시그니처 스마트 스위트',
+    nameEn: 'Signature Smart Suite',
+    bed: '킹 베드 1',
+    view: '파노라마 스카이라인',
+    features: ['스마트 TV·조명·커튼', '네스프레소 & 미니바', '레인 샤워 & 가운', 'AI 로봇 룸서비스'],
+    price: '₩480,000',
+    featured: true,
+  },
+  {
+    room: '302',
+    floorIndex: 7,
+    floorLabel: '3',
+    floorEn: '3rd Floor',
+    doorX: 1.38,
+    category: 'deluxe',
+    badge: 'EAST WING TWIN',
+    nameKo: '이스트 윙 패밀리 트윈',
+    nameEn: 'East Wing Family Twin',
+    bed: '트윈 베드 2',
+    view: '이스트 타워 파크뷰',
+    features: ['독립 이스트 윙', '워크 데스크', '티 테이블'],
+    price: '₩410,000',
+    featured: false,
+  },
+  {
+    room: '401',
+    floorIndex: 8,
+    floorLabel: '4',
+    floorEn: '4th Floor',
+    doorX: -1.38,
+    category: 'deluxe',
+    badge: 'DELUXE KING',
+    nameKo: '디럭스 킹 (보타닉 플로어)',
+    nameEn: 'Deluxe King · Botanical',
+    bed: '킹 베드 1',
+    view: '웨스트 시티뷰',
+    features: ['4F 산소 테라피 라운지', '허브티 바 인접', '워크 데스크'],
+    price: '₩420,000',
+    featured: false,
+  },
+  {
+    room: '402',
+    floorIndex: 8,
+    floorLabel: '4',
+    floorEn: '4th Floor',
+    doorX: 1.38,
+    category: 'deluxe',
+    badge: 'FAMILY TWIN',
+    nameKo: '패밀리 트윈 (보타닉 플로어)',
+    nameEn: 'Family Twin · Botanical',
+    bed: '트윈 베드 2',
+    view: '사우스 스카이라인',
+    features: ['가족형 트윈 베드', '피톤치드 라운지', '프라이빗 포이어'],
+    price: '₩450,000',
+    featured: false,
+  },
+  {
+    room: '501',
+    floorIndex: 9,
+    floorLabel: '5',
+    floorEn: '5th Floor',
+    doorX: -1.38,
+    category: 'junior',
+    badge: 'JUNIOR SUITE',
+    nameKo: '주니어 코너 스위트',
+    nameEn: 'Junior Corner Suite',
+    bed: '프리미엄 킹 1',
+    view: '파노라마 미드하이 뷰',
+    features: ['거실 응접 세트', '5F 말차 다도 라운지', '대형 옷장 & 데스크'],
+    price: '₩680,000',
+    featured: false,
+  },
+  {
+    room: '502',
+    floorIndex: 9,
+    floorLabel: '5',
+    floorEn: '5th Floor',
+    doorX: 1.38,
+    category: 'junior',
+    badge: 'JUNIOR SUITE',
+    nameKo: '주니어 이그제큐티브 스위트',
+    nameEn: 'Junior Executive Suite',
+    bed: '트윈 / 더블 스위트',
+    view: '이스트 가든뷰',
+    features: ['넓은 응접 소파', '다도 라운지 인접', '프라이빗 바'],
+    price: '₩710,000',
+    featured: false,
+  },
+  {
+    room: '601',
+    floorIndex: 10,
+    floorLabel: '6',
+    floorEn: '6th Floor',
+    doorX: -1.38,
+    category: 'junior',
+    badge: 'JUNIOR SUITE',
+    nameKo: '주니어 비즈니스 스위트',
+    nameEn: 'Junior Business Suite',
+    bed: '프리미엄 킹 1',
+    view: '하이라이즈 시티뷰',
+    features: ['6F 비즈니스 클럽', '이그제큐티브 데스크', '대형 응접실'],
+    price: '₩760,000',
+    featured: false,
+  },
+  {
+    room: '602',
+    floorIndex: 10,
+    floorLabel: '6',
+    floorEn: '6th Floor',
+    doorX: 1.38,
+    category: 'junior',
+    badge: 'JUNIOR SUITE',
+    nameKo: '주니어 파노라마 스위트',
+    nameEn: 'Junior Panorama Suite',
+    bed: '트윈 스위트',
+    view: '파노라마 선셋뷰',
+    features: ['비즈니스 라운지 이용', '라운지 체어 세트', 'VIP 컨시어지'],
+    price: '₩790,000',
+    featured: false,
+  },
+  {
+    room: '701',
+    floorIndex: 11,
+    floorLabel: '7',
+    floorEn: '7th Floor',
+    doorX: -1.38,
+    category: 'sky',
+    badge: 'SKY SUITE',
+    nameKo: '스카이 프리미어 아트 스위트',
+    nameEn: 'Sky Premier Art Suite',
+    bed: '이탈리안 킹 1',
+    view: '하이 스카이라인',
+    features: ['벽난로 파이어플레이스 🔥', '샴페인 라운지 인접', '전용 파우더룸'],
+    price: '₩1,050,000',
+    featured: false,
+  },
+  {
+    room: '702',
+    floorIndex: 11,
+    floorLabel: '7',
+    floorEn: '7th Floor',
+    doorX: 1.38,
+    category: 'sky',
+    badge: 'SKY SUITE',
+    nameKo: '스카이 아트 트윈 스위트',
+    nameEn: 'Sky Art Twin Suite',
+    bed: '시그니처 트윈 2',
+    view: '스카이 애비뉴 뷰',
+    features: ['벽난로 응접 라운지 🔥', '아트 도슨트 플로어', '프리미엄 응접실'],
+    price: '₩1,080,000',
+    featured: false,
+  },
+  {
+    room: '801',
+    floorIndex: 12,
+    floorLabel: '8',
+    floorEn: '8th Floor',
+    doorX: -1.38,
+    category: 'sky',
+    badge: 'SKY PREMIER',
+    nameKo: '스카이 소믈리에 킹 스위트',
+    nameEn: 'Sky Sommelier King Suite',
+    bed: '이탈리안 킹 1',
+    view: '울트라 스카이라인',
+    features: ['8F 소믈리에 와인셀러 🍷', '벽난로 라운지 🔥', '프라이빗 다이닝'],
+    price: '₩1,250,000',
+    featured: false,
+  },
+  {
+    room: '802',
+    floorIndex: 12,
+    floorLabel: '8',
+    floorEn: '8th Floor',
+    doorX: 1.38,
+    category: 'sky',
+    badge: 'SKY PREMIER',
+    nameKo: '스카이 로열 클럽 트윈 스위트',
+    nameEn: 'Sky Royal Club Twin Suite',
+    bed: '프리미엄 트윈 2',
+    view: '글로벌 파노라마 뷰',
+    features: ['와인 테이스팅 바 인접', '벽난로 라운지 🔥', '대형 응접 공간'],
+    price: '₩1,280,000',
+    featured: false,
+  },
+  {
+    room: '901',
+    floorIndex: 13,
+    floorLabel: '9',
+    floorEn: '9th Floor',
+    doorX: -1.38,
+    category: 'penthouse',
+    badge: 'PRESIDENTIAL 👑',
+    nameKo: '프레지덴셜 펜트하우스 스위트',
+    nameEn: 'Presidential Penthouse Suite',
+    bed: '마스터 캘리포니아 킹',
+    view: '최상층 270° 스카이라인',
+    features: ['그랜드 피아노 🎹', '프라이빗 스파 욕조 🛁', '벽난로 & 풀바 🥂', '전담 버틀러'],
+    price: '₩2,400,000',
+    featured: true,
+  },
+  {
+    room: '902',
+    floorIndex: 13,
+    floorLabel: '9',
+    floorEn: '9th Floor',
+    doorX: 1.38,
+    category: 'penthouse',
+    badge: 'ROYAL SUITE 👑',
+    nameKo: '로열 이그제큐티브 스위트',
+    nameEn: 'Royal Executive Suite',
+    bed: '로열 스위트 트윈/킹',
+    view: '10F 루프탑 & 시티뷰',
+    features: ['프라이빗 스파 욕조 🛁', '벽난로 라운지 🔥', '로열 샴페인 바 🥂', '루프탑 풀 인접'],
+    price: '₩1,950,000',
+    featured: true,
+  },
+];
+
+export function getHotelRoomSpec(room) {
+  return HOTEL_ROOMS.find((r) => r.room === String(room)) ?? null;
+}
+
 export const TOUR_CHECKLIST = [
-  { id: 'checkIn', title: '1층 리셉션 체크인 & 301호 키카드 수령' },
+  { id: 'checkIn', title: '1층 리셉션 객실 선택 체크인 & 키카드 수령' },
   { id: 'cafeLounge', title: '1층 그랜드 카페 주문 또는 라운지 휴식' },
   { id: 'verticalTransit', title: '엘리베이터·계단·에스컬레이터 층간 이동' },
   { id: 'room301', title: '3층 301호 객실 입실 & 편의시설 체험' },
@@ -600,13 +872,25 @@ export class HotelStay {
     return this.energy;
   }
 
+  getCheckedInRoomSpec() {
+    return this.keycard ? getHotelRoomSpec(this.keycard.room) : null;
+  }
+
   canAccess(room) {
     return this.keycard?.room === String(room);
   }
 
-  checkIn(staffId) {
+  checkIn(staffId, roomNumber = null) {
     if (!/^reception-/.test(staffId ?? '')) return null;
-    this.keycard ??= { room: '301', floor: '3', hotel: 'GRAND HOTEL' };
+    if (roomNumber !== null && roomNumber !== undefined && String(roomNumber).trim() !== '') {
+      const spec = getHotelRoomSpec(roomNumber);
+      if (!spec) return null;
+      if (this.keycard?.room !== spec.room) {
+        this.keycard = { room: spec.room, floor: spec.floorLabel, hotel: 'GRAND HOTEL' };
+      }
+    } else {
+      this.keycard ??= { room: '301', floor: '3', hotel: 'GRAND HOTEL' };
+    }
     this.completeMilestone('checkIn');
     this.addPoints(80, 'checkIn');
     this.addEnergy(5);
@@ -672,6 +956,84 @@ export class HotelStay {
       tier: reward.tier,
       newlyCompletedQuests,
       message: `${spec.message}${bonusTag}`,
+    };
+  }
+
+  interactSuite(data = {}, player = null) {
+    const floorIndex = data.floorIndex ?? player?.floor ?? 7;
+    const room = String(data.room || '201');
+    const tier = data.tier || 'deluxe';
+    const type = data.amenityType || 'sofa';
+    if (player && player.floor === floorIndex && Number.isFinite(data.seatX) && Number.isFinite(data.seatZ)) {
+      player.x = data.seatX;
+      player.z = data.seatZ;
+      player.yaw = data.seatYaw ?? Math.PI;
+      player.pitch = -0.05;
+      player.zone = 'lobby';
+    }
+    const tierKo =
+      tier === 'presidential'
+        ? '프레지덴셜 펜트하우스 스위트'
+        : tier === 'royal'
+          ? '로열 이그제큐티브 스위트'
+          : tier === 'sky'
+            ? '스카이 프리미어 스위트'
+            : tier === 'junior'
+              ? '주니어 스위트'
+              : tier === 'twin'
+                ? '패밀리 트윈 룸'
+                : '디럭스 킹 룸';
+    const actMsg = {
+      bed: `🛏️ [${room}호 ${tierKo}] 최고급 구스다운 침구에 기대어 도심 스카이라인을 감상하며 휴식합니다.`,
+      sofa: `🛋️ [${room}호 ${tierKo}] 응접 라운지 소파에 편안히 앉아 여유로운 스위트 모먼트를 즐깁니다.`,
+      bar: `🥂 [${room}호 ${tierKo}] 프라이빗 미니바에서 칠링된 샴페인과 아로마 에스프레소를 즐깁니다.`,
+      spa: `🛁 [${room}호 ${tierKo}] 파노라마 창가 마블 스카이 자쿠지에서 따뜻한 스파 테라피를 만끽합니다.`,
+    }[type];
+    const pts = tier === 'presidential' || tier === 'royal' ? 75 : tier === 'sky' ? 60 : 45;
+    const energyGain = type === 'spa' || type === 'bed' ? 20 : 14;
+    this.visitedFloorAmenities.add(floorIndex);
+    this.lastAmenityItem = `${room}호 ${tierKo}`;
+    this.addPoints(pts, `suite:${room}:${type}`);
+    this.addEnergy(energyGain);
+    const newlyCompletedQuests = this.evaluateQuests();
+    return {
+      ok: true,
+      room,
+      tier,
+      amenityType: type,
+      newlyCompletedQuests,
+      message: `${actMsg} (+${pts} VIP PTS · 활력 ${this.energy}%)`,
+    };
+  }
+
+  interactHotelLounge(data = {}, player = null) {
+    const floorIndex = data.floorIndex ?? player?.floor ?? 6;
+    const floorNum = floorIndex - 4;
+    const type = data.loungeType || 'sofa';
+    if (player && player.floor === floorIndex && Number.isFinite(data.seatX) && Number.isFinite(data.seatZ)) {
+      player.x = data.seatX;
+      player.z = data.seatZ;
+      player.yaw = data.seatYaw ?? 0;
+      player.pitch = -0.04;
+      player.zone = 'lobby';
+    }
+    this.visitedFloorAmenities.add(floorIndex);
+    this.cafeSeated = true;
+    const pts = floorIndex >= 12 ? 70 : 50;
+    const msg =
+      type === 'bar'
+        ? `🥂 [${floorNum}F 이그제큐티브 클럽 라운지 바] 투숙객 전용 샴페인 해피아워와 시그니처 에스프레소를 즐깁니다.`
+        : `🛋️ [${floorNum}F 이그제큐티브 클럽 라운지] 서부 스카이라인 창가 벨벳 소파에 앉아 프라이빗 라운지 티타임을 즐깁니다.`;
+    this.lastAmenityItem = `${floorNum}F 클럽 라운지`;
+    this.addPoints(pts, `lounge:${floorIndex}:${type}`);
+    this.addEnergy(16);
+    const newlyCompletedQuests = this.evaluateQuests();
+    return {
+      ok: true,
+      floorIndex,
+      loungeType: type,
+      newlyCompletedQuests,
+      message: `${msg} (+${pts} VIP PTS · 활력 ${this.energy}%)`,
     };
   }
 

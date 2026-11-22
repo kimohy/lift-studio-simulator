@@ -155,6 +155,12 @@ export class GuestRoom {
       return { ok: false, message: '문에서 조금 떨어진 뒤 닫아 주세요.' };
     }
     if (!this.target && p?.zone !== 'room' && !this.stay.canAccess(ROOM.number)) {
+      if (this.stay?.keycard) {
+        return {
+          ok: false,
+          message: `현재 보유하신 키카드는 ${this.stay.keycard.room}호입니다. 301호 입장을 원하시면 리셉션(또는 키카드 창)에서 301호로 변경해 주세요.`,
+        };
+      }
       return { ok: false, message: '301호 키카드가 필요합니다. 1층 리셉션에서 체크인해 주세요.' };
     }
     this.target = this.target ? 0 : 1;

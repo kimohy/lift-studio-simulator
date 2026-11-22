@@ -58,18 +58,22 @@ test('instanced escalator treads stay on their lanes and update only visible sto
     e.update(2, false);
     const m = new THREE.Matrix4();
     const f = e.flights.find((flight) => flight.floor === 5);
-    assert.equal(f.stepMesh.count, 24);
+    assert.equal(f.stepMesh.count, 48);
     f.stepMesh.getMatrixAt(0, m);
     const p = new THREE.Vector3().setFromMatrixPosition(m);
-    assert.ok(p.x >= -34 && p.x <= -28);
+    assert.ok(p.x >= -37 && p.x <= -25);
     assert.ok(Math.abs(p.z - f.z) < 1e-6);
-    assert.ok(p.y >= -0.085 && p.y <= 3.5);
+    assert.ok(p.y >= -0.085 && p.y <= 7.0);
     const frozen = m.clone();
     e.update(9, true);
     f.stepMesh.getMatrixAt(0, m);
     assert.ok(m.equals(frozen));
     const hidden = e.flights.find((flight) => flight.floor === 0);
     assert.equal(hidden.stepMesh.instanceMatrix.version, 0);
+    const b1 = e.flights.find((flight) => flight.floor === 4);
+    assert.equal(b1.group.visible, true);
+    assert.ok(b1.stepMesh.instanceMatrix.version > 0);
+    assert.equal(b1.group.userData.pitLiner?.visible, true);
   } finally {
     globalThis.document = previous;
   }

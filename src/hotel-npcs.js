@@ -441,7 +441,11 @@ export class HotelNPCSystem {
 
     const desiredYaw = Math.atan2(-ux, -uz);
     const diff = wrapAngle(desiredYaw - npc.yaw);
-    npc.yaw = wrapAngle(npc.yaw + Math.sign(diff) * Math.min(Math.abs(diff), dt * 8));
+    if (Math.abs(diff) > 1.8) {
+      npc.yaw = desiredYaw;
+    } else {
+      npc.yaw = wrapAngle(npc.yaw + Math.sign(diff) * Math.min(Math.abs(diff), dt * 14));
+    }
     npc.moving = true;
     npc.walkPhase += step * 3.6;
     return false;

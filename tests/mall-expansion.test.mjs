@@ -9,7 +9,7 @@ import {
   normalizeMallFloor,
 } from '../src/building.js';
 import { FLOORS, LiftController, PITCH } from '../src/controller.js';
-import { Escalators } from '../src/escalator.js';
+import { Escalators, ESCALATOR_STOPS } from '../src/escalator.js';
 import { EscalatorView } from '../src/escalator-view.js';
 import { GameMode } from '../src/game-mode.js';
 import { HotelScene } from '../src/hotel-scene.js';
@@ -94,24 +94,35 @@ test('1F hotel lobby opens wide directly into Mall M1F atrium and central mall e
     const world = new HotelWorld();
     const hs = new HotelScene(new THREE.Scene(), world, pickables);
     hs.root.updateMatrixWorld(true);
-    // Open portal at x = -12 across z ∈ [10.0, 22.0] has zero wall obstruction
+    // Framed 3.6m Glass Connecting Vestibule at z ∈ [14.2, 17.8] is open at center z = 16.0 while enclosed north & south
     assert.equal(cast(hs.floors[5], [-10.0, 1.5, 16.0], [-1, 0, 0], 4.0)[0], undefined);
+    assert.ok(cast(hs.floors[5], [-10.0, 1.5, 11.5], [-1, 0, 0], 4.0)[0], 'expected 1F west wall enclosed at z=11.5');
+    assert.ok(cast(hs.floors[5], [-10.0, 1.5, 20.5], [-1, 0, 0], 4.0)[0], 'expected 1F west wall enclosed at z=20.5');
+    assert.equal(world.isMallArea(-13.0, 16.0, 5), true);
+    assert.equal(world.isMallArea(-13.0, 11.5, 5), false);
+    assert.equal(world.isMallArea(-13.0, 20.5, 5), false);
 
     const view = new EscalatorView(new THREE.Scene());
     view.root.updateMatrixWorld(true);
+    const stopSet = new Set(view.root.children.map((g) => g.userData.floorIndex));
+    assert.deepEqual(
+      [...stopSet].sort((a, b) => a - b),
+      [...ESCALATOR_STOPS]
+    );
     for (const f of [0, 4, 5, 7, 9, 11, 13]) {
       const y = (f - 5) * PITCH + 1.4;
-      const eastPortalHit = cast(view.root, [-27.2, y, 20.9], [1, 0, 0], 2.0)[0];
-      const westPortalHit = cast(view.root, [-34.8, y, 20.9], [-1, 0, 0], 2.0)[0];
+      const eastPortalHit = cast(view.root, [-23.2, y, 20.9], [1, 0, 0], 2.0)[0];
       assert.equal(eastPortalHit, undefined, `expected central escalator east portal open on floor ${FLOORS[f]}`);
-      assert.equal(westPortalHit, undefined, `expected central escalator west portal open on floor ${FLOORS[f]}`);
+      if (f < 13) {
+        const westPortalHit = cast(view.root, [-38.8, y, 20.9], [-1, 0, 0], 2.0)[0];
+        assert.equal(westPortalHit, undefined, `expected central escalator west portal open on floor ${FLOORS[f]}`);
+      } else {
+        const northFoyerHit = cast(view.root, [-38.2, y, 18.0], [0, 0, -1], 2.0)[0];
+        assert.equal(northFoyerHit, undefined, 'expected M5F west escalator landing north foyer portal open');
+      }
     }
-    for (const f of [6, 8, 10, 12, 14]) {
-      const y = (f - 5) * PITCH + 1.4;
-      const eastClosed = cast(view.root, [-27.2, y, 20.9], [1, 0, 0], 2.0)[0];
-      const westClosed = cast(view.root, [-34.8, y, 20.9], [-1, 0, 0], 2.0)[0];
-      assert.equal(eastClosed?.object.name, 'Escalator_inner_wall');
-      assert.equal(westClosed?.object.name, 'Escalator_outer_wall');
+    for (const mezz of [6, 8, 10, 12, 14]) {
+      assert.equal(stopSet.has(mezz), false, `expected no mid-air mezzanine landing on floor ${FLOORS[mezz]}`);
     }
   });
 
@@ -134,19 +145,17 @@ test('1F hotel lobby opens wide directly into Mall M1F atrium and central mall e
   for (let i = 0; i < 60; i++) player.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
   assert.ok(player.x < -18.0, `expected player inside Mall M1F via open lobby, got x=${player.x}`);
 
-  // Walk out of Mall-Center Escalator onto M2F (floor 7) East Gallery Bridge & East Gallery
+  // Walk out of long direct Escalator East landing onto M2F (floor 7) East Gallery
   const escalators = new Escalators();
   const escPlayer = new WalkingPlayer(null, world, escalators, null, null, mallCtrl);
   escPlayer.floor = 7;
   escPlayer.zone = 'escalator';
   escPlayer.escalatorY = (7 - 5) * PITCH;
   escPlayer.worldY = escPlayer.escalatorY;
-  escPlayer.x = -26.5;
+  escPlayer.x = -23.0;
   escPlayer.z = 20.9;
   escPlayer.yaw = -Math.PI / 2;
-  for (let i = 0; i < 4; i++) escPlayer.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
-  assert.ok(escPlayer.x > -26.2 && escPlayer.x < -22.0, `expected player on M2F east bridge, got x=${escPlayer.x}`);
-  for (let i = 0; i < 10; i++) escPlayer.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
+  for (let i = 0; i < 8; i++) escPlayer.move(1, 0, 0.1, hotelCtrl, true, mallCtrl);
   assert.ok(escPlayer.x >= -22.0 && escPlayer.x <= -14.0, `expected player on M2F east gallery, got x=${escPlayer.x}`);
   assert.equal(escPlayer.zone, 'lobby');
   assert.equal(escPlayer.floor, 7);
@@ -310,14 +319,14 @@ test('mall elevator buttons pass 3D raycast interaction and ride independently t
 
 test('mall includes floor-themed shops, M5F Grand Cinema Multiplex, and 30+ animated crowd visitors', () => {
   const world = new HotelWorld();
-  // Atrium void on M2F (7); East/West escalator bridges on M3F (9) & M4F (11); Cinema & twin lightwells on M5F (13); open rear concourse around dual shafts
+  // Atrium void on M2F (7); East/West escalator landings on M3F (9) & M4F (11); Cinema & twin lightwells on M5F (13); open rear concourse around dual shafts
   assert.equal(world.isMallArea(-31, 15, 7), false);
   assert.equal(world.isMallArea(-24, 20, 9), true);
   assert.equal(world.isMallArea(-38, 20, 11), true);
   assert.equal(world.isMallArea(-28, 7.0, 5), true);
   assert.equal(world.isMallArea(-44.5, 25, 13), true); // M5F IMAX auditorium floor
-  assert.equal(world.isMallArea(-37.9, 20, 13), false); // West Lightwell
-  assert.equal(world.isMallArea(-24.1, 20, 13), false); // East Lightwell
+  assert.equal(world.isMallArea(-33.0, 14.5, 13), false); // West Lightwell
+  assert.equal(world.isMallArea(-24.0, 14.5, 13), false); // East Lightwell
 
   withMockCanvas(() => {
     const scene = new THREE.Scene();
@@ -342,6 +351,17 @@ test('mall includes floor-themed shops, M5F Grand Cinema Multiplex, and 30+ anim
     assert.ok(pickables.some((p) => p.userData?.action === 'mallCinemaTicket'));
     assert.ok(pickables.some((p) => p.userData?.action === 'mallCinemaSnack'));
     assert.ok(pickables.some((p) => p.userData?.action === 'mallCinemaSeat'));
+
+    // Suspended Atrium banners have ceiling hanger rods & Roastery canopy has grounded columns
+    for (const bannerName of ['Mall_M1F_directory_sign', 'Mall_M2F_sign', 'Mall_M5F_banner']) {
+      const banner = mall.root.getObjectByName(bannerName);
+      assert.ok(banner, `expected ${bannerName}`);
+      assert.ok(
+        banner.children.some((c) => c.name === `${bannerName}_hanger`),
+        `expected ceiling suspension hangers on ${bannerName}`
+      );
+    }
+    assert.ok(mall.root.getObjectByName('Mall_roastery_post'), 'expected grounded posts under M1F Roastery canopy');
 
     // 30+ animated Mall crowd people
     assert.ok(mall.mallPeople.length >= 30, `expected 30+ mall people, got ${mall.mallPeople.length}`);
@@ -517,5 +537,136 @@ test('cinema requires kiosk ticketing and concession flow with QR gate inspectio
     );
     assert.equal(seatRes.ok, true);
     assert.equal(guest.x, -44.6);
+  });
+});
+
+test('mall visitors always face their direction of travel across patrol cycles', () => {
+  withMockCanvas(() => {
+    const scene = new THREE.Scene();
+    const pickables = [];
+    const mall = new MallScene(scene, new HotelWorld(), pickables);
+    const mallCtrl = new LiftController({
+      minFloor: 0,
+      maxFloor: MALL_MAX_FLOOR,
+      id: 'mall',
+      startFloor: 5,
+      allowedFloors: MALL_VALID_FLOORS,
+    });
+    const verifiedForward = new Set();
+    const verifiedReturn = new Set();
+    for (const t of [0.5, 1.5, 2.5, 4.0, 6.5, 9.0, 12.0, 15.5]) {
+      const dt = 0.002;
+      mall.update(mallCtrl, t, { floor: 5, x: -32, z: 36.2 });
+      const snap = mall.mallPeople.map((p) => ({
+        x: p.root.position.x,
+        z: p.root.position.z,
+        yaw: p.root.rotation.y,
+      }));
+      mall.update(mallCtrl, t + dt, { floor: 5, x: -32, z: 36.2 });
+      for (let i = 0; i < mall.mallPeople.length; i++) {
+        const person = mall.mallPeople[i];
+        if (person.seat) continue;
+        const dx = person.root.position.x - snap[i].x;
+        const dz = person.root.position.z - snap[i].z;
+        const step = Math.hypot(dx, dz);
+        if (step < 1e-5) continue;
+        // Skip only if dt straddled a waypoint reversal cusp between t and t+dt
+        const yawDiff = Math.abs(Math.atan2(Math.sin(person.root.rotation.y - snap[i].yaw), Math.cos(person.root.rotation.y - snap[i].yaw)));
+        if (yawDiff > 0.1) continue;
+        const fwdX = Math.sin(snap[i].yaw);
+        const fwdZ = Math.cos(snap[i].yaw);
+        const dot = (dx / step) * fwdX + (dz / step) * fwdZ;
+        assert.ok(dot > 0.99, `expected ${person.id} walking forward at t=${t}, got dot=${dot.toFixed(3)}`);
+        const abx = person.bx - person.ax;
+        const abz = person.bz - person.az;
+        if (dx * abx + dz * abz > 0) verifiedForward.add(person.id);
+        else verifiedReturn.add(person.id);
+      }
+    }
+    assert.ok(verifiedForward.size >= 25, `expected most patrol visitors tested forward, got ${verifiedForward.size}`);
+    assert.ok(verifiedReturn.size >= 25, `expected most patrol visitors tested returning, got ${verifiedReturn.size}`);
+  });
+});
+
+test('dual mall elevators A and B run, light indicators, and board independently', () => {
+  const world = new HotelWorld();
+  const hotelCtrl = new LiftController();
+  const mallCtrlA = new LiftController({
+    minFloor: 0,
+    maxFloor: MALL_MAX_FLOOR,
+    id: 'mall',
+    startFloor: 5,
+    allowedFloors: MALL_VALID_FLOORS,
+  });
+  const mallCtrlB = new LiftController({
+    minFloor: 0,
+    maxFloor: MALL_MAX_FLOOR,
+    id: 'mall-b',
+    startFloor: 9,
+    allowedFloors: MALL_VALID_FLOORS,
+  });
+
+  withMockCanvas(() => {
+    const mall = new MallScene(new THREE.Scene(), world, []);
+    mall.update(mallCtrlA, 1.0, null, mallCtrlB);
+    assert.equal(mall.mallCars[0].position.y, 0);
+    assert.equal(mall.mallCars[1].position.y, 14);
+
+    // Call A to M5F (13) — B stays stationary at M3F (9)
+    mallCtrlA.callCar(13);
+    advanceLift(mallCtrlA, 22.0);
+    mall.update(mallCtrlA, 23.0, null, mallCtrlB);
+    assert.equal(mallCtrlA.floor, 13);
+    assert.equal(mallCtrlB.floor, 9);
+    assert.ok(mall.mallCars[0].position.y > 27.5);
+    assert.equal(mall.mallCars[1].position.y, 14);
+  });
+
+  // Board Car B independently on M3F while Car A remains parked on M5F
+  const player = new WalkingPlayer(null, world, null, null, null, mallCtrlA, mallCtrlB);
+  player.floor = 9;
+  player.zone = 'lobby';
+  player.x = MALL_LIFT_2_X;
+  player.z = MALL_LIFT_Z + 2.0;
+  player.yaw = 0;
+
+  mallCtrlB.callHall(9, -1);
+  advanceLift(mallCtrlB, 1.5);
+  assert.ok(mallCtrlB.door >= 0.95);
+  for (let i = 0; i < 20; i++) player.move(1, 0, 0.1, hotelCtrl, false, mallCtrlA, mallCtrlB);
+  assert.equal(player.zone, 'mallCabin');
+  assert.equal(player.activeMallCar, 'B');
+
+  player.z = MALL_LIFT_Z;
+  mallCtrlB.callCar(5);
+  mallCtrlB.closeDoor();
+  advanceLift(mallCtrlB, 15.0);
+  player.sync(hotelCtrl, mallCtrlA, mallCtrlB);
+  assert.equal(mallCtrlB.floor, 5);
+  assert.equal(player.floor, 5);
+  assert.equal(mallCtrlA.floor, 13);
+});
+
+test('mall basement parking visibility prevents stacked lower-level bleed-through from M1F and B3', () => {
+  withMockCanvas(() => {
+    const world = new HotelWorld();
+    const mall = new MallScene(new THREE.Scene(), world, []);
+    mall.updateVisibility('game', 5, true);
+    const visM1F = mall.floors.map((fg) => [fg.userData.floorIndex, fg.visible]);
+    assert.equal(visM1F.find(([f]) => f === 4)?.[1], true);
+    assert.equal(visM1F.find(([f]) => f === 5)?.[1], true);
+    assert.equal(visM1F.find(([f]) => f === 13)?.[1], true);
+    for (const f of [0, 1, 2, 3]) {
+      assert.equal(visM1F.find(([idx]) => idx === f)?.[1], false, `expected floor ${f} hidden on M1F`);
+    }
+
+    mall.updateVisibility('game', 2, true);
+    const visB3 = mall.floors.map((fg) => [fg.userData.floorIndex, fg.visible]);
+    assert.equal(visB3.find(([f]) => f === 0)?.[1], false);
+    assert.equal(visB3.find(([f]) => f === 1)?.[1], true);
+    assert.equal(visB3.find(([f]) => f === 2)?.[1], true);
+    assert.equal(visB3.find(([f]) => f === 3)?.[1], true);
+    assert.equal(visB3.find(([f]) => f === 4)?.[1], false);
+    assert.equal(visB3.find(([f]) => f === 5)?.[1], true);
   });
 });

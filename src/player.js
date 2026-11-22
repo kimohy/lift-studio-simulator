@@ -3,14 +3,28 @@ import { MALL_LIFT_2_X, MALL_LIFT_X, MALL_LIFT_Z, MALL_MAX_FLOOR } from './hotel
 const MALL_LIFT_XS = [MALL_LIFT_X, MALL_LIFT_2_X];
 
 export class WalkingPlayer {
-  constructor(stairs = null, world = null, escalators = null, room = null, pool = null, mallController = null) {
+  constructor(
+    stairs = null,
+    world = null,
+    escalators = null,
+    room = null,
+    pool = null,
+    mallController = null,
+    mallControllerB = null
+  ) {
     this.stairs = stairs;
     this.world = world;
     this.escalators = escalators;
     this.room = room;
     this.pool = pool;
     this.mallController = mallController;
+    this.mallControllerB = mallControllerB;
     this.reset();
+  }
+
+  getMallController(car = this.activeMallCar, mallC = this.mallController, mallCB = this.mallControllerB) {
+    if (car === 'B') return mallCB ?? this.mallControllerB ?? mallC ?? this.mallController;
+    return mallC ?? this.mallController;
   }
 
   reset() {
@@ -27,13 +41,14 @@ export class WalkingPlayer {
     this.escalatorY = 0;
   }
 
-  groundY(c, mallC = this.mallController) {
+  groundY(c, mallC = this.mallController, mallCB = this.mallControllerB) {
+    const mc = this.getMallController(this.activeMallCar, mallC, mallCB);
     return this.zone === 'escalator'
       ? this.escalatorY
       : this.zone === 'cabin'
         ? (c?.position ?? 17.5) - 17.5
         : this.zone === 'mallCabin'
-          ? (mallC?.position ?? 17.5) - 17.5
+          ? (mc?.position ?? 17.5) - 17.5
           : this.zone === 'ramp'
             ? this.worldY
             : this.zone === 'stairs'
@@ -49,9 +64,12 @@ export class WalkingPlayer {
     return this.groundY(c) + 1.65;
   }
 
-  sync(c, mallC = this.mallController) {
+  sync(c, mallC = this.mallController, mallCB = this.mallControllerB) {
     if (this.zone === 'cabin') this.floor = c.floor;
-    else if (this.zone === 'mallCabin' && mallC) this.floor = mallC.floor;
+    else if (this.zone === 'mallCabin') {
+      const mc = this.getMallController(this.activeMallCar, mallC, mallCB);
+      if (mc) this.floor = mc.floor;
+    }
   }
 
   look(dx, dy) {
@@ -63,20 +81,25 @@ export class WalkingPlayer {
     return Math.abs(this.x) < 0.45 && this.z > 0.6 && this.z < 1.4;
   }
 
-  inMallDoorway() {
-    return (
-      MALL_LIFT_XS.some((lx) => Math.abs(this.x - lx) < 0.5) &&
-      this.z > MALL_LIFT_Z + 0.8 &&
-      this.z < MALL_LIFT_Z + 1.62
-    );
+  mallDoorwayCar() {
+    if (this.z <= MALL_LIFT_Z + 0.8 || this.z >= MALL_LIFT_Z + 1.62) return null;
+    if (Math.abs(this.x - MALL_LIFT_X) < 0.5) return 'A';
+    if (Math.abs(this.x - MALL_LIFT_2_X) < 0.5) return 'B';
+    return null;
+  }
+
+  inMallDoorway(car = null) {
+    const doorCar = this.mallDoorwayCar();
+    return car ? doorCar === car : doorCar !== null;
   }
 
   blocksDoor(c) {
     return this.inDoorway() && c.aligned() && c.floor === this.floor;
   }
 
-  blocksMallDoor(mallC = this.mallController) {
-    return Boolean(mallC && this.inMallDoorway() && mallC.aligned() && mallC.floor === this.floor);
+  blocksMallDoor(mallC = this.mallController, car = null) {
+    const targetCar = car ?? (this.mallControllerB && mallC === this.mallControllerB ? 'B' : null);
+    return Boolean(mallC && this.inMallDoorway(targetCar) && mallC.aligned() && mallC.floor === this.floor);
   }
 
   leaveDoorway() {
@@ -88,31 +111,40 @@ export class WalkingPlayer {
     }
   }
 
-  canOccupy(x, z, c, mallC = this.mallController) {
-    const mc = mallC ?? this.mallController;
-    const mallAligned = Boolean(mc && mc.aligned() && mc.floor === this.floor);
-    const inMallCabinBox =
-      MALL_LIFT_XS.some((lx) => Math.abs(x - lx) <= 1.0) &&
-      z >= MALL_LIFT_Z - 0.85 &&
-      z <= MALL_LIFT_Z + 0.85;
-    const inMallDoorBox =
-      MALL_LIFT_XS.some((lx) => Math.abs(x - lx) <= 0.45) &&
-      z > MALL_LIFT_Z + 0.85 &&
-      z <= MALL_LIFT_Z + 1.62;
+  canOccupy(x, z, c, mallC = this.mallController, mallCB = this.mallControllerB) {
+    const mcA = mallC ?? this.mallController;
+    const mcB = mallCB ?? this.mallControllerB ?? mcA;
+    const activeMc = this.activeMallCar === 'B' ? mcB : mcA;
+    const activeAligned = Boolean(activeMc && activeMc.aligned() && activeMc.floor === this.floor);
+
+    const inCarACabin = Math.abs(x - MALL_LIFT_X) <= 1.0 && z >= MALL_LIFT_Z - 0.85 && z <= MALL_LIFT_Z + 0.85;
+    const inCarADoor = Math.abs(x - MALL_LIFT_X) <= 0.45 && z > MALL_LIFT_Z + 0.85 && z <= MALL_LIFT_Z + 1.62;
+    const inCarBCabin = Math.abs(x - MALL_LIFT_2_X) <= 1.0 && z >= MALL_LIFT_Z - 0.85 && z <= MALL_LIFT_Z + 0.85;
+    const inCarBDoor = Math.abs(x - MALL_LIFT_2_X) <= 0.45 && z > MALL_LIFT_Z + 0.85 && z <= MALL_LIFT_Z + 1.62;
 
     if (this.zone === 'mallCabin') {
-      if (inMallCabinBox) return true;
-      if (inMallDoorBox) return Boolean(mallAligned && mc.door >= 0.95);
+      const inOwnCabin = this.activeMallCar === 'B' ? inCarBCabin : inCarACabin;
+      const inOwnDoor = this.activeMallCar === 'B' ? inCarBDoor : inCarADoor;
+      if (inOwnCabin) return true;
+      if (inOwnDoor) return Boolean(activeAligned && activeMc.door >= 0.95);
+      if (inCarACabin || inCarBCabin || inCarADoor || inCarBDoor) return false;
       if (this.world && this.world.isMallArea(x, z, this.floor)) {
         return Boolean(
-          mallAligned && mc.door >= 0.95 && this.world.surfaceAt(x, z, this.groundY(c, mc), this.floor) !== null
+          activeAligned &&
+            activeMc.door >= 0.95 &&
+            this.world.surfaceAt(x, z, this.groundY(c, mcA, mcB), this.floor) !== null
         );
       }
       return false;
     }
 
-    if (this.zone !== 'cabin' && (inMallDoorBox || inMallCabinBox)) {
-      return Boolean(mallAligned && mc.door >= 0.95);
+    if (this.zone !== 'cabin') {
+      if (inCarADoor || inCarACabin) {
+        return Boolean(mcA && mcA.aligned() && mcA.floor === this.floor && mcA.door >= 0.95);
+      }
+      if (inCarBDoor || inCarBCabin) {
+        return Boolean(mcB && mcB.aligned() && mcB.floor === this.floor && mcB.door >= 0.95);
+      }
     }
 
     if (this.room && this.zone !== 'cabin' && this.room.contains(x, z, this.floor)) {
@@ -129,27 +161,29 @@ export class WalkingPlayer {
     }
     if (this.zone === 'escalator') {
       if (this.escalators && this.escalators.contains(x, z)) {
-        return this.escalators.surfaceAt(x, z, this.groundY(c, mc)) !== null;
+        return this.escalators.surfaceAt(x, z, this.groundY(c, mcA, mcB)) !== null;
       }
+      const m5fWestNorthPortal = this.floor === 13 && x >= -39.4 && x <= -37.0 && this.z <= 17.35 && z < 17.2;
       // Side walls at z = 17.2 and z = 24.6 enclose the escalator lanes; exit cleanly via East/West landings
-      if (x > -35.8 && x < -26.2) {
+      if (!m5fWestNorthPortal && x > -40.0 && x < -22.0) {
         return false;
       }
       return (
         Math.abs(this.escalatorY - (this.floor - 5) * 3.5) <= 0.025 &&
         Boolean(this.world?.isMallArea?.(x, z, this.floor)) &&
-        this.world.surfaceAt(x, z, this.groundY(c, mc), this.floor) !== null
+        this.world.surfaceAt(x, z, this.groundY(c, mcA, mcB), this.floor) !== null
       );
     } else if (this.escalators && this.zone !== 'cabin' && this.escalators.contains(x, z)) {
+      const m5fWestNorthPortal = this.floor === 13 && x >= -39.4 && x <= -37.0 && this.z < 17.2;
       // Prevent walking laterally through North/South escalator balustrades into the middle of flights
-      if (x > -35.8 && x < -26.2 && (this.z < 17.2 || this.z > 24.6)) {
+      if (!m5fWestNorthPortal && x > -40.0 && x < -22.0 && (this.z < 17.2 || this.z > 24.6)) {
         return false;
       }
-      return this.escalators.surfaceAt(x, z, this.groundY(c, mc)) !== null;
+      return this.escalators.surfaceAt(x, z, this.groundY(c, mcA, mcB)) !== null;
     }
     const aligned = c.aligned() && c.floor === this.floor;
     if (this.world && this.zone !== 'cabin' && this.world.isExtendedArea(x, z, this.floor)) {
-      return this.world.surfaceAt(x, z, this.groundY(c, mc), this.floor) !== null;
+      return this.world.surfaceAt(x, z, this.groundY(c, mcA, mcB), this.floor) !== null;
     }
     if (this.stairs && this.zone !== 'cabin') {
       const y = this.groundY(c);
@@ -175,9 +209,10 @@ export class WalkingPlayer {
     return Math.abs(x) <= 0.25 && z >= 0.66 && z <= 1.4 && aligned && c.door >= 0.95;
   }
 
-  move(forward, strafe, dt, c, sprint = false, mallC = this.mallController) {
-    const mc = mallC ?? this.mallController;
-    this.sync(c, mc);
+  move(forward, strafe, dt, c, sprint = false, mallC = this.mallController, mallCB = this.mallControllerB) {
+    const mcA = mallC ?? this.mallController;
+    const mcB = mallCB ?? this.mallControllerB ?? mcA;
+    this.sync(c, mcA, mcB);
     if (c.paused || !Number.isFinite(dt) || dt <= 0) return;
     const norm = Math.hypot(forward, strafe);
     if (!norm) return;
@@ -190,18 +225,18 @@ export class WalkingPlayer {
 
     for (let i = 0; i < steps; i++) {
       const nx = this.x + dx / steps;
-      if (this.canOccupy(nx, this.z, c, mc)) this.x = nx;
+      if (this.canOccupy(nx, this.z, c, mcA, mcB)) this.x = nx;
       const nz = this.z + dz / steps;
-      if (this.canOccupy(this.x, nz, c, mc)) this.z = nz;
+      if (this.canOccupy(this.x, nz, c, mcA, mcB)) this.z = nz;
 
-      const inMallCabinBox =
-        MALL_LIFT_XS.some((lx) => Math.abs(this.x - lx) <= 1.0) &&
-        this.z >= MALL_LIFT_Z - 0.85 &&
-        this.z <= MALL_LIFT_Z + 0.85;
+      const inCarACabin =
+        Math.abs(this.x - MALL_LIFT_X) <= 1.0 && this.z >= MALL_LIFT_Z - 0.85 && this.z <= MALL_LIFT_Z + 0.85;
+      const inCarBCabin =
+        Math.abs(this.x - MALL_LIFT_2_X) <= 1.0 && this.z >= MALL_LIFT_Z - 0.85 && this.z <= MALL_LIFT_Z + 0.85;
 
-      if (inMallCabinBox) {
+      if (inCarACabin || inCarBCabin) {
         this.zone = 'mallCabin';
-        this.activeMallCar = Math.abs(this.x - MALL_LIFT_2_X) < Math.abs(this.x - MALL_LIFT_X) ? 'B' : 'A';
+        this.activeMallCar = inCarBCabin ? 'B' : 'A';
       } else if (this.zone === 'mallCabin' && this.z < MALL_LIFT_Z + 1.6) {
         // Walking through Mall elevator doorway — stay coupled to mallCabin until clear on the landing
       } else if (this.room && this.room.contains(this.x, this.z, this.floor) && this.zone !== 'cabin') {
@@ -209,15 +244,18 @@ export class WalkingPlayer {
       } else if (this.pool && this.pool.contains(this.x, this.z, this.floor) && this.zone !== 'cabin') {
         this.zone = 'pool';
       } else if (this.escalators && this.escalators.contains(this.x, this.z) && this.zone !== 'cabin') {
-        const y = this.escalators.surfaceAt(this.x, this.z, this.groundY(c, mc));
+        const y = this.escalators.surfaceAt(this.x, this.z, this.groundY(c, mcA, mcB));
         if (y !== null) {
           this.escalatorY = y;
           this.zone = 'escalator';
-          this.floor = Math.max(0, Math.min(14, Math.round(y / 3.5) + 5));
+          this.floor = this.escalators.nearestStop?.(y) ?? Math.max(0, Math.min(14, Math.round(y / 3.5) + 5));
         }
       } else if (this.world && this.zone !== 'cabin' && this.world.isExtendedArea(this.x, this.z, this.floor)) {
-        if (this.zone === 'mallCabin' && mc) this.floor = mc.floor;
-        const height = this.world.surfaceAt(this.x, this.z, this.groundY(c, mc), this.floor);
+        if (this.zone === 'mallCabin') {
+          const activeMc = this.getMallController(this.activeMallCar, mcA, mcB);
+          if (activeMc) this.floor = activeMc.floor;
+        }
+        const height = this.world.surfaceAt(this.x, this.z, this.groundY(c, mcA, mcB), this.floor);
         if (height !== null) {
           this.worldY = height;
           const cap = this.world.isMallArea(this.x, this.z, Math.round(height / 3.5) + 5)
@@ -229,7 +267,7 @@ export class WalkingPlayer {
           this.zone = this.world.isRamp(this.x, this.z, height) ? 'ramp' : 'lobby';
         }
       } else if (this.stairs && this.x > 2.28 && this.zone !== 'cabin') {
-        const height = this.stairs.surfaceAt(this.x, this.z, this.groundY(c, mc));
+        const height = this.stairs.surfaceAt(this.x, this.z, this.groundY(c, mcA, mcB));
         if (height !== null) {
           this.stairY = height;
           this.zone = 'stairs';
@@ -242,6 +280,6 @@ export class WalkingPlayer {
         this.zone = 'lobby';
       }
     }
-    this.sync(c, mc);
+    this.sync(c, mcA, mcB);
   }
 }
